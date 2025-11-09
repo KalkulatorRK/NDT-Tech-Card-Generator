@@ -1,0 +1,5 @@
+{
+  "name": "NDT Tech Card Generator",
+  "description": "An application to automate the creation of non-destructive testing (NDT) technological cards and assess weld quality based on specified standards. Users can input control object parameters to generate formatted tech cards.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Контакты и поддержка{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="section-title">Контакты и поддержка</h1>
+
+  <div class="row gy-4 mb-5">
+    <div class="col-md-4">
+      <div class="card h-100 text-center p-4">
+        <div class="feature-icon"><i class="bi bi-envelope-fill"></i></div>
+        <h5 class="fw-bold">Email</h5>
+        <p class="text-muted small">По вопросам технической поддержки и сотрудничества</p>
+        <a href="mailto:{{ SUPPORT_EMAIL }}" class="btn btn-outline-primary">
+          {{ SUPPORT_EMAIL }}
+        </a>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 text-center p-4">
+        <div class="feature-icon"><i class="bi bi-telegram"></i></div>
+        <h5 class="fw-bold">Telegram</h5>
+        <p class="text-muted small">Оперативная связь с разработчиком</p>
+        <a href="{{ TELEGRAM_LINK }}" target="_blank" class="btn btn-outline-primary">
+          <i class="bi bi-send me-1"></i>Написать в Telegram
+        </a>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 text-center p-4">
+        <div class="feature-icon"><i class="bi bi-clock-history"></i></div>
+        <h5 class="fw-bold">Время работы</h5>
+        <p class="text-muted small">Пн – Пт: 9:00 – 18:00 МСК</p>
+        <p class="text-muted small">Ответ в течение 24 часов</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <h2 class="section-title">Частые вопросы</h2>
+  <div class="accordion" id="faqAccordion">
+    {% for item in faq %}
+    <div class="accordion-item border mb-2" style="border-radius:12px!important;overflow:hidden">
+      <h3 class="accordion-header">
+        <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-semibold"
+                type="button" data-bs-toggle="collapse"
+                data-bs-target="#faq{{ forloop.counter }}">
+          <i class="bi bi-question-circle me-2 text-primary"></i>{{ item.q }}
+        </button>
+      </h3>
+      <div id="faq{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}">
+        <div class="accordion-body text-muted">
+          {{ item.a }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

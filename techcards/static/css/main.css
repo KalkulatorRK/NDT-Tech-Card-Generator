@@ -1,0 +1,243 @@
+/* NDT TechCards — main stylesheet */
+
+:root {
+  --primary:    #4a90a4;
+  --primary-dk: #3a7a8e;
+  --secondary:  #6db3c3;
+  --accent:     #e8f4f8;
+  --success:    #57a57b;
+  --danger:     #d9534f;
+  --warning:    #f0ad4e;
+  --text-dark:  #2c3e50;
+  --text-muted: #7f8c8d;
+  --border:     #dce8ed;
+  --bg-light:   #f4f8fa;
+  --radius:     12px;
+  --shadow:     0 2px 16px rgba(74,144,164,.12);
+}
+
+/* ── Global ────────────────────────────────────────────── */
+body {
+  font-family: 'Nunito', 'Segoe UI', Roboto, Arial, sans-serif;
+  color: var(--text-dark);
+  background: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main { flex: 1; }
+
+a { color: var(--primary); }
+a:hover { color: var(--primary-dk); }
+
+/* ── Navbar ─────────────────────────────────────────────── */
+.navbar-brand {
+  font-weight: 800;
+  letter-spacing: -.3px;
+  color: #fff !important;
+}
+.navbar-brand span { color: #b2e0ec; }
+
+.navbar { background: linear-gradient(135deg, var(--primary-dk) 0%, var(--primary) 100%); }
+.nav-link { color: rgba(255,255,255,.85) !important; font-weight: 600; }
+.nav-link:hover, .nav-link.active { color: #fff !important; }
+
+/* ── Hero / Banner ──────────────────────────────────────── */
+.hero {
+  background: linear-gradient(135deg, var(--primary-dk) 0%, #5baabf 50%, #7ecbd9 100%);
+  color: #fff;
+  padding: 80px 0 60px;
+  border-radius: 0 0 40px 40px;
+  margin-bottom: 48px;
+}
+.hero h1 { font-weight: 800; font-size: 2.4rem; line-height: 1.2; }
+.hero p  { font-size: 1.1rem; opacity: .9; }
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform .2s, box-shadow .2s;
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(74,144,164,.2); }
+
+.card-header {
+  background: var(--accent);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0 !important;
+  font-weight: 700;
+  color: var(--primary-dk);
+}
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+.btn-primary:hover {
+  background: var(--primary-dk);
+  border-color: var(--primary-dk);
+}
+.btn-outline-primary {
+  color: var(--primary);
+  border-color: var(--primary);
+  border-radius: 8px;
+  font-weight: 600;
+}
+.btn-outline-primary:hover { background: var(--primary); color: #fff; }
+
+.btn-success  { background: var(--success); border-color: var(--success); border-radius: 8px; }
+.btn-lg { padding: .65rem 1.5rem; font-size: 1.05rem; }
+
+/* ── Feature icons ──────────────────────────────────────── */
+.feature-icon {
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-size: 1.8rem;
+  margin: 0 auto 16px;
+  background: var(--accent);
+  color: var(--primary);
+}
+
+/* ── Quota badge ────────────────────────────────────────── */
+.quota-badge {
+  background: var(--accent);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--primary-dk);
+}
+.quota-number { font-size: 2.5rem; line-height: 1; display: block; }
+
+/* ── Table enhancements ─────────────────────────────────── */
+.table { border-radius: var(--radius); overflow: hidden; }
+.table thead th { background: var(--primary); color: #fff; font-weight: 700; }
+.table-hover tbody tr:hover { background: var(--accent); }
+
+/* ── Forms ──────────────────────────────────────────────── */
+.form-control, .form-select {
+  border-radius: 8px;
+  border-color: var(--border);
+  padding: .55rem .9rem;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(74,144,164,.15);
+}
+label { font-weight: 600; color: var(--text-dark); }
+.form-text { color: var(--text-muted); font-size: .85rem; }
+
+/* ── Result badges ──────────────────────────────────────── */
+.result-acceptable   { color: var(--success); font-weight: 700; }
+.result-unacceptable { color: var(--danger);  font-weight: 700; }
+.result-review       { color: var(--warning); font-weight: 700; }
+
+/* ── Tariff cards ───────────────────────────────────────── */
+.tariff-card {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color .2s, transform .2s;
+  overflow: hidden;
+}
+.tariff-card.recommended {
+  border-color: var(--primary);
+  transform: scale(1.04);
+  box-shadow: 0 8px 32px rgba(74,144,164,.25);
+}
+.tariff-header {
+  background: var(--primary);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+.tariff-price { font-size: 2.4rem; font-weight: 800; }
+.tariff-per   { font-size: .85rem; opacity: .85; }
+
+/* ── Footer ─────────────────────────────────────────────── */
+footer {
+  background: var(--text-dark);
+  color: rgba(255,255,255,.7);
+  padding: 40px 0 20px;
+  margin-top: auto;
+}
+footer h6 { color: #fff; font-weight: 700; }
+footer a  { color: rgba(255,255,255,.7); text-decoration: none; }
+footer a:hover { color: #fff; }
+
+/* ── Wizard steps ───────────────────────────────────────── */
+.step-indicator {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+.step-indicator .step {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: .9rem;
+}
+.step-indicator .step.active {
+  background: var(--primary);
+  color: #fff;
+}
+.step-indicator .step.done {
+  background: var(--success);
+  color: #fff;
+}
+
+/* ── Alerts ─────────────────────────────────────────────── */
+.alert { border-radius: var(--radius); border: none; }
+.alert-info    { background: #e3f2fd; color: #1565c0; }
+.alert-success { background: #e8f5e9; color: #2e7d32; }
+.alert-warning { background: #fff8e1; color: #e65100; }
+.alert-danger  { background: #fce4ec; color: #b71c1c; }
+
+/* ── Page section titles ─────────────────────────────────── */
+.section-title {
+  font-weight: 800;
+  color: var(--text-dark);
+  position: relative;
+  padding-bottom: 12px;
+  margin-bottom: 32px;
+}
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 60px; height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+/* ── Cabinet file list ──────────────────────────────────── */
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  background: #fff;
+}
+.file-card:hover { background: var(--accent); }
+.file-icon { font-size: 1.6rem; }
+
+/* ── Mobile tweaks ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero { padding: 50px 0 40px; border-radius: 0 0 24px 24px; }
+  .hero h1 { font-size: 1.7rem; }
+  .tariff-card.recommended { transform: scale(1); }
+}

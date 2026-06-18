@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Тарифы{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="section-title text-center" style="margin: 0 auto 32px;">Тарифные планы</h1>
+
+  {% if user.is_authenticated %}
+  <div class="text-center mb-5">
+    <div class="d-inline-block quota-badge px-5 py-3">
+      <span class="quota-number">{{ user_quota }}</span>
+      <span class="d-block mt-1 fw-normal">операций доступно</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-center text-muted mb-4">
+    <i class="bi bi-info-circle me-1"></i>
+    Первая техкарта по каждому нормативному документу предоставляется <strong>бесплатно</strong>.
+  </p>
+
+  <div class="row gy-4 justify-content-center mb-5">
+    {% for tariff in tariffs %}
+    <div class="col-sm-6 col-md-4 col-lg-2-5">
+      <div class="tariff-card {% if tariff.cards_count == 5 %}recommended{% endif %} h-100">
+        {% if tariff.cards_count == 5 %}
+        <div class="text-center py-1 bg-primary" style="font-size:.8rem;color:#fff;font-weight:700;">
+          ВЫГОДНО
+        </div>
+        {% endif %}
+        <div class="tariff-header">
+          <div class="tariff-price">{{ tariff.cards_count }}</div>
+          <div>техкарт{% if tariff.cards_count > 1 and tariff.cards_count < 5 %}ы{% elif tariff.cards_count >= 5 %}{% endif %}</div>
+        </div>
+        <div class="p-4 text-center">
+          <div style="font-size:1.8rem;font-weight:800;color:#2c3e50;">{{ tariff.price }} ₽</div>
+          <div class="text-muted small mb-3">{{ tariff.price_per_card }} ₽ / техкарта</div>
+          {% if user.is_authenticated %}
+          <form method="post" action="{% url 'payments:pay' tariff.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-credit-card me-1"></i>Оплатить
+            </button>
+          </form>
+          {% else %}
+          <a href="{% url 'account_login' %}" class="btn btn-outline-primary w-100">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Войти для оплаты
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted">Тарифы ещё не настроены.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Payment info -->
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="fw-bold mb-3"><i class="bi bi-shield-check me-2 text-primary"></i>Безопасная оплата</h5>
+          <p class="text-muted small">
+            Оплата осуществляется через платёжный сервис <strong>ЮKassa</strong> (YooMoney) —
+            одну из ведущих платёжных систем России. Поддерживаются банковские карты Visa,
+            Mastercard, МИР, а также электронные кошельки.
+          </p>
+          <p class="text-muted small mb-0">
+            <i class="bi bi-lock me-1"></i>Данные карты защищены по стандарту PCI DSS.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

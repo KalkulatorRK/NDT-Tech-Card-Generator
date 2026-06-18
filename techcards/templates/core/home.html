@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container text-center">
+    <h1 class="mb-3">
+      <i class="bi bi-layers-fill me-2"></i>НК ТехКарты
+    </h1>
+    <p class="lead mb-4 mx-auto" style="max-width:600px;">
+      Автоматическая разработка технологических карт неразрушающего контроля
+      и оценка качества сварных соединений по нормативным документам
+    </p>
+    <div class="d-flex flex-wrap gap-3 justify-content-center">
+      <a href="{% url 'cards:wizard_step1' %}" class="btn btn-light btn-lg fw-bold px-4">
+        <i class="bi bi-file-earmark-plus me-2"></i>Создать техкарту
+      </a>
+      <a href="{% url 'quality:home' %}" class="btn btn-outline-light btn-lg px-4">
+        <i class="bi bi-clipboard2-check me-2"></i>Оценить качество
+      </a>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+
+  <!-- Counter + Example row -->
+  <div class="row gy-4 mb-5">
+    <div class="col-md-4">
+      <div class="quota-badge h-100 d-flex flex-column justify-content-center">
+        {% if user.is_authenticated %}
+          <span class="quota-number">{{ user_quota }}</span>
+          <span class="mt-1 text-muted fw-normal fs-6">доступных разработок техкарт</span>
+          {% if user_quota == 0 %}
+            <a href="{% url 'payments:tariffs' %}" class="btn btn-primary mt-3">
+              <i class="bi bi-cart-plus me-1"></i>Пополнить
+            </a>
+          {% endif %}
+        {% else %}
+          <span class="quota-number">1</span>
+          <span class="mt-1 text-muted fw-normal fs-6">бесплатная разработка<br>по каждому нормативному документу</span>
+          <a href="{% url 'account_signup' %}" class="btn btn-primary mt-3">
+            <i class="bi bi-person-plus me-1"></i>Зарегистрироваться
+          </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-eye me-2"></i>Пример техкарты</div>
+        <div class="card-body d-flex flex-column">
+          <p class="text-muted small">Посмотрите, как выглядит готовая технологическая карта неразрушающего контроля, которую создаёт приложение.</p>
+          <a href="{% url 'cards:card_example' %}" class="btn btn-outline-primary mt-auto">
+            <i class="bi bi-file-earmark-text me-1"></i>Открыть пример
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-shield-check me-2"></i>Оценка качества</div>
+        <div class="card-body d-flex flex-column">
+          <p class="text-muted small">Бесплатная оценка допустимости выявленных дефектов сварных соединений по ГОСТ, НП, РД и другим нормативным документам.</p>
+          <a href="{% url 'quality:home' %}" class="btn btn-outline-primary mt-auto">
+            <i class="bi bi-clipboard2-check me-1"></i>Перейти к оценке
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <h2 class="section-title">Возможности приложения</h2>
+  <div class="row gy-4 mb-5">
+    {% for feature in features %}
+    {% empty %}
+    <div class="col-md-3">
+      <div class="card h-100 text-center p-3">
+        <div class="feature-icon"><i class="bi bi-file-earmark-check"></i></div>
+        <h5 class="fw-bold">Разработка техкарт</h5>
+        <p class="text-muted small">Автоматическое заполнение технологических карт НК по нормативным документам: ГОСТ 7512, РД 03-606-03 и другим.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 text-center p-3">
+        <div class="feature-icon"><i class="bi bi-bar-chart-steps"></i></div>
+        <h5 class="fw-bold">Оценка качества</h5>
+        <p class="text-muted small">Автоматическая оценка допустимости дефектов сварных соединений в соответствии с требованиями нормативных документов.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 text-center p-3">
+        <div class="feature-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+        <h5 class="fw-bold">DOCX и PDF файлы</h5>
+        <p class="text-muted small">Готовые техкарты сохраняются в форматах Word и PDF, доступны для скачивания, просмотра и редактирования.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 text-center p-3">
+        <div class="feature-icon"><i class="bi bi-journal-bookmark"></i></div>
+        <h5 class="fw-bold">База нормативов</h5>
+        <p class="text-muted small">Поддержка ГОСТ 7512, РД 03-606-03, ГОСТ Р ИСО 17637, НП-105-18, ГОСТ Р ИСО 3452 и других стандартов.</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- NDT Methods -->
+  <h2 class="section-title">Поддерживаемые методы НК</h2>
+  <div class="row gy-3 mb-5">
+    {% for method in methods %}
+    <div class="col-md-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="fw-bold text-primary">{{ method.code }}</h5>
+          <p class="small mb-2">{{ method.name }}</p>
+          <ul class="list-unstyled small text-muted mb-0">
+            {% for doc in method.documents.all %}
+            {% if doc.is_active %}
+            <li><i class="bi bi-check2-circle text-success me-1"></i>{{ doc.short_name|default:doc.code }}</li>
+            {% endif %}
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted py-4">
+      <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+      Нормативные документы загружаются при первом запуске. Выполните миграции базы данных.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Changelog -->
+  {% if changelog %}
+  <h2 class="section-title">Обновления и изменения</h2>
+  <div class="row mb-5">
+    <div class="col-lg-8">
+      {% for entry in changelog %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <h6 class="fw-bold mb-1">{{ entry.title }}</h6>
+            <span class="badge bg-secondary ms-2 flex-shrink-0">{{ entry.published_at|date:"d.m.Y" }}</span>
+          </div>
+          <p class="text-muted small mb-0">{{ entry.body }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ card.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+  <div class="step-indicator mb-4">
+    <div class="step done">1. Выбор документа</div>
+    <div class="step done">2. Ввод данных</div>
+    <div class="step active">3. Готово</div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1">{{ card.title }}</h1>
+      <p class="text-muted mb-0">
+        {{ card.normative_doc.code }} &bull; {{ card.created_at|date:"d.m.Y H:i" }}
+        {% if card.is_free %}<span class="badge bg-success ms-1">Бесплатная разработка</span>{% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if card.status == 'generated' %}
+      <a href="{% url 'cards:download_docx' card.pk %}" class="btn btn-primary">
+        <i class="bi bi-file-earmark-word me-1"></i>Скачать DOCX
+      </a>
+      <a href="{% url 'cards:download_pdf' card.pk %}" class="btn btn-danger">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Скачать PDF
+      </a>
+      {% endif %}
+      <a href="{% url 'accounts:cabinet' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+      </a>
+    </div>
+  </div>
+
+  {% if card.status == 'error' %}
+  <div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Ошибка генерации:</strong> {{ card.error_message }}
+  </div>
+  {% endif %}
+
+  <div class="row gy-4">
+    <!-- Generated card data -->
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-table me-2"></i>Содержание технологической карты</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr><th>Параметр</th><th>Значение</th></tr>
+              </thead>
+              <tbody>
+                {% for key, value in card.generated_data.items %}
+                {% if value and key != 'method_code' %}
+                <tr>
+                  <td class="fw-semibold text-muted small">{{ key }}</td>
+                  <td>{{ value }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input data summary -->
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-input-cursor-text me-2"></i>Исходные данные</div>
+        <div class="card-body">
+          {% for key, value in card.input_data.items %}
+          {% if value %}
+          <div class="mb-2">
+            <span class="text-muted small d-block">{{ key }}</span>
+            <span class="fw-semibold small">{{ value }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete button -->
+  <div class="mt-4">
+    <form method="post" action="{% url 'cards:card_delete' card.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm"
+              data-confirm="Удалить эту техкарту без возможности восстановления?">
+        <i class="bi bi-trash me-1"></i>Удалить техкарту
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

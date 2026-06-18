@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Разработка техкарты — {{ doc.code }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <!-- Steps indicator -->
+      <div class="step-indicator mb-4">
+        <div class="step done">1. Выбор документа</div>
+        <div class="step active">2. Ввод данных</div>
+        <div class="step">3. Готово</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <i class="bi bi-input-cursor-text me-2"></i>
+          Шаг 2: Исходные данные — <strong>{{ doc.code }}</strong>
+        </div>
+        <div class="card-body p-4">
+          <p class="text-muted small mb-4">{{ doc.name }}</p>
+
+          {% if not allowed %}
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>{{ access_reason }}
+            <a href="{% url 'payments:tariffs' %}" class="btn btn-warning btn-sm ms-2">Оплатить</a>
+          </div>
+          {% elif is_free %}
+          <div class="alert alert-success">
+            <i class="bi bi-gift me-2"></i><strong>Бесплатная разработка!</strong>
+            Это ваша первая техкарта по документу {{ doc.code }}.
+          </div>
+          {% else %}
+          <div class="alert alert-info">
+            <i class="bi bi-wallet2 me-2"></i>
+            Будет использован 1 слот из вашего оплаченного лимита (доступно: <strong>{{ request.user.tech_card_quota }}</strong>).
+          </div>
+          {% endif %}
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="row gy-3">
+              {% for field in form %}
+              <div class="col-md-6">
+                <label for="{{ field.id_for_label }}" class="form-label">
+                  {{ field.label }}
+                  {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% if field.errors %}
+                <div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+              {% if allowed %}
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-gear me-1"></i>Создать техкарту
+              </button>
+              {% endif %}
+              <a href="{% url 'cards:wizard_step1' %}" class="btn btn-outline-secondary btn-lg">
+                <i class="bi bi-arrow-left me-1"></i>Назад
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

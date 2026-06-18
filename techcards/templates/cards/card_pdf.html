@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
+  h1 { font-size: 14pt; text-align: center; margin-bottom: 4px; }
+  h2 { font-size: 11pt; text-align: center; color: #555; margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #aaa; padding: 5px 8px; }
+  th { background: #d0e8f0; text-align: left; font-weight: bold; }
+  .sign-table td { padding: 8px; }
+  .footer { text-align: right; font-size: 9pt; color: #888; margin-top: 16px; }
+</style>
+</head>
+<body>
+<h1>ТЕХНОЛОГИЧЕСКАЯ КАРТА</h1>
+<h2>неразрушающего контроля ({{ card.normative_doc.code }})</h2>
+<p style="text-align:center;color:#666;font-size:9pt;">{{ card.normative_doc.name }}</p>
+
+<table>
+  <thead><tr><th>Параметр</th><th>Значение</th></tr></thead>
+  <tbody>
+    {% for key, value in card.generated_data.items %}
+    {% if value and key != 'method_code' %}
+    <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+
+<br><br>
+<table class="sign-table">
+  <tr><td width="30%">Разработал</td><td>________________</td><td width="35%">«___» ____________ 20___ г.</td></tr>
+  <tr><td>Проверил</td><td>________________</td><td>«___» ____________ 20___ г.</td></tr>
+  <tr><td>Утвердил</td><td>________________</td><td>«___» ____________ 20___ г.</td></tr>
+</table>
+
+<p class="footer">Создано: {{ card.created_at|date:"d.m.Y H:i" }} | НКТехКарты</p>
+</body>
+</html>

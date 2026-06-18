@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Оценка качества — {{ doc.code }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="section-title">Оценка качества сварного соединения</h1>
+  <p class="text-muted mb-1"><strong>Нормативный документ:</strong> {{ doc.code }}</p>
+  <p class="text-muted mb-4 small">{{ doc.name }}</p>
+
+  {% if access_msg %}
+  <div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle me-2"></i>{{ access_msg }}
+  </div>
+  {% endif %}
+
+  <!-- Acceptance Criteria Table -->
+  <div class="card mb-5">
+    <div class="card-header">
+      <i class="bi bi-table me-2"></i>Нормы допустимых дефектов ({{ doc.code }})
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Тип дефекта</th><th>Параметр</th><th>Допустимое значение</th><th>Примечание</th></tr></thead>
+          <tbody>
+            {% for c in criteria %}
+            <tr>
+              <td class="fw-semibold">{{ c.defect_type }}</td>
+              <td>{{ c.parameter }}</td>
+              <td>{{ c.max_allowed }}</td>
+              <td class="text-muted small">{{ c.note }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted">Критерии не загружены</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Defect entry form -->
+  <form method="post" id="defect-formset-form" novalidate>
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 fw-bold mb-0">Введите данные о дефектах</h2>
+      <button type="button" id="add-defect-form" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Добавить дефект
+      </button>
+    </div>
+
+    <div id="defect-formset">
+      {% for form in formset %}
+      <div class="card mb-3 defect-form-row">
+        <div class="card-body">
+          <div class="row gy-2">
+            <div class="col-md-4">
+              <label class="form-label">{{ form.defect_type.label }}</label>
+              {{ form.defect_type }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ form.size_mm.label }}</label>
+              {{ form.size_mm }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ form.count.label }}</label>
+              {{ form.count }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ form.weld_category.label }}</label>
+              {{ form.weld_category }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ form.thickness_mm.label }}</label>
+              {{ form.thickness_mm }}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" name="evaluate" class="btn btn-primary btn-lg">
+        <i class="bi bi-check2-circle me-1"></i>Оценить дефекты
+      </button>
+      {% if results %}
+      <button type="submit" name="download_pdf" class="btn btn-danger">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Скачать результат PDF
+      </button>
+      {% endif %}
+      <a href="{% url 'quality:home' %}" class="btn btn-outline-secondary btn-lg">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+      </a>
+    </div>
+  </form>
+
+  <!-- Results table -->
+  {% if results %}
+  <div class="mt-5">
+    <h2 class="section-title">Результаты оценки</h2>
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Тип дефекта</th>
+                <th>Измеренное значение</th>
+                <th>Допустимое значение</th>
+                <th>Результат</th>
+                <th>Примечание</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in results %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="fw-semibold">{{ r.defect_type }}</td>
+                <td>{{ r.measured }}</td>
+                <td>{{ r.allowable }}</td>
+                <td>
+                  {% if r.result == 'acceptable' %}
+                  <span class="result-acceptable"><i class="bi bi-check-circle-fill me-1"></i>Допустимо</span>
+                  {% elif r.result == 'unacceptable' %}
+                  <span class="result-unacceptable"><i class="bi bi-x-circle-fill me-1"></i>Недопустимо</span>
+                  {% else %}
+                  <span class="result-review"><i class="bi bi-question-circle-fill me-1"></i>Требует оценки</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted small">{{ r.note }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    {% with acceptable=results|length %}
+    <div class="mt-3 d-flex gap-3">
+      <div class="alert alert-success py-2 px-3 mb-0">
+        <i class="bi bi-check-circle me-1"></i>
+        Всего оценено: <strong>{{ results|length }}</strong>
+      </div>
+    </div>
+    {% endwith %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

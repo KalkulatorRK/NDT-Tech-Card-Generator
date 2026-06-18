@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5 col-lg-4">
+      <div class="text-center mb-4">
+        <i class="bi bi-layers-fill fs-1 text-primary"></i>
+        <h1 class="h3 fw-bold mt-2">НКТехКарты</h1>
+        <p class="text-muted">Войдите в личный кабинет</p>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form|crispy }}
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+            <button type="submit" class="btn btn-primary w-100 mt-3 btn-lg">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Войти
+            </button>
+          </form>
+          <hr>
+          <p class="text-center text-muted small mb-0">
+            Нет аккаунта?
+            <a href="{% url 'account_signup' %}">Зарегистрироваться</a>
+          </p>
+          <p class="text-center text-muted small mt-2 mb-0">
+            <a href="{% url 'account_reset_password' %}">Забыли пароль?</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Личный кабинет{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row gy-4">
+
+    <!-- Left column: user info + quota -->
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-person-circle me-2"></i>Профиль</div>
+        <div class="card-body">
+          <p class="mb-1"><strong>{{ user.get_full_name|default:user.username }}</strong></p>
+          <p class="text-muted small mb-1">{{ user.email }}</p>
+          {% if user.organization %}<p class="text-muted small mb-1">{{ user.organization }}</p>{% endif %}
+          {% if user.phone %}<p class="text-muted small mb-1">{{ user.phone }}</p>{% endif %}
+          <a href="{% url 'accounts:profile_edit' %}" class="btn btn-outline-primary btn-sm mt-2">
+            <i class="bi bi-pencil me-1"></i>Редактировать
+          </a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><i class="bi bi-wallet2 me-2"></i>Лимит разработок</div>
+        <div class="card-body text-center">
+          <div class="quota-badge">
+            <span class="quota-number text-primary">{{ tech_card_quota }}</span>
+            <span class="d-block mt-1 fw-normal fs-6 text-muted">
+              {% if tech_card_quota == 1 %}операция доступна{% elif tech_card_quota > 1 %}операций доступно{% else %}операций нет{% endif %}
+            </span>
+          </div>
+          <p class="text-muted small mt-3 mb-2">
+            Вам доступно <strong>{{ tech_card_quota }}</strong>
+            {% if tech_card_quota == 1 %}операция{% elif tech_card_quota > 1 %}операции{% else %}операций{% endif %}
+            разработки техкарт
+          </p>
+          <a href="{% url 'payments:tariffs' %}" class="btn btn-primary w-100">
+            <i class="bi bi-cart-plus me-1"></i>Пополнить счётчик
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: tech cards -->
+    <div class="col-lg-8">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h4 fw-bold mb-0">Мои технологические карты</h2>
+        <a href="{% url 'cards:wizard_step1' %}" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i>Создать новую
+        </a>
+      </div>
+
+      {% if tech_cards %}
+      {% for card in tech_cards %}
+      <div class="file-card">
+        <span class="file-icon">
+          {% if card.status == 'generated' %}<i class="bi bi-file-earmark-text text-primary"></i>
+          {% elif card.status == 'error' %}<i class="bi bi-exclamation-triangle text-danger"></i>
+          {% else %}<i class="bi bi-hourglass-split text-warning"></i>{% endif %}
+        </span>
+        <div class="flex-grow-1">
+          <a href="{% url 'cards:card_detail' card.pk %}" class="fw-bold text-dark text-decoration-none">
+            {{ card.title }}
+          </a>
+          <div class="text-muted small">
+            {{ card.normative_doc.code }} &bull; {{ card.created_at|date:"d.m.Y H:i" }}
+            {% if card.is_free %}<span class="badge bg-success ms-1">Бесплатно</span>{% endif %}
+          </div>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0">
+          {% if card.status == 'generated' %}
+          <a href="{% url 'cards:download_docx' card.pk %}" class="btn btn-outline-primary btn-sm" title="Скачать DOCX">
+            <i class="bi bi-file-earmark-word"></i>
+          </a>
+          <a href="{% url 'cards:download_pdf' card.pk %}" class="btn btn-outline-danger btn-sm" title="Скачать PDF">
+            <i class="bi bi-file-earmark-pdf"></i>
+          </a>
+          {% endif %}
+          <form method="post" action="{% url 'cards:card_delete' card.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                    data-confirm="Удалить эту техкарту?"
+                    title="Удалить">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-folder2-open fs-1 d-block mb-3"></i>
+        <p>У вас пока нет разработанных техкарт.</p>
+        <a href="{% url 'cards:wizard_step1' %}" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i>Создать первую техкарту
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}История платежей{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="section-title">История платежей</h1>
+
+  {% if transactions %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>#</th><th>Дата</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>ID платежа</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+        <tr>
+          <td>{{ tx.pk }}</td>
+          <td>{{ tx.created_at|date:"d.m.Y H:i" }}</td>
+          <td>{{ tx.tariff }}</td>
+          <td>{{ tx.amount }} ₽</td>
+          <td>
+            {% if tx.status == 'succeeded' %}
+            <span class="badge bg-success">Оплачено</span>
+            {% elif tx.status == 'pending' %}
+            <span class="badge bg-warning text-dark">Ожидает</span>
+            {% elif tx.status == 'canceled' %}
+            <span class="badge bg-secondary">Отменено</span>
+            {% else %}
+            <span class="badge bg-danger">Ошибка</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ tx.yookassa_payment_id|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-receipt fs-1 d-block mb-3"></i>
+    <p>У вас пока нет платёжных транзакций.</p>
+    <a href="{% url 'payments:tariffs' %}" class="btn btn-primary">Перейти к тарифам</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

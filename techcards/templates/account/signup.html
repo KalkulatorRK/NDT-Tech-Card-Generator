@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="text-center mb-4">
+        <i class="bi bi-layers-fill fs-1 text-primary"></i>
+        <h1 class="h3 fw-bold mt-2">Регистрация</h1>
+        <p class="text-muted">Создайте аккаунт для работы с приложением</p>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-primary w-100 mt-3 btn-lg">
+              <i class="bi bi-person-plus me-1"></i>Зарегистрироваться
+            </button>
+          </form>
+          <hr>
+          <p class="text-center text-muted small mb-0">
+            Уже есть аккаунт?
+            <a href="{% url 'account_login' %}">Войти</a>
+          </p>
+        </div>
+      </div>
+      <div class="alert alert-success mt-3 small">
+        <i class="bi bi-gift me-1"></i>
+        После регистрации вы получите <strong>бесплатную</strong> первую разработку
+        по каждому нормативному документу!
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

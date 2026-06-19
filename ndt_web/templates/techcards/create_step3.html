@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Создание техкарты — Шаг 3{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      {% include "techcards/_steps.html" %}
+
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-3-circle me-2"></i>
+          Шаг 3: Источник излучения и геометрия просвечивания
+        </div>
+
+        <!-- Информация о доступных источниках -->
+        {% if suitable_sources %}
+        <div class="mb-4">
+          <strong>Источники для толщины {{ wall_thickness }} мм:</strong>
+          <div class="row g-2 mt-1">
+            {% for src in suitable_sources %}
+            <div class="col-md-6">
+              <div class="p-2 rounded border" style="font-size:0.83rem;
+                   background:{% if src.is_optimal %}#f0fdf4{% else %}#fff{% endif %};">
+                {% if src.is_optimal %}
+                  <i class="bi bi-check-circle-fill text-success me-1"></i>
+                {% else %}
+                  <i class="bi bi-circle me-1 text-muted"></i>
+                {% endif %}
+                <strong>{{ src.name }}</strong> — {{ src.energy_display }}
+                <br><span class="text-muted">
+                  Диапазон: {{ src.thickness_min }}–{{ src.thickness_max }} мм
+                  {% if src.is_optimal %}(оптимально){% endif %}
+                </span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div id="sources-info" class="info-box mt-2" style="display:none;"></div>
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.source_code.label }}</label>
+              {{ form.source_code }}
+              {% if form.source_code.help_text %}<div class="form-text">{{ form.source_code.help_text }}</div>{% endif %}
+              {% if form.source_code.errors %}<div class="text-danger small">{{ form.source_code.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.focal_spot_mm.label }}</label>
+              {{ form.focal_spot_mm }}
+              {% if form.focal_spot_mm.help_text %}<div class="form-text">{{ form.focal_spot_mm.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.sfd_mm.label }}</label>
+              {{ form.sfd_mm }}
+              {% if form.sfd_mm.help_text %}<div class="form-text">{{ form.sfd_mm.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.ofd_mm.label }}</label>
+              {{ form.ofd_mm }}
+              {% if form.ofd_mm.help_text %}<div class="form-text">{{ form.ofd_mm.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.source_activity.label }}</label>
+              {{ form.source_activity }}
+              {% if form.source_activity.help_text %}<div class="form-text">{{ form.source_activity.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.film_name.label }}</label>
+              {{ form.film_name }}
+              {% if form.film_name.help_text %}<div class="form-text">{{ form.film_name.help_text }}</div>{% endif %}
+            </div>
+          </div>
+
+          {% if form.non_field_errors %}
+          <div class="danger-box mt-3">{{ form.non_field_errors.0 }}</div>
+          {% endif %}
+
+          <div class="info-box mt-3">
+            <i class="bi bi-calculator me-1"></i>
+            Геометрическая нерезкость, класс чувствительности и схема просвечивания
+            рассчитываются автоматически на следующем шаге.
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'create_step2' doc.code %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Назад
+            </a>
+            <button type="submit" class="btn btn-primary">
+              Далее <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

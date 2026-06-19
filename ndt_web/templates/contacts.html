@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Контакты и поддержка{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4">
+    <i class="bi bi-envelope me-2" style="color:var(--primary);"></i>Контакты и поддержка
+  </h2>
+
+  <div class="row g-4">
+    <div class="col-md-5">
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-chat-dots me-2"></i>Связь с разработчиком
+        </div>
+        <p class="text-muted" style="font-size:0.9rem;">
+          По вопросам работы приложения, техническим ошибкам и предложениям
+          вы можете обратиться по следующим контактам:
+        </p>
+        <ul class="list-unstyled">
+          <li class="mb-3">
+            <i class="bi bi-telegram text-primary me-2 fs-5"></i>
+            <strong>Telegram:</strong>
+            <a href="https://t.me/" target="_blank" class="ms-1">@nk_karta_dev</a>
+          </li>
+          <li class="mb-3">
+            <i class="bi bi-envelope-fill text-primary me-2 fs-5"></i>
+            <strong>Email:</strong>
+            <a href="mailto:support@nk-karta.ru" class="ms-1">support@nk-karta.ru</a>
+          </li>
+        </ul>
+        <div class="text-muted" style="font-size:0.82rem;">
+          Время ответа: в рабочие дни, в течение 24 часов.
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-7">
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-question-circle me-2"></i>Часто задаваемые вопросы
+        </div>
+
+        <div class="accordion" id="faqAccordion">
+
+          <div class="accordion-item border-0 mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button rounded" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#q1">
+                Для чего предназначено приложение?
+              </button>
+            </h2>
+            <div id="q1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+              <div class="accordion-body text-muted" style="font-size:0.9rem;">
+                Приложение «НК-Карта» автоматизирует разработку технологических карт
+                неразрушающего контроля и оценку качества сварных соединений
+                в области атомной энергетики. Оно использует встроенную нормативную базу
+                (ГОСТ Р 50.05.07-2018, НП-105-18 и др.) без обращения к внешним сервисам.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed rounded" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#q2">
+                Насколько точны расчёты техкарт?
+              </button>
+            </h2>
+            <div id="q2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body text-muted" style="font-size:0.9rem;">
+                Приложение выполняет расчёты строго по формулам и таблицам
+                нормативных документов. Точность результата зависит от корректности
+                введённых исходных данных. Перед применением в производстве рекомендуется
+                проверка результатов квалифицированным специалистом.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed rounded" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#q3">
+                Какие форматы файлов доступны для скачивания?
+              </button>
+            </h2>
+            <div id="q3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body text-muted" style="font-size:0.9rem;">
+                Технологические карты создаются в форматах DOCX (Microsoft Word)
+                и PDF. Протоколы оценки качества доступны в формате PDF.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed rounded" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#q4">
+                Какие методы контроля поддерживаются?
+              </button>
+            </h2>
+            <div id="q4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body text-muted" style="font-size:0.9rem;">
+                На текущем этапе полностью реализован модуль радиографического
+                контроля по ГОСТ Р 50.05.07-2018. Остальные методы
+                (ВИК, КК, КГ, УЗК) находятся в разработке.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed rounded" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#q5">
+                Как обновляется нормативная база в приложении?
+              </button>
+            </h2>
+            <div id="q5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body text-muted" style="font-size:0.9rem;">
+                При выходе новых редакций нормативных документов разработчик
+                обновляет соответствующие модули приложения. Информация об обновлениях
+                публикуется на главной странице.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

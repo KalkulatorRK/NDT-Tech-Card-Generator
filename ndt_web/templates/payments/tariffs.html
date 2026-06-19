@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Тарифы{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h2 class="text-center mb-2">
+    <i class="bi bi-credit-card me-2" style="color:var(--primary);"></i>Тарифные планы
+  </h2>
+  <p class="text-center text-muted mb-5">
+    Выберите удобный пакет операций для разработки технологических карт.<br>
+    Первая карта по каждому нормативному документу — <strong>бесплатно</strong>.
+  </p>
+
+  {% if user.is_authenticated and user_balance %}
+  <div class="info-box text-center mb-4">
+    <i class="bi bi-wallet2 me-1"></i>
+    Ваш текущий баланс: <strong>{{ user_balance.techcard_credits }} операций</strong>
+  </div>
+  {% endif %}
+
+  <div class="row g-4 justify-content-center mb-5">
+    {% for tariff in tariffs %}
+    <div class="col-md-4 col-lg-3">
+      <div class="tariff-card {% if tariff.is_popular %}popular{% endif %}">
+        {% if tariff.is_popular %}
+        <div class="popular-badge">Выгоднее всего</div>
+        {% endif %}
+
+        <div class="tariff-cards-count">{{ tariff.cards_count }} операций</div>
+        <div class="tariff-price">{{ tariff.price|floatformat:0 }} <span>руб.</span></div>
+        <div class="tariff-per-card">{{ tariff.price_per_card|floatformat:0 }} руб./операция</div>
+        {% if tariff.description %}
+        <div class="text-muted mb-3" style="font-size:0.85rem;">{{ tariff.description }}</div>
+        {% endif %}
+
+        {% if user.is_authenticated %}
+        <form method="post" action="{% url 'checkout' tariff.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn {% if tariff.is_popular %}btn-primary{% else %}btn-outline-primary{% endif %} w-100">
+            <i class="bi bi-cart me-1"></i>Купить
+          </button>
+        </form>
+        {% else %}
+        <a href="{% url 'login' %}?next={% url 'tariffs' %}" class="btn btn-outline-primary w-100">
+          <i class="bi bi-box-arrow-in-right me-1"></i>Войти для оплаты
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted">Тарифные планы загружаются...</div>
+    {% endfor %}
+  </div>
+
+  <!-- FAQ по оплате -->
+  <div class="card">
+    <div class="card-header-section">
+      <i class="bi bi-question-circle me-2"></i>Часто задаваемые вопросы
+    </div>
+    <div class="accordion" id="paymentFaq">
+      <div class="accordion-item border-0 mb-2">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed rounded" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#faq1">
+            Как происходит оплата?
+          </button>
+        </h2>
+        <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#paymentFaq">
+          <div class="accordion-body text-muted" style="font-size:0.9rem;">
+            Оплата производится через платёжную систему ЮKassa (Яндекс Касса).
+            Поддерживаются банковские карты, СБП, электронные кошельки.
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item border-0 mb-2">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed rounded" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#faq2">
+            Что такое «операция разработки техкарты»?
+          </button>
+        </h2>
+        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#paymentFaq">
+          <div class="accordion-body text-muted" style="font-size:0.9rem;">
+            Одна операция — это создание одной технологической карты.
+            После успешного создания карты счётчик уменьшается на 1.
+            Первая карта по каждому нормативному документу — бесплатно.
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item border-0">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed rounded" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#faq3">
+            Есть ли срок действия у купленных операций?
+          </button>
+        </h2>
+        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#paymentFaq">
+          <div class="accordion-body text-muted" style="font-size:0.9rem;">
+            Купленные операции не имеют срока действия и хранятся на вашем балансе
+            до использования.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

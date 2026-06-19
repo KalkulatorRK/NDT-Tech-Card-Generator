@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Оплата{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="text-center mb-4">
+          <i class="bi bi-credit-card-fill" style="font-size:2.5rem;color:var(--primary);"></i>
+          <h3 class="mt-2">Подтверждение оплаты</h3>
+        </div>
+
+        <div class="border rounded p-3 mb-4" style="background:#f8fafd;">
+          <div class="row">
+            <div class="col-6 text-muted">Тарифный план:</div>
+            <div class="col-6 fw-semibold text-end">{{ tariff.cards_count }} операций</div>
+          </div>
+          <hr>
+          <div class="row">
+            <div class="col-6 text-muted">Сумма к оплате:</div>
+            <div class="col-6 fw-bold fs-5 text-end text-primary">{{ tariff.price|floatformat:0 }} руб.</div>
+          </div>
+          <div class="row mt-1">
+            <div class="col-6 text-muted" style="font-size:0.85rem;">Цена за операцию:</div>
+            <div class="col-6 text-end text-muted" style="font-size:0.85rem;">{{ tariff.price_per_card|floatformat:0 }} руб.</div>
+          </div>
+        </div>
+
+        <div class="info-box mb-4">
+          <i class="bi bi-shield-check me-1"></i>
+          Оплата осуществляется через <strong>ЮKassa</strong> — надёжную
+          российскую платёжную систему. Ваши данные защищены.
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="bi bi-lock me-2"></i>Перейти к оплате {{ tariff.price|floatformat:0 }} руб.
+            </button>
+            <a href="{% url 'tariffs' %}" class="btn btn-outline-secondary">Отмена</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

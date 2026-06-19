@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Оценка качества сварного соединения{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-2">
+    <i class="bi bi-check2-circle me-2" style="color:var(--primary);"></i>
+    Оценка качества сварного соединения
+  </h2>
+  <p class="text-muted mb-4">
+    Введите параметры объекта контроля и данные об обнаруженных дефектах.
+    Система выдаст заключение в соответствии с требованиями НП-105-18.
+  </p>
+
+  {% if is_guest %}
+  <div class="info-box mb-4">
+    <i class="bi bi-info-circle me-1"></i>
+    Вы используете сервис как гость.
+    Доступно бесплатных оценок: <strong>{{ guest_remaining }}</strong> из {{ guest_limit }}.
+    <a href="{% url 'register' %}">Зарегистрируйтесь</a> для неограниченного доступа.
+  </div>
+  {% endif %}
+
+  <form method="post" novalidate id="quality-form">
+    {% csrf_token %}
+    <!-- Скрытое поле счётчика дефектов -->
+    <input type="hidden" name="defect_count" id="defect_count" value="1">
+
+    <!-- ===== Параметры объекта ===== -->
+    <div class="card mb-4">
+      <div class="card-header-section">
+        <i class="bi bi-info-circle me-2"></i>Параметры объекта контроля
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">{{ form.normative_doc.label }}</label>
+          {{ form.normative_doc }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ form.weld_category.label }}</label>
+          {{ form.weld_category }}
+          {% if form.weld_category.help_text %}
+          <div class="form-text">{{ form.weld_category.help_text }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ form.wall_thickness.label }}</label>
+          {{ form.wall_thickness }}
+          {% if form.wall_thickness.errors %}
+          <div class="text-danger small">{{ form.wall_thickness.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ form.weld_length.label }}</label>
+          {{ form.weld_length }}
+          {% if form.weld_length.help_text %}
+          <div class="form-text">{{ form.weld_length.help_text }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Дефекты ===== -->
+    <div class="card mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="card-header-section mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>Обнаруженные дефекты
+        </div>
+        <button type="button" id="add-defect-btn" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus me-1"></i>Добавить дефект
+        </button>
+      </div>
+
+      <div id="defects-container">
+        <!-- Первый дефект -->
+        <div class="defect-block" data-index="0">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Тип дефекта</label>
+              {{ initial_defect_form.defect_type }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label size-1-label">Размер 1, мм</label>
+              {{ initial_defect_form.size_1 }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label size-2-label">Размер 2, мм</label>
+              {{ initial_defect_form.size_2 }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Кол-во</label>
+              {{ initial_defect_form.count }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Подсказки о полях размеров -->
+      <div class="info-box mt-3" style="font-size:0.82rem;">
+        <strong>Как заполнять размеры:</strong><br>
+        Поры — Диаметр (мм) | Шлак — Длина / Ширина (мм) | Подрез — Глубина / Длина (мм)
+        | Трещина, Несплавление, Непровар — Длина (мм) | Проплав — Высота (мм)
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+      <button type="submit" class="btn btn-primary btn-lg">
+        <i class="bi bi-play-circle me-2"></i>Провести оценку
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

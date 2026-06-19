@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Редактирование профиля{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'cabinet' %}" class="btn btn-sm btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left me-1"></i>Кабинет
+        </a>
+        <h3 class="mb-0"><i class="bi bi-person-gear me-2"></i>Редактирование профиля</h3>
+      </div>
+
+      <div class="card">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="card-header-section">Личные данные</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.first_name.label }}</label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.last_name.label }}</label>
+              {{ form.last_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.email.label }}</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.phone.label }}</label>
+              {{ form.phone }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.organization.label }}</label>
+              {{ form.organization }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.position.label }}</label>
+              {{ form.position }}
+            </div>
+          </div>
+
+          <div class="card-header-section">Квалификационные данные НК</div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.ndt_certificate_number.label }}</label>
+              {{ form.ndt_certificate_number }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.ndt_level.label }}</label>
+              {{ form.ndt_level }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.ndt_methods.label }}</label>
+              {{ form.ndt_methods }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.certificate_expiry.label }}</label>
+              {{ form.certificate_expiry }}
+            </div>
+          </div>
+
+          <div class="d-flex gap-3 mt-4">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save me-1"></i>Сохранить
+            </button>
+            <a href="{% url 'cabinet' %}" class="btn btn-outline-secondary">Отмена</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

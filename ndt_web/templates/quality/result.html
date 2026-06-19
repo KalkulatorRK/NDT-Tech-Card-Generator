@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load nk_extras %}
+{% block title %}Результат оценки качества{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+      <a href="{% url 'quality_form' %}" class="btn btn-sm btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left me-1"></i>Новая оценка
+      </a>
+      <h3 class="d-inline-block mb-0">
+        <i class="bi bi-clipboard-check me-2"></i>Результат оценки качества
+      </h3>
+    </div>
+    <a href="{% url 'quality_pdf' assessment.pk %}" class="btn btn-outline-danger">
+      <i class="bi bi-file-pdf me-1"></i>Скачать PDF
+    </a>
+  </div>
+
+  <!-- Параметры объекта -->
+  <div class="card mb-4">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="text-muted small">Нормативный документ</div>
+        <div class="fw-semibold">{{ assessment_data.normative_doc }}</div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted small">Категория шва</div>
+        <div class="fw-semibold">{{ assessment_data.weld_category }}</div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted small">Толщина стенки</div>
+        <div class="fw-semibold">{{ assessment_data.wall_thickness }} мм</div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted small">Дефектов проверено</div>
+        <div class="fw-semibold">{{ assessment_data.defects_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Итоговое заключение -->
+  {% if assessment_data.is_acceptable %}
+  <div class="result-verdict ok mb-4">
+    <i class="bi bi-check-circle-fill me-2"></i>ЗАКЛЮЧЕНИЕ: ГОДЕН
+    <div class="fs-6 fw-normal mt-1">Все обнаруженные дефекты соответствуют требованиям {{ assessment_data.normative_doc }}</div>
+  </div>
+  {% else %}
+  <div class="result-verdict fail mb-4">
+    <i class="bi bi-x-circle-fill me-2"></i>ЗАКЛЮЧЕНИЕ: БРАК
+    <div class="fs-6 fw-normal mt-1">Обнаружены недопустимые дефекты по {{ assessment_data.normative_doc }}</div>
+  </div>
+  {% endif %}
+
+  {% if assessment_data.score_exceeded %}
+  <div class="danger-box mb-3">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    {{ assessment_data.score_reason }}
+  </div>
+  {% endif %}
+
+  <!-- Таблица результатов по дефектам -->
+  <div class="card">
+    <div class="card-header-section">
+      <i class="bi bi-table me-2"></i>Детальная оценка дефектов
+    </div>
+    <div class="table-responsive">
+      <table class="table table-result">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Тип дефекта</th>
+            <th>Фактический<br>размер, мм</th>
+            <th>Доп. размер,<br>мм</th>
+            <th>Норма<br>(макс.), мм</th>
+            <th>Балл</th>
+            <th>Результат</th>
+            <th>Ссылка на НД</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in assessment_data.results %}
+          <tr class="defect-result-row {% if result.is_acceptable %}ok{% else %}fail{% endif %}">
+            <td>{{ forloop.counter }}</td>
+            <td>{{ result.defect_name }}</td>
+            <td>
+              {% with defect=defects_data|index:forloop.counter0 %}
+              {% if defect %}{{ defect.size_1|floatformat:2 }}{% else %}—{% endif %}
+              {% endwith %}
+            </td>
+            <td>—</td>
+            <td>{% if result.max_allowed_mm %}{{ result.max_allowed_mm|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{% if result.score %}{{ result.score|floatformat:1 }}{% else %}—{% endif %}</td>
+            <td>
+              {% if result.is_acceptable %}
+              <span class="badge bg-success">ГОДЕН</span>
+              {% else %}
+              <span class="badge bg-danger">БРАК</span>
+              {% endif %}
+            </td>
+            <td style="font-size:0.8rem;">{{ result.reference }}</td>
+          </tr>
+          <!-- Строка обоснования -->
+          <tr style="background:#f8fafd;">
+            <td></td>
+            <td colspan="7" style="font-size:0.82rem;color:#555;padding-bottom:0.5rem;">
+              {{ result.reason }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Суммарный балл по порам -->
+    {% if assessment_data.total_pore_score > 0 %}
+    <div class="info-box mt-3">
+      <strong>Суммарный балл по порам:</strong>
+      {{ assessment_data.total_pore_score|floatformat:1 }}
+      (допустимо: {{ assessment_data.max_pore_score }})
+      {% if assessment_data.score_exceeded %}
+      <span class="text-danger fw-bold"> — ПРЕВЫШЕНО</span>
+      {% else %}
+      <span class="text-success"> — в норме</span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if is_guest %}
+  <div class="warning-box mt-4">
+    <i class="bi bi-person-x me-1"></i>
+    Осталось бесплатных оценок: <strong>{{ guest_remaining }}</strong>.
+    <a href="{% url 'register' %}">Зарегистрируйтесь</a> для неограниченного доступа.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

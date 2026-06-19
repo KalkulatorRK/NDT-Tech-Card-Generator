@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Создание техкарты — Шаг 1{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <!-- Индикатор шагов -->
+      {% include "techcards/_steps.html" %}
+
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-1-circle me-2"></i>
+          Шаг 1: Идентификационные данные объекта
+        </div>
+
+        <div class="info-box mb-4">
+          <i class="bi bi-file-text me-1"></i>
+          <strong>Нормативный документ:</strong> {{ doc.code }} — {{ doc.full_name|truncatechars:80 }}
+          {% if free_available %}
+          <br><i class="bi bi-gift me-1"></i>
+          <strong>Бесплатная карта доступна</strong> по данному документу.
+          {% endif %}
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">{{ form.organization.label }}</label>
+              {{ form.organization }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ form.object_name.label }}</label>
+              {{ form.object_name }}
+              {% if form.object_name.errors %}<div class="text-danger small">{{ form.object_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.drawing_number.label }}</label>
+              {{ form.drawing_number }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.weld_number.label }}</label>
+              {{ form.weld_number }}
+              {% if form.weld_number.errors %}<div class="text-danger small">{{ form.weld_number.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.card_number.label }}</label>
+              {{ form.card_number }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.inspector_name.label }}</label>
+              {{ form.inspector_name }}
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'method_select' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Назад
+            </a>
+            <button type="submit" class="btn btn-primary">
+              Далее <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

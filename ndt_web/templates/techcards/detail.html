@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Техкарта {{ techcard.card_number }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+      <a href="{% url 'cabinet' %}" class="btn btn-sm btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left me-1"></i>Кабинет
+      </a>
+      <h3 class="d-inline-block mb-0">
+        <i class="bi bi-file-earmark-text me-2" style="color:var(--primary);"></i>
+        Техкарта {{ techcard.card_number|default:"—" }}
+      </h3>
+    </div>
+    {% if techcard.is_ready %}
+    <div class="d-flex gap-2">
+      <a href="{% url 'download_file' techcard.pk 'docx' %}" class="btn btn-outline-primary">
+        <i class="bi bi-file-word me-1"></i>Скачать DOCX
+      </a>
+      <a href="{% url 'download_file' techcard.pk 'pdf' %}" class="btn btn-outline-danger">
+        <i class="bi bi-file-pdf me-1"></i>Скачать PDF
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if errors %}
+  <div class="danger-box mb-3">
+    <strong>Ошибки при генерации:</strong>
+    <ul class="mb-0 mt-1">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if warnings %}
+  <div class="warning-box mb-3">
+    <strong>Предупреждения:</strong>
+    <ul class="mb-0 mt-1">{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <!-- Мета-данные -->
+  <div class="card mb-4">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="text-muted small">Нормативный документ</div>
+        <div class="fw-semibold">{{ techcard.normative_doc.code }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Дата создания</div>
+        <div class="fw-semibold">{{ techcard.created_at|date:"d.m.Y H:i" }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Статус</div>
+        <span class="badge bg-{{ techcard.get_status_badge }}">{{ techcard.get_status_display }}</span>
+        {% if techcard.was_free %}<span class="badge bg-info text-dark ms-1">Бесплатная</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Параметры техкарты -->
+  {% if params %}
+  <div class="card">
+    <div class="card-header-section">Расчётные параметры технологической карты</div>
+    <div class="table-responsive">
+      <table class="table">
+        <tbody>
+          <tr><td class="text-muted">Объект контроля</td><td class="fw-semibold">{{ params.object_name }}</td></tr>
+          <tr><td class="text-muted">Организация</td><td>{{ params.organization|default:"—" }}</td></tr>
+          <tr><td class="text-muted">Материал</td><td>{{ params.material|default:"—" }}</td></tr>
+          <tr><td class="text-muted">Толщина стенки, мм</td><td>{{ params.wall_thickness }}</td></tr>
+          {% if params.outer_diameter %}<tr><td class="text-muted">Наружный диаметр, мм</td><td>{{ params.outer_diameter }}</td></tr>{% endif %}
+          <tr><td class="text-muted">Категория шва</td><td>{{ params.weld_category }}</td></tr>
+          <tr><th class="text-primary pt-3" colspan="2">Параметры контроля</th></tr>
+          <tr><td class="text-muted">Класс контроля</td><td class="fw-semibold">{{ params.control_class_name }}</td></tr>
+          <tr><td class="text-muted">Требуемая чувствительность</td><td>{{ params.sensitivity_desc }}</td></tr>
+          {% with src=params.selected_source %}
+          <tr><td class="text-muted">Источник излучения</td><td>{{ src.name|default:"—" }}</td></tr>
+          <tr><td class="text-muted">Энергия</td><td>{{ src.energy_display|default:"—" }}</td></tr>
+          {% endwith %}
+          <tr><td class="text-muted">SFD, мм</td><td>{{ params.sfd_mm }}</td></tr>
+          <tr><td class="text-muted">OFD, мм</td><td>{{ params.ofd_mm }}</td></tr>
+          <tr><td class="text-muted">Геометрическая нерезкость</td>
+              <td>
+                {{ params.ug_calculation }}
+                {% if not params.geometric_unsharpness_ok %}
+                <span class="badge bg-danger ms-1">ПРЕВЫШЕНО</span>
+                {% else %}
+                <span class="badge bg-success ms-1">норма</span>
+                {% endif %}
+              </td>
+          </tr>
+          {% with scheme=params.exposure_scheme %}
+          {% if scheme %}
+          <tr><td class="text-muted">Схема просвечивания</td><td>{{ scheme.name }}</td></tr>
+          <tr><td class="text-muted">Кол-во экспозиций (min)</td><td>{{ scheme.n_exposures_min }}</td></tr>
+          {% endif %}
+          {% endwith %}
+          {% with film=params.film_class_info %}
+          {% if film %}
+          <tr><td class="text-muted">Класс плёнки</td><td>{{ film.class }} — {{ film.description }}</td></tr>
+          {% endif %}
+          {% endwith %}
+          <tr><td class="text-muted">Мин. оптическая плотность</td><td>{{ params.optical_density_min }}</td></tr>
+          {% with screens=params.screens %}
+          {% if screens %}
+          <tr><td class="text-muted">Передний экран, мм</td><td>{{ screens.front_mm }}</td></tr>
+          <tr><td class="text-muted">Задний экран, мм</td><td>{{ screens.back_mm }}</td></tr>
+          {% endif %}
+          {% endwith %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

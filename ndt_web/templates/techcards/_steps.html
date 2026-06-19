@@ -1,0 +1,17 @@
+<!-- Индикатор шагов -->
+<div class="step-indicator mb-4">
+  {% for step_label in step_labels %}
+  {% with step_num=forloop.counter %}
+  <div class="step-item {% if step == step_num %}active{% elif step > step_num %}done{% endif %}">
+    <div class="step-circle">
+      {% if step > step_num %}
+        <i class="bi bi-check"></i>
+      {% else %}
+        {{ step_num }}
+      {% endif %}
+    </div>
+    <div class="step-label">{{ step_label }}</div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>

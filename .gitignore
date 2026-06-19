@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+ndt_web/__pycache__
+ndt_web/**/__pycache__
+ndt_web/**/*.pyc
+ndt_web/db.sqlite3
+ndt_web/staticfiles/
+ndt_web/media/

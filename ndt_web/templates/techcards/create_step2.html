@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Создание техкарты — Шаг 2{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      {% include "techcards/_steps.html" %}
+
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-2-circle me-2"></i>
+          Шаг 2: Материал и геометрия объекта
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">{{ form.object_type.label }}</label>
+              {{ form.object_type }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.material.label }}</label>
+              {{ form.material }}
+              {% if form.material.errors %}<div class="text-danger small">{{ form.material.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.weld_type.label }}</label>
+              {{ form.weld_type }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.wall_thickness.label }}</label>
+              {{ form.wall_thickness }}
+              {% if form.wall_thickness.errors %}<div class="text-danger small">{{ form.wall_thickness.errors.0 }}</div>{% endif %}
+              {% if form.wall_thickness.help_text %}<div class="form-text">{{ form.wall_thickness.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6" id="diameter-group">
+              <label class="form-label">{{ form.outer_diameter.label }}</label>
+              {{ form.outer_diameter }}
+              {% if form.outer_diameter.errors %}<div class="text-danger small">{{ form.outer_diameter.errors.0 }}</div>{% endif %}
+              {% if form.outer_diameter.help_text %}<div class="form-text">{{ form.outer_diameter.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.welding_process.label }}</label>
+              {{ form.welding_process }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.weld_category.label }}</label>
+              {{ form.weld_category }}
+              {% if form.weld_category.help_text %}<div class="form-text">{{ form.weld_category.help_text }}</div>{% endif %}
+            </div>
+            <!-- Динамическая подсказка о категории -->
+            <div class="col-12">
+              <div id="category-info" class="info-box" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'create_step1' doc.code %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Назад
+            </a>
+            <button type="submit" class="btn btn-primary">
+              Далее <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

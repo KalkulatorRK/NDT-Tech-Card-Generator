@@ -252,7 +252,15 @@ def generate_card_view(request, doc_code):
         return redirect('create_step1', doc_code=doc_code)
 
     try:
-        result = generate_tech_card(input_data, settings.MEDIA_ROOT)
+        # Путь к шаблону DOCX (если загружен в card_templates/)
+        template_filename = 'Пример технологической карты радиографического контроля.docx'
+        template_path = os.path.join(
+            settings.BASE_DIR, 'card_templates', template_filename
+        )
+        result = generate_tech_card(
+            input_data, settings.MEDIA_ROOT,
+            template_path=template_path if os.path.exists(template_path) else None,
+        )
         was_free = (reason == 'free')
 
         # Создаём запись в БД

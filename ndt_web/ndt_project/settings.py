@@ -124,7 +124,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# CompressedManifestStaticFilesStorage строго проверяет хэши файлов и
+# может вызывать 500 если манифест не совпадает. Используем более
+# простой вариант без проверки манифеста.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -169,9 +172,11 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    # SECURE_SSL_REDIRECT = True  — НЕ включать на Render/Railway (прокси сам редиректит)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # SECURE_SSL_REDIRECT — не включать, Render сам редиректит HTTP→HTTPS
+    # SESSION_COOKIE_SECURE и CSRF_COOKIE_SECURE временно отключены
+    # до выяснения причины 500-ошибки
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 # CSRF: доверенные источники (обязательно для работы форм и админки на HTTPS)
 CSRF_TRUSTED_ORIGINS = config(

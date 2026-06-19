@@ -5,6 +5,7 @@
 """
 
 import os
+import dj_database_url
 from pathlib import Path
 from decouple import config, Csv
 
@@ -16,7 +17,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------------
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-замените-в-продакшн')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='localhost,127.0.0.1,.railway.app,.onrender.com,.vercel.app',
+    cast=Csv(),
+)
 
 # ------------------------------------------------------------------
 # Приложения
@@ -73,13 +78,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ndt_project.wsgi.application'
 
 # ------------------------------------------------------------------
-# База данных (SQLite по умолчанию)
+# База данных
+# При наличии переменной DATABASE_URL (Railway, Render, Heroku) —
+# используется PostgreSQL. Иначе — локальный SQLite.
 # ------------------------------------------------------------------
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = config('DATABASE_URL', default=None)
+
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
 }
 
 # ------------------------------------------------------------------

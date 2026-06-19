@@ -46,8 +46,8 @@ def perform_assessment(form_data: dict, defects_data: list) -> dict:
 
     summary = assess_multiple_defects(
         defects=defects,
-        weld_category=weld_category,
-        wall_thickness_mm=wall_thickness,
+        category=weld_category,
+        thickness_mm=wall_thickness,
         weld_length_mm=weld_length,
     )
 

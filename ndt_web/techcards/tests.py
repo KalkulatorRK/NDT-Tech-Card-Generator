@@ -21,29 +21,41 @@ User = get_user_model()
 
 
 class NormativeDataTests(TestCase):
-    """Тесты нормативных данных ГОСТ Р 50.05.07-2018."""
+    """
+    Тесты нормативных данных.
 
-    def test_sensitivity_class_a_thin(self):
-        """Класс А, малые толщины — 1.5%."""
-        self.assertEqual(get_sensitivity(4.0, 'A'), 1.5)
+    Чувствительность K — табличные значения из НП-105-18, Таблица 4.8.
+    Функция get_sensitivity() возвращает абсолютное значение K в мм,
+    не процент от толщины.
+    """
 
-    def test_sensitivity_class_a_medium(self):
-        """Класс А, средние толщины (до 10 мм) — 1.0%."""
-        self.assertEqual(get_sensitivity(8.0, 'A'), 1.0)
+    def test_sensitivity_cat_i_thin(self):
+        """Категория I, S=4 мм → K=0,10 мм (Табл. 4.8 строка 3,0–4,5 мм)."""
+        self.assertEqual(get_sensitivity(4.0, 'I'), 0.10)
 
-    def test_sensitivity_class_b_medium(self):
-        """Класс В, 25–50 мм — 0.8%."""
-        self.assertEqual(get_sensitivity(40.0, 'B'), 0.8)
+    def test_sensitivity_cat_i_medium(self):
+        """Категория I, S=8 мм → K=0,20 мм (Табл. 4.8 строка 7,5–10,0 мм)."""
+        self.assertEqual(get_sensitivity(8.0, 'I'), 0.20)
 
-    def test_sensitivity_class_c_thick(self):
-        """Класс С, >100 мм — 0.8%."""
-        self.assertEqual(get_sensitivity(150.0, 'C'), 0.8)
+    def test_sensitivity_class_a_backward_compat(self):
+        """Класс А = Категория I: get_sensitivity(8.0, 'A') == get_sensitivity(8.0, 'I')."""
+        self.assertEqual(get_sensitivity(8.0, 'A'), get_sensitivity(8.0, 'I'))
 
-    def test_sensitivity_mm_calculation(self):
-        """Размер выявляемого дефекта — правильная формула."""
-        pct = get_sensitivity(10.0, 'A')  # 1.0%
-        expected_mm = round(10.0 * pct / 100, 3)
-        self.assertEqual(get_sensitivity_mm(10.0, 'A'), expected_mm)
+    def test_sensitivity_cat_ii_medium(self):
+        """Категория II, S=40 мм → K=0,60 мм (Табл. 4.8 строка 38,0–44,0 мм)."""
+        self.assertEqual(get_sensitivity(40.0, 'II'), 0.60)
+
+    def test_sensitivity_class_b_backward_compat(self):
+        """Класс В = Категория II: get_sensitivity(40.0, 'B') == 0,60 мм."""
+        self.assertEqual(get_sensitivity(40.0, 'B'), 0.60)
+
+    def test_sensitivity_cat_iii_thick(self):
+        """Категория III, S=150 мм → K=2,50 мм (Табл. 4.8 строка 130–165 мм)."""
+        self.assertEqual(get_sensitivity(150.0, 'III'), 2.50)
+
+    def test_sensitivity_mm_equals_sensitivity(self):
+        """get_sensitivity_mm() возвращает то же значение что get_sensitivity()."""
+        self.assertEqual(get_sensitivity_mm(10.0, 'I'), get_sensitivity(10.0, 'I'))
 
     def test_geometric_unsharpness_formula(self):
         """Формула геометрической нерезкости: Ug = d*b/(f-b)."""
@@ -84,40 +96,70 @@ class NormativeDataTests(TestCase):
 
 
 class QualityAssessmentLogicTests(TestCase):
-    """Тесты логики оценки качества НП-105-18."""
+    """
+    Тесты логики оценки качества по НП-105-18 (с изм. 2024).
+
+    Значения критериев берутся из Таблицы N 4.8 документа.
+    """
 
     def test_crack_always_rejected(self):
-        """Трещина недопустима в любой категории."""
+        """Трещина недопустима в любой категории (п. 14 НП-105-18)."""
         result = assess_defect('crack', 'I', 10, size_1_mm=2.0)
         self.assertFalse(result['is_acceptable'])
 
     def test_lack_of_fusion_rejected(self):
-        """Несплавление недопустимо."""
+        """Несплавление недопустимо (п. 14 НП-105-18)."""
         result = assess_defect('lack_of_fusion', 'II', 15)
         self.assertFalse(result['is_acceptable'])
 
-    def test_pore_acceptable_category_1(self):
-        """Пора 0.5 мм при S=10 мм, категория I: max=1.0 мм → допустима."""
+    def test_pore_acceptable_cat_i_s10(self):
+        """
+        Пора 0.5 мм, категория I, S=10 мм.
+        По Табл. 4.8: строка 7.5–10.0 мм → макс. включение 1.2 мм.
+        0.5 ≤ 1.2 → допустимо.
+        """
         result = assess_defect('pore', 'I', 10, size_1_mm=0.5)
         self.assertTrue(result['is_acceptable'])
 
-    def test_pore_rejected_over_limit(self):
-        """Пора 2.0 мм при S=10 мм, категория I: max=1.0 мм → недопустима."""
+    def test_pore_rejected_cat_i_s10(self):
+        """
+        Пора 2.0 мм, категория I, S=10 мм.
+        По Табл. 4.8: строка 7.5–10.0 мм → макс. 1.2 мм.
+        2.0 > 1.2 → недопустимо.
+        """
         result = assess_defect('pore', 'I', 10, size_1_mm=2.0)
         self.assertFalse(result['is_acceptable'])
 
-    def test_pore_acceptable_category_3(self):
-        """Пора 2.0 мм при S=20 мм, категория III: max=min(0.2*20,2.5)=2.5→доп."""
-        result = assess_defect('pore', 'III', 20, size_1_mm=2.0)
+    def test_pore_acceptable_cat_iii_s20(self):
+        """
+        Пора 2.5 мм, категория III, S=20 мм.
+        По Табл. 4.8: строка 18.0–22.0 мм → макс. включение 3.0 мм.
+        2.5 ≤ 3.0 → допустимо.
+        """
+        result = assess_defect('pore', 'III', 20, size_1_mm=2.5)
         self.assertTrue(result['is_acceptable'])
 
-    def test_undercut_depth_check(self):
-        """Подрез: глубина 0.3 мм при S=10 мм, кат. I: max=0.5 мм → допустим."""
+    def test_pore_rejected_cat_iii_s20(self):
+        """
+        Пора 4.0 мм, категория III, S=20 мм.
+        По Табл. 4.8: макс. включение 3.0 мм → недопустимо.
+        """
+        result = assess_defect('pore', 'III', 20, size_1_mm=4.0)
+        self.assertFalse(result['is_acceptable'])
+
+    def test_undercut_depth_acceptable(self):
+        """
+        Подрез 0.3 мм, S=10 мм, кат. I.
+        max_depth = min(0.1×10, 0.5) = 0.5 мм → 0.3 ≤ 0.5 → допустимо.
+        """
         result = assess_defect('undercut', 'I', 10, size_1_mm=0.3)
         self.assertTrue(result['is_acceptable'])
 
-    def test_undercut_depth_over_limit(self):
-        """Подрез: глубина 0.8 мм при S=5 мм, кат. I: max=0.25 мм → брак."""
+    def test_undercut_depth_rejected(self):
+        """
+        Подрез 0.8 мм, S=5 мм, кат. I.
+        max_depth = min(0.1×5, 0.5) = 0.5 мм → 0.8 > 0.5 → брак.
+        """
         result = assess_defect('undercut', 'I', 5, size_1_mm=0.8)
         self.assertFalse(result['is_acceptable'])
 
@@ -140,6 +182,16 @@ class QualityAssessmentLogicTests(TestCase):
         result = assess_multiple_defects(defects, 'II', 10)
         self.assertTrue(result['is_acceptable'])
         self.assertEqual(result['verdict'], 'ГОДЕН')
+
+    def test_required_sensitivity_cat_i_s10(self):
+        """Категория I, S=10 мм → K=0,20 мм (Табл. 4.8)."""
+        from normative.np_105_18 import get_required_sensitivity
+        self.assertEqual(get_required_sensitivity('I', 10.0), 0.20)
+
+    def test_required_sensitivity_cat_iii_s150(self):
+        """Категория III, S=150 мм → K=2,50 мм (Табл. 4.8 строка 130–165 мм)."""
+        from normative.np_105_18 import get_required_sensitivity
+        self.assertEqual(get_required_sensitivity('III', 150.0), 2.50)
 
 
 class TechCardCalculatorTests(TestCase):

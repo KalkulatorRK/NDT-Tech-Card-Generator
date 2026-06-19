@@ -156,16 +156,29 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 недели
 SESSION_SAVE_EVERY_REQUEST = True
 
 # ------------------------------------------------------------------
-# Безопасность (для продакшн — перенести в .env)
+# Безопасность
 # ------------------------------------------------------------------
+
+# Render, Railway и другие PaaS-платформы завершают SSL на своём прокси.
+# Django видит трафик как HTTP, поэтому SSL_REDIRECT и SECURE_COOKIES
+# здесь НЕ включаем — это ломает CSRF и сессии.
+# Вместо этого сообщаем Django, что прокси обрабатывает HTTPS.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_SSL_REDIRECT = True
+    # SECURE_SSL_REDIRECT = True  — НЕ включать на Render/Railway (прокси сам редиректит)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# CSRF: доверенные источники (обязательно для работы форм и админки на HTTPS)
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://*.onrender.com,https://*.railway.app',
+    cast=Csv(),
+)
 
 # ------------------------------------------------------------------
 # Email (для восстановления пароля)

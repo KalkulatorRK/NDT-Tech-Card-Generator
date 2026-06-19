@@ -127,9 +127,43 @@ class TechCardStep2Form(forms.Form):
         return diameter
 
 
-class TechCardStep3Form(forms.Form):
-    """Шаг 3: Параметры источника и геометрия просвечивания."""
+SCHEME_CHOICES = [
+    ('',     '— Выберите схему просвечивания —'),
+    ('4_6',  'Чертёж 2 — плоские детали, листы, обечайки (источник с одной стороны)'),
+    ('5a',   'Чертёж 3а — трубопровод, источник снаружи, просвечивание через 2 стенки'),
+    ('5b',   'Чертёж 3б — трубопровод, источник снаружи, через 1 стенку (эллипс)'),
+    ('5v',   'Чертёж 3в — трубопровод малого Ø (≤100 мм), источник снаружи по диаметру'),
+    ('5g',   'Чертёж 3г — трубопровод Ø>50 мм, источник внутри со смещением от оси'),
+    ('5d',   'Чертёж 3д — трубопровод Ø>50 мм, источник внутри (другой вариант)'),
+    ('5zh',  'Чертёж 3ж — панорамный, источник на оси внутри трубы (Ø ≤ 2 м)'),
+    ('5z',   'Чертёж 3и — источник внутри, трубопровод большого Ø (> 2 м)'),
+]
 
+SCHEME_IMAGES = {
+    '4_6':  'img/scheme_4_6.png',
+    '5a':   'img/scheme_5a.png',
+    '5b':   'img/scheme_5b.png',
+    '5v':   'img/scheme_5v.png',
+    '5g':   'img/scheme_5g.png',
+    '5d':   'img/scheme_5d.png',
+    '5zh':  'img/scheme_5zh.png',
+    '5z':   'img/scheme_5z.png',
+}
+
+
+class TechCardStep3Form(forms.Form):
+    """Шаг 3: Источник излучения, схема и геометрия просвечивания."""
+
+    scheme_type = forms.ChoiceField(
+        choices=SCHEME_CHOICES,
+        label='Схема просвечивания *',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_scheme_type'}),
+        help_text=(
+            'Выберите схему по типу объекта. '
+            'Для трубопроводов — схемы 3а/3б/3в (источник снаружи) или 3г/3д/3ж (источник внутри). '
+            'Для плоских деталей — Чертёж 2.'
+        ),
+    )
     source_code = forms.ChoiceField(
         choices=[('', '— Выберите источник —')] + get_source_choices(),
         label='Источник излучения *',
@@ -138,7 +172,7 @@ class TechCardStep3Form(forms.Form):
     )
     focal_spot_mm = forms.FloatField(
         min_value=0.1, max_value=20,
-        label='Размер фокусного пятна (d), мм *',
+        label='Размер фокусного пятна (Φ), мм *',
         initial=2.0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
@@ -146,32 +180,33 @@ class TechCardStep3Form(forms.Form):
             'min': '0.1',
             'placeholder': '2.0',
         }),
-        help_text='Указывается в паспорте источника. Для аппарата — из технических данных.',
+        help_text='Указывается в паспорте источника. Для рентгеновского аппарата — из технических данных.',
     )
     source_activity = forms.CharField(
         max_length=100, required=False,
-        label='Активность / мощность экспозиционной дозы',
+        label='Активность источника',
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': '5 Ки (Ir-192) или по паспорту',
+            'placeholder': '10 Ки (Ir-192) или по паспорту',
         }),
-        help_text='Введите значение из паспорта источника или оставьте пустым для заполнения вручную.',
+        help_text='Укажите из паспорта источника. Используется для расчёта времени экспозиции.',
     )
-    sfd_mm = forms.FloatField(
-        min_value=100, max_value=5000,
-        label='Расстояние источник–детектор (SFD, f), мм *',
-        initial=700,
+    film_length_mm = forms.FloatField(
+        required=False,
+        min_value=50, max_value=1000,
+        label='Длина снимка (l), мм',
+        initial=350,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'step': '10',
-            'min': '100',
-            'placeholder': '700',
+            'placeholder': '350',
+            'id': 'id_film_length_mm',
         }),
-        help_text='Расстояние от источника излучения до детектора (плёнки).',
+        help_text='Только для схемы 3б (чертёж 3б). Длина кассеты с плёнкой в мм.',
     )
     ofd_mm = forms.FloatField(
         min_value=0, max_value=200,
-        label='Расстояние объект–детектор (OFD, b), мм *',
+        label='Расстояние объект–детектор (b), мм',
         initial=5,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
@@ -180,8 +215,8 @@ class TechCardStep3Form(forms.Form):
             'placeholder': '5',
         }),
         help_text=(
-            'Расстояние от контролируемой поверхности объекта до детектора. '
-            'Для плоских деталей без зазора — 0.'
+            'Расстояние от поверхности объекта до детектора (плёнки). '
+            'При прижатой кассете — 0–5 мм.'
         ),
     )
     film_name = forms.ChoiceField(
@@ -189,21 +224,8 @@ class TechCardStep3Form(forms.Form):
         required=False,
         label='Тип радиографической плёнки',
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Тип плёнки определяется классом контроля и подбирается автоматически.',
+        help_text='Тип плёнки определяется классом контроля. Можно не выбирать — подберётся автоматически.',
     )
-
-    def clean(self):
-        """Проверяет, что OFD < SFD."""
-        cleaned = super().clean()
-        sfd = cleaned.get('sfd_mm', 0)
-        ofd = cleaned.get('ofd_mm', 0)
-        if sfd and ofd and ofd >= sfd:
-            self.add_error(
-                'ofd_mm',
-                'Расстояние объект–детектор (OFD) должно быть меньше '
-                'расстояния источник–детектор (SFD).'
-            )
-        return cleaned
 
 
 class TechCardConfirmForm(forms.Form):

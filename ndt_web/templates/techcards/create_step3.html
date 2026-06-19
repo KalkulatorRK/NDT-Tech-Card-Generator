@@ -1,22 +1,23 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Создание техкарты — Шаг 3{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
       {% include "techcards/_steps.html" %}
 
       <div class="card">
         <div class="card-header-section">
           <i class="bi bi-3-circle me-2"></i>
-          Шаг 3: Источник излучения и геометрия просвечивания
+          Шаг 3: Схема просвечивания, источник излучения и геометрия
         </div>
 
-        <!-- Информация о доступных источниках -->
+        <!-- Доступные источники для введённой толщины -->
         {% if suitable_sources %}
         <div class="mb-4">
-          <strong>Источники для толщины {{ wall_thickness }} мм:</strong>
+          <strong>Рекомендуемые источники для толщины {{ wall_thickness }} мм:</strong>
           <div class="row g-2 mt-1">
             {% for src in suitable_sources %}
             <div class="col-md-6">
@@ -28,63 +29,118 @@
                   <i class="bi bi-circle me-1 text-muted"></i>
                 {% endif %}
                 <strong>{{ src.name }}</strong> — {{ src.energy_display }}
-                <br><span class="text-muted">
+                <br><span class="text-muted" style="font-size:0.78rem;">
                   Диапазон: {{ src.thickness_min }}–{{ src.thickness_max }} мм
-                  {% if src.is_optimal %}(оптимально){% endif %}
+                  {% if src.is_optimal %}<span class="text-success">(оптимально)</span>{% endif %}
                 </span>
               </div>
             </div>
             {% endfor %}
           </div>
-          <div id="sources-info" class="info-box mt-2" style="display:none;"></div>
         </div>
         {% endif %}
 
         <form method="post" novalidate>
           {% csrf_token %}
-          <div class="row g-3">
+          <div class="row g-4">
+
+            <!-- СХЕМА ПРОСВЕЧИВАНИЯ -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                {{ form.scheme_type.label }}
+                <span class="tooltip-icon" data-bs-toggle="tooltip"
+                      title="Схема определяет формулы расчёта f, N, L. Выберите по типу объекта и доступу к нему.">?</span>
+              </label>
+              {{ form.scheme_type }}
+              {% if form.scheme_type.help_text %}
+              <div class="form-text">{{ form.scheme_type.help_text }}</div>
+              {% endif %}
+              {% if form.scheme_type.errors %}
+              <div class="text-danger small">{{ form.scheme_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Изображение выбранной схемы -->
+            <div class="col-12" id="scheme-image-block" style="display:none;">
+              <div class="border rounded p-3 bg-light text-center">
+                <img id="scheme-image" src="" alt="Схема просвечивания"
+                     style="max-height:220px; max-width:100%; object-fit:contain;">
+                <div id="scheme-description" class="mt-2 text-muted" style="font-size:0.85rem;"></div>
+              </div>
+            </div>
+
+            <!-- Источник излучения -->
             <div class="col-md-6">
               <label class="form-label">{{ form.source_code.label }}</label>
               {{ form.source_code }}
-              {% if form.source_code.help_text %}<div class="form-text">{{ form.source_code.help_text }}</div>{% endif %}
-              {% if form.source_code.errors %}<div class="text-danger small">{{ form.source_code.errors.0 }}</div>{% endif %}
+              {% if form.source_code.help_text %}
+              <div class="form-text">{{ form.source_code.help_text }}</div>
+              {% endif %}
             </div>
+
+            <!-- Размер фокусного пятна -->
             <div class="col-md-6">
               <label class="form-label">{{ form.focal_spot_mm.label }}</label>
               {{ form.focal_spot_mm }}
-              {% if form.focal_spot_mm.help_text %}<div class="form-text">{{ form.focal_spot_mm.help_text }}</div>{% endif %}
+              {% if form.focal_spot_mm.help_text %}
+              <div class="form-text">{{ form.focal_spot_mm.help_text }}</div>
+              {% endif %}
             </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.sfd_mm.label }}</label>
-              {{ form.sfd_mm }}
-              {% if form.sfd_mm.help_text %}<div class="form-text">{{ form.sfd_mm.help_text }}</div>{% endif %}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.ofd_mm.label }}</label>
-              {{ form.ofd_mm }}
-              {% if form.ofd_mm.help_text %}<div class="form-text">{{ form.ofd_mm.help_text }}</div>{% endif %}
-            </div>
+
+            <!-- Активность источника -->
             <div class="col-md-6">
               <label class="form-label">{{ form.source_activity.label }}</label>
               {{ form.source_activity }}
-              {% if form.source_activity.help_text %}<div class="form-text">{{ form.source_activity.help_text }}</div>{% endif %}
+              {% if form.source_activity.help_text %}
+              <div class="form-text">{{ form.source_activity.help_text }}</div>
+              {% endif %}
             </div>
+
+            <!-- Тип плёнки -->
             <div class="col-md-6">
               <label class="form-label">{{ form.film_name.label }}</label>
               {{ form.film_name }}
-              {% if form.film_name.help_text %}<div class="form-text">{{ form.film_name.help_text }}</div>{% endif %}
+              {% if form.film_name.help_text %}
+              <div class="form-text">{{ form.film_name.help_text }}</div>
+              {% endif %}
             </div>
+
+            <!-- OFD -->
+            <div class="col-md-6">
+              <label class="form-label">{{ form.ofd_mm.label }}</label>
+              {{ form.ofd_mm }}
+              {% if form.ofd_mm.help_text %}
+              <div class="form-text">{{ form.ofd_mm.help_text }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Длина снимка (только для схемы 3б) -->
+            <div class="col-md-6" id="film-length-block" style="display:none;">
+              <label class="form-label">{{ form.film_length_mm.label }}</label>
+              {{ form.film_length_mm }}
+              {% if form.film_length_mm.help_text %}
+              <div class="form-text">{{ form.film_length_mm.help_text }}</div>
+              {% endif %}
+            </div>
+
+          </div>
+
+          <!-- Инфо-блок: что будет рассчитано автоматически -->
+          <div class="info-box mt-4">
+            <i class="bi bi-calculator me-2"></i>
+            <strong>Будет рассчитано автоматически</strong> по выбранной схеме и источнику:
+            <ul class="mb-0 mt-1" style="font-size:0.88rem;">
+              <li><strong>f</strong> — минимальное расстояние от источника до объекта (мм)</li>
+              <li><strong>N</strong> — минимальное число экспозиций (шт.)</li>
+              <li><strong>L</strong> — длина контролируемого участка за 1 экспозицию (мм)</li>
+              <li><strong>Ug</strong> — геометрическая нерезкость (мм)</li>
+              <li><strong>K</strong> — требуемая чувствительность контроля (мм)</li>
+            </ul>
           </div>
 
           {% if form.non_field_errors %}
           <div class="danger-box mt-3">{{ form.non_field_errors.0 }}</div>
           {% endif %}
-
-          <div class="info-box mt-3">
-            <i class="bi bi-calculator me-1"></i>
-            Геометрическая нерезкость, класс чувствительности и схема просвечивания
-            рассчитываются автоматически на следующем шаге.
-          </div>
 
           <div class="d-flex justify-content-between mt-4">
             <a href="{% url 'create_step2' doc.code %}" class="btn btn-outline-secondary">
@@ -99,4 +155,43 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Данные о схемах (изображения и описания)
+var SCHEME_DATA = {
+  '4_6':  { img: '{% static "img/scheme_4_6.png" %}',  desc: 'Плоские детали, листы. Источник с одной стороны, детектор с другой.' },
+  '5a':   { img: '{% static "img/scheme_5a.png" %}',   desc: 'Трубопровод. Источник снаружи, просвечивание через 2 стенки. D > 50 мм.' },
+  '5b':   { img: '{% static "img/scheme_5b.png" %}',   desc: 'Трубопровод. Источник снаружи, просвечивание через 1 стенку (метод эллипса).' },
+  '5v':   { img: '{% static "img/scheme_5v.png" %}',   desc: 'Трубопровод малого Ø (≤ 100 мм). Источник снаружи по диаметру.' },
+  '5g':   { img: '{% static "img/scheme_5g.png" %}',   desc: 'Трубопровод. Источник внутри, смещён от оси. D > 50 мм.' },
+  '5d':   { img: '{% static "img/scheme_5d.png" %}',   desc: 'Трубопровод. Источник внутри. D > 50 мм.' },
+  '5zh':  { img: '{% static "img/scheme_5zh.png" %}',  desc: 'Панорамный. Источник на оси трубы. Ø ≤ 2 м. 1 экспозиция охватывает весь периметр.' },
+  '5z':   { img: '{% static "img/scheme_5z.png" %}',   desc: 'Источник внутри трубопровода большого диаметра (> 2 м).' }
+};
+
+var schemeSelect = document.getElementById('id_scheme_type');
+var schemeImageBlock = document.getElementById('scheme-image-block');
+var schemeImage = document.getElementById('scheme-image');
+var schemeDesc = document.getElementById('scheme-description');
+var filmLengthBlock = document.getElementById('film-length-block');
+
+function updateSchemeUI(val) {
+  if (val && SCHEME_DATA[val]) {
+    schemeImage.src = SCHEME_DATA[val].img;
+    schemeDesc.textContent = SCHEME_DATA[val].desc;
+    schemeImageBlock.style.display = '';
+  } else {
+    schemeImageBlock.style.display = 'none';
+  }
+  // Показываем поле длины снимка только для схемы 5б
+  filmLengthBlock.style.display = (val === '5b') ? '' : 'none';
+}
+
+if (schemeSelect) {
+  schemeSelect.addEventListener('change', function() { updateSchemeUI(this.value); });
+  updateSchemeUI(schemeSelect.value); // Инициализация при загрузке
+}
+</script>
 {% endblock %}

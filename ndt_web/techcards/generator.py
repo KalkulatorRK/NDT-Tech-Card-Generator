@@ -31,13 +31,17 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from normative.gost_50_05_07 import (
     get_sensitivity, get_sensitivity_mm, get_suitable_sources,
-    calc_geometric_unsharpness, calc_min_sfd, get_exposure_scheme,
+    calc_geometric_unsharpness, calc_min_sfd,
     SCREEN_REQUIREMENTS, FILM_CLASSES, MAX_GEOMETRIC_UNSHARPNESS,
     OPTICAL_DENSITY, PERSONNEL_REQUIREMENTS, SAFETY_REQUIREMENTS,
     FILM_PROCESSING, IQI_TYPES, DOCUMENT_CODE, DOCUMENT_FULL_NAME,
 )
 from normative.np_104_18 import get_rt_sensitivity_class, WELD_CATEGORIES
 from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
+from normative.calculations import (
+    calc_exposure_parameters, recommend_scheme,
+    calc_geometric_unsharpness_full, SCHEME_INFO,
+)
 
 
 # ---------------------------------------------------------------
@@ -151,7 +155,7 @@ class RadiographicTechCardCalculator:
             'source_code': d.get('source_code', ''),
             'source_focal_spot_mm': float(d.get('focal_spot_mm', 2.0) or 2.0),
             'source_activity': d.get('source_activity', ''),
-            'sfd_mm': float(d.get('sfd_mm', 700) or 700),
+            'sfd_mm': float(d.get('sfd_mm', 0) or 0),   # 0 = не задан, возьмём f_min
             'ofd_mm': float(d.get('ofd_mm', 5) or 5),
             'film_name': d.get('film_name', ''),
             'inspector_name': d.get('inspector_name', ''),
@@ -199,37 +203,98 @@ class RadiographicTechCardCalculator:
             self.params['selected_source'] = optimal[0] if optimal else (suitable[0] if suitable else {})
 
     def _calc_geometric_params(self):
-        d = self.params['source_focal_spot_mm']
-        sfd = self.params['sfd_mm']
+        """
+        Рассчитывает геометрическую нерезкость.
+        Если f (SFD) не задан пользователем — использует f_min из расчёта схемы.
+        """
+        focal = self.params['source_focal_spot_mm']
         ofd = self.params['ofd_mm']
         cls = self.params['control_class']
-        try:
-            ug = calc_geometric_unsharpness(d, sfd, ofd)
-        except ValueError as e:
+        sensitivity_mm = self.params.get('required_sensitivity_mm', 0)
+
+        # Если SFD не задан вручную — используем рассчитанное f_min
+        sfd = self.params.get('sfd_mm') or 0
+        scheme_result = self.params.get('exposure_scheme') or {}
+        f_min = scheme_result.get('f_min_mm') or 0
+
+        # Итоговое SFD — максимум из введённого и рассчитанного минимума
+        sfd_used = max(sfd, f_min) if f_min else (sfd or 700)
+        self.params['sfd_used_mm'] = round(sfd_used, 1)
+
+        # Расчёт Ug через модуль calculations (с проверкой ГОСТ)
+        ug_result = calc_geometric_unsharpness_full(focal, ofd, sfd_used, sensitivity_mm)
+
+        if ug_result.get('error'):
+            self.errors.append(ug_result['error'])
             ug = 0
-            self.errors.append(str(e))
-        max_ug = MAX_GEOMETRIC_UNSHARPNESS[cls]
-        ug_ok = ug <= max_ug
-        if not ug_ok:
-            min_sfd = calc_min_sfd(d, ofd, cls)
-            self.warnings.append(
-                f'Геометрическая нерезкость Ug={ug:.3f} мм > {max_ug} мм (класс {cls}). '
-                f'Рекомендуется SFD ≥ {min_sfd:.0f} мм.'
-            )
-            self.params['min_sfd_recommended'] = min_sfd
-        self.params['geometric_unsharpness_mm'] = round(ug, 3)
+            ug_ok = False
+        else:
+            ug = ug_result['ug_mm']
+            ug_ok = ug_result.get('gost_ok', True)
+            if ug_ok is False:
+                max_allowed = ug_result.get('max_allowed_mm', '')
+                self.warnings.append(
+                    f'Геометрическая нерезкость Ug = {ug:.3f} мм '
+                    f'превышает допустимую {max_allowed} мм для K = {sensitivity_mm:.3f} мм.'
+                )
+
+        max_ug = MAX_GEOMETRIC_UNSHARPNESS.get(cls, 0.5)
+        self.params['geometric_unsharpness_mm'] = ug
         self.params['max_geometric_unsharpness_mm'] = max_ug
-        self.params['geometric_unsharpness_ok'] = ug_ok
-        self.params['ug_calculation'] = (
-            f'Ug = {d} × {ofd} / ({sfd} − {ofd}) = {ug:.3f} мм'
-        )
+        self.params['geometric_unsharpness_ok'] = ug <= max_ug
+        self.params['ug_calculation'] = ug_result.get('formula', f'Ug = {ug:.3f} мм')
 
     def _calc_exposure_scheme(self):
-        joint_type = self.params['object_type']
-        d_outer = self.params['outer_diameter']
-        wall_t = self.params['wall_thickness']
-        scheme = get_exposure_scheme(joint_type, d_outer, wall_t)
-        self.params['exposure_scheme'] = scheme
+        """
+        Вычисляет точные параметры просвечивания (f, N, L) по выбранной схеме.
+        Использует алгоритмы из normative.calculations (порт из KalkulatorRK2).
+        """
+        S = self.params['wall_thickness']
+        D = self.params['outer_diameter']
+        # Внутренний диаметр: D - 2×S
+        d_inner = D - 2 * S if D else 0
+        self.params['d_inner_mm'] = round(d_inner, 1)
+
+        focal = self.params['source_focal_spot_mm']
+        sensitivity_mm = self.params.get('required_sensitivity_mm', 0.5)
+        film_length = float(self.data.get('film_length_mm', 350) or 350)
+
+        # Схема просвечивания — выбор пользователя или авторекомендация
+        scheme = self.data.get('scheme_type', '').strip()
+        if not scheme:
+            recommended = recommend_scheme(D, d_inner)
+            scheme = recommended[0] if recommended else '4_6'
+            self.params['scheme_auto_selected'] = True
+
+        # Точный расчёт параметров по выбранной схеме
+        calc_result = calc_exposure_parameters(
+            scheme=scheme,
+            focal_spot_mm=focal,
+            sensitivity_mm=sensitivity_mm if sensitivity_mm > 0 else 0.5,
+            thickness_mm=S,          # для схемы 4.6
+            d_outer_mm=D or 0,
+            d_inner_mm=d_inner,
+            film_length_mm=film_length,
+        )
+
+        if calc_result.get('error'):
+            self.warnings.append(f'Схема {scheme}: {calc_result["error"]}')
+
+        # Информация о схеме (описание, изображение)
+        scheme_info = SCHEME_INFO.get(scheme, {})
+
+        # Сохраняем рассчитанные параметры
+        self.params['scheme_type'] = scheme
+        self.params['exposure_scheme'] = calc_result
+        self.params['scheme_info'] = scheme_info
+        self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
+        self.params['N_calculated'] = calc_result.get('N', '')
+        self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+        self.params['scheme_formula'] = calc_result.get('formula', '')
+        self.params['scheme_notes'] = calc_result.get('notes', '')
+        self.params['scheme_image'] = scheme_info.get('image', '')
+        self.params['C_coeff'] = calc_result.get('C', '')
+        self.params['film_length_mm'] = film_length
 
     def _select_film(self):
         cls = self.params['control_class']
@@ -305,11 +370,14 @@ _OBJECT_TYPE_NAMES = {
 
 def _build_value_map(params: dict) -> dict:
     """
-    Строит словарь: фрагмент метки → значение для заполнения ячейки.
-    Ключи совпадают с текстами меток из шаблона.
+    Строит словарь: фрагмент метки → точное значение для заполнения ячейки шаблона.
+
+    Использует рассчитанные значения из normative.calculations:
+    f (расстояние), N (число экспозиций), L (длина участка), C (коэффициент).
     """
     src = params.get('selected_source') or {}
-    scheme = params.get('exposure_scheme') or {}
+    scheme_result = params.get('exposure_scheme') or {}
+    scheme_info = params.get('scheme_info') or {}
     iqi = params.get('recommended_iqi') or {}
     screens = params.get('screens') or {}
     film_info = params.get('film_class_info') or {}
@@ -321,14 +389,58 @@ def _build_value_map(params: dict) -> dict:
     f_opt = fix_opts[0]
 
     S = params.get('wall_thickness', 0)
-    diam = params.get('outer_diameter', 0)
+    D = params.get('outer_diameter', 0)
+    d_inner = params.get('d_inner_mm', 0)
 
-    # Ширина зоны контроля (оценочная: шов + 2 × 5мм)
-    weld_width = params.get('weld_width_mm', '')
-    zone_width = params.get('zone_width_mm', f'шов + 5 мм с каждой стороны')
+    # ---- Рассчитанные параметры просвечивания ----
+    f_val = params.get('f_calculated_mm', '')
+    N_val = params.get('N_calculated', '')
+    L_val = params.get('L_calculated_mm', '')
+    C_val = params.get('C_coeff', '')
+    sfd_used = params.get('sfd_used_mm', params.get('sfd_mm', ''))
+
+    # Формирование строк для полей техкарты
+    f_str = f'{f_val} мм' if f_val else '— мм'
+    N_str = str(N_val) if N_val else '—'
+    L_str = f'{L_val} мм' if L_val else '—'
+
+    # Поле 6.5: расстояние источника с обоснованием
+    if f_val:
+        f_field = (
+            f'f = {f_val} мм '
+            f'(расчёт: {params.get("scheme_formula", "")})'
+        )
+    else:
+        f_field = f'{sfd_used} мм'
+
+    # Поле 6.8: размер участка
+    if L_val:
+        l_field = (
+            f'{L_val} мм = π × {D} / {N_val}'
+            if D and N_val else f'{L_val} мм'
+        )
+    else:
+        l_field = '350 × (длина шва / N) мм'
+
+    # Поле 6.9: схема просвечивания
+    scheme_name = scheme_info.get('name', params.get('scheme_type', ''))
+    scheme_desc = scheme_info.get('description', '')
+    scheme_notes = params.get('scheme_notes', '')
+    scheme_formula = params.get('scheme_formula', '')
+    scheme_field = '\n'.join(filter(None, [scheme_name, scheme_desc, scheme_formula, scheme_notes]))
+
+    # Угол просвечивания (для поля 6.4)
+    angle = '0° (перпендикуляр к поверхности контроля)'
+    if params.get('scheme_type') in ('5a', '5b', '5v', '5g', '5d', '5zh', '5z'):
+        angle = 'По схеме просвечивания (90° к оси шва)'
+
+    # Коэффициент C для поля 5.2
+    focal_field = str(params.get('source_focal_spot_mm', ''))
+    if C_val:
+        focal_field += f' мм (C = {C_val:.2f})'
 
     return {
-        # Раздел 1: Объект
+        # ---- Раздел 1: Объект контроля ----
         '1.1': params.get('organization', ''),
         '1.2': params.get('object_name', ''),
         '1.3': params.get('drawing_number', ''),
@@ -339,46 +451,65 @@ def _build_value_map(params: dict) -> dict:
         '1.8': params.get('welding_process', ''),
         '1.9': params.get('material', ''),
         '1.10': params.get('weld_material', ''),
-        # Раздел 2: Документация
+
+        # ---- Раздел 2: Документация ----
         '2.1': DOCUMENT_CODE,
         '2.2': NP105_CODE,
-        # Раздел 3: Требования
+
+        # ---- Раздел 3: Требования ----
         '3.1': params.get('weld_category', ''),
         '3.2': str(params.get('control_volume_pct', 100)) + ' %',
-        # Раздел 4: Размеры
+
+        # ---- Раздел 4: Тип и размеры ----
         '4.1': _OBJECT_TYPE_NAMES.get(params.get('object_type', ''), ''),
-        '4.2.1': (
-            f'Dн = {diam} мм' if diam else 'плоская деталь'
-        ),
+        '4.2.1': f'Dн = {D} мм' if D else 'плоская деталь',
         'толщина': f'S = {S} мм',
-        '4.2.2': weld_width,
+        '4.2.2': '',   # Ширина валика — по замеру на объекте
         '4.2.3': 'не снят',
         '4.2.4': '5 мм',
-        '4.2.5': zone_width,
-        # Раздел 5: Средства контроля
+        '4.2.5': 'шов + по 5 мм с каждой стороны',
+
+        # ---- Раздел 5: Средства контроля ----
         '5.1': src.get('name', ''),
-        '5.2': str(params.get('source_focal_spot_mm', '')),
-        '5.3': f"{iqi.get('name', '')} по {iqi.get('standard', '')}",
+        '5.2': focal_field,
+        '5.3': (
+            f"{iqi.get('name', '')} по {iqi.get('standard', '')} "
+            f"/ Ø проволоки {params.get('iqi_wire_diameter_mm', '')} мм"
+        ),
         '5.4': params.get('film_name', film_info.get('examples', '')),
-        '5.5': 'в светонепроницаемую плёночную кассету',
-        '5.6': 'свинцовые буквы и цифры',
-        '5.7': '100×400 мм',
-        '5.9': 'негатоскоп с яркостью ≥ 10 000 кд/м²',
-        '5.11': 'денситометр',
-        '5.12': '×10',
-        '5.14': f'проявитель: {d_opt.get("name","")}, закрепитель: {f_opt.get("name","")}',
-        # Раздел 6: Параметры
+        '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
+        '5.6': 'свинцовые буквы и цифры по ГОСТ',
+        '5.7': f'{params.get("film_length_mm", 350):.0f} × 100 мм',
+        '5.9': 'негатоскоп с яркостью ≥ 10 000 кд/м², ГОСТ Р 8.763',
+        '5.11': 'денситометр фотометрический',
+        '5.12': 'лупа 10× измерительная',
+        '5.14': (
+            f'Проявитель: {d_opt.get("name","стандартный")}, '
+            f't = {d_opt.get("temp_c","20±1")}°C, '
+            f'τ = {d_opt.get("time_min","5–8")} мин; '
+            f'Закрепитель: {f_opt.get("name","")}, '
+            f'τ = {f_opt.get("time_min","10–15")} мин'
+        ),
+
+        # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
-        '6.2': f'{S} мм',
+        '6.2': (
+            f'Sк = {S} мм '
+            f'(чувствительность: {params.get("sensitivity_desc", "")})'
+        ),
         '6.3': params.get('sensitivity_desc', ''),
-        '6.4': '0° (перпендикуляр к поверхности)',
-        '6.5': f'{params.get("sfd_mm","")} мм',
-        '6.6': str(scheme.get('n_exposures_min', '')),
-        '6.7': str(scheme.get('n_exposures_min', '')),
-        '6.8': '350 × (длина шва / n) мм',
-        '6.9': scheme.get('name', '') + '\n' + scheme.get('description', ''),
-        # Раздел 7–8: Подготовка и условия
-        '7.1': f'Dн={diam} мм, S={S} мм' if diam else f'S={S} мм',
+        '6.4': angle,
+        '6.5': f_field,    # ← РАССЧИТАННОЕ расстояние f
+        '6.6': N_str,      # ← РАССЧИТАННОЕ число экспозиций N
+        '6.7': N_str,      # ← Число контролируемых участков = N
+        '6.8': l_field,    # ← РАССЧИТАННАЯ длина участка L
+        '6.9': scheme_field,   # ← Схема просвечивания с описанием
+
+        # ---- Разделы 7–8: Подготовка и условия ----
+        '7.1': (
+            f'Dн = {D} мм, Dвн = {d_inner:.1f} мм, S = {S} мм'
+            if D else f'S = {S} мм'
+        ),
         '8.3': pers.get('level', ''),
         '8.4': '+5 ÷ +40',
     }

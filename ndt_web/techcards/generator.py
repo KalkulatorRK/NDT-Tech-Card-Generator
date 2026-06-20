@@ -692,6 +692,12 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # --- Вставка изображения схемы просвечивания в поле 6.9 ---
     _insert_scheme_image_into_docx(doc, params, static_root)
 
+    # --- Настройка колонтитулов Word ---
+    # Удаляем inline-таблицы-заглушки шапок/подписей,
+    # заменяем на настоящие Word header/footer (появляются на каждой странице)
+    _remove_inline_header_footer_tables(doc)
+    _setup_page_headers_footers(doc, params)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
     return output_path
@@ -779,6 +785,202 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
 # ---------------------------------------------------------------
 # Генерация PDF
 # ---------------------------------------------------------------
+
+def _insert_page_number_field(para, prefix: str = '', suffix: str = ''):
+    """
+    Вставляет в параграф поле PAGE / NUMPAGES (номер страницы / всего страниц).
+    Используется для колонтитулов Word.
+
+    :param para: объект параграфа
+    :param prefix: текст перед номером страницы
+    :param suffix: текст после номера всего страниц
+    """
+    def _field_run(instr_text: str):
+        """Вставляет одно поле Word."""
+        run = para.add_run()
+        fc_begin = OxmlElement('w:fldChar')
+        fc_begin.set(qn('w:fldCharType'), 'begin')
+        instr = OxmlElement('w:instrText')
+        instr.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+        instr.text = instr_text
+        fc_end = OxmlElement('w:fldChar')
+        fc_end.set(qn('w:fldCharType'), 'end')
+        run._r.append(fc_begin)
+        run._r.append(instr)
+        run._r.append(fc_end)
+
+    if prefix:
+        para.add_run(prefix)
+    _field_run(' PAGE ')
+    para.add_run('\nЛистов ')
+    _field_run(' NUMPAGES ')
+    if suffix:
+        para.add_run(suffix)
+
+
+def _remove_inline_header_footer_tables(doc: Document):
+    """
+    Удаляет из тела документа inline-таблицы, которые в шаблоне
+    имитировали шапки страниц и поля подписей.
+
+    Шапки-заглушки: 2 строки × 3 столбца, вторая строка содержит
+    'Лист' или номер карты.
+    Подписи-заглушки: 2 строки × 2 столбца, первая строка содержит
+    'Разработал'.
+    """
+    tables_to_remove = []
+
+    for table in doc.tables:
+        rows = len(table.rows)
+        if rows == 0:
+            continue
+        cols = len(table.columns)
+        first_cell_text = table.rows[0].cells[0].text.strip()
+
+        # Шапка: 2 строки × 3 столбца
+        if rows == 2 and cols == 3:
+            second_row_text = ' '.join(
+                c.text for c in table.rows[1].cells
+            )
+            if ('Лист' in second_row_text
+                    or 'листов' in second_row_text.lower()
+                    or 'ОДМ' in first_cell_text
+                    or 'РГК' in second_row_text):
+                tables_to_remove.append(table)
+
+        # Подписи: 2 строки × 2 столбца, "Разработал"/"Проверил"
+        if rows == 2 and cols == 2:
+            if 'Разработал' in first_cell_text:
+                tables_to_remove.append(table)
+
+    for tbl in tables_to_remove:
+        el = tbl._element
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+
+    # Удаляем ставшие пустыми параграфы-разделители
+    body = doc.element.body
+    for para_el in list(body.iterchildren(
+        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'
+    )):
+        if para_el.text is None:
+            # Проверяем что в параграфе нет run-элементов с текстом
+            runs = para_el.findall(
+                './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'
+            )
+            if not runs:
+                body.remove(para_el)
+
+
+def _add_table_borders(table):
+    """Добавляет границы таблице через XML (работает в headers/footers)."""
+    tbl = table._tbl
+    tblPr = tbl.find(qn('w:tblPr'))
+    if tblPr is None:
+        tblPr = OxmlElement('w:tblPr')
+        tbl.insert(0, tblPr)
+    tblBorders = OxmlElement('w:tblBorders')
+    for border_name in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+        border = OxmlElement(f'w:{border_name}')
+        border.set(qn('w:val'), 'single')
+        border.set(qn('w:sz'), '4')
+        border.set(qn('w:space'), '0')
+        border.set(qn('w:color'), '000000')
+        tblBorders.append(border)
+    tblPr.append(tblBorders)
+
+
+def _setup_page_headers_footers(doc: Document, params: dict):
+    """
+    Настраивает Word-колонтитулы технологической карты:
+    - Верхний колонтитул (header): шапка с названием организации,
+      номером карты и нумерацией страниц (PAGE/NUMPAGES).
+    - Нижний колонтитул (footer): поля подписей
+      (Разработал / Проверил) с датой.
+
+    Колонтитулы Word автоматически воспроизводятся на каждой
+    странице при печати независимо от объёма содержимого.
+
+    :param doc: объект DOCX документа
+    :param params: параметры техкарты
+    """
+    org = params.get('organization', '')
+    card_num = params.get('card_number', '___')
+    dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
+    inspector = params.get('inspector_name', '')
+
+    section = doc.sections[0]
+    section.header_distance = Mm(8)
+    section.footer_distance = Mm(10)
+    section.different_first_page_header_footer = False
+
+    # ---- Верхний колонтитул ----
+    header = section.header
+    # Очищаем стандартный параграф
+    for para in list(header.paragraphs):
+        para._element.getparent().remove(para._element)
+
+    # Таблица 2 строки × 3 столбца
+    ht = header.add_table(rows=2, cols=3, width=Mm(185))
+    _add_table_borders(ht)
+    for i, w in enumerate([Mm(55), Mm(100), Mm(30)]):
+        for cell in ht.columns[i].cells:
+            cell.width = w
+
+    # Строка 1: организация | заголовок | пусто
+    r0 = ht.rows[0]
+    _set_cell_text(r0.cells[0], org or 'Наименование организации', font_size=8)
+    _set_cell_text(
+        r0.cells[1],
+        'Технологическая карта радиографического контроля',
+        bold=True, font_size=9,
+    )
+    r0.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Строка 2: пусто | номер карты | Лист X / Листов Y
+    r1 = ht.rows[1]
+    _set_cell_text(r1.cells[0], '', font_size=8)
+    _set_cell_text(r1.cells[1], f'№ {card_num}', font_size=9)
+    r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Поле нумерации страниц в правой ячейке
+    page_para = r1.cells[2].paragraphs[0]
+    _insert_page_number_field(page_para, prefix='Лист ')
+
+    # ---- Нижний колонтитул ----
+    footer = section.footer
+    for para in list(footer.paragraphs):
+        para._element.getparent().remove(para._element)
+
+    # Таблица 2 строки × 2 столбца
+    ft = footer.add_table(rows=2, cols=2, width=Mm(185))
+    _add_table_borders(ft)
+    for cell in ft.columns[0].cells:
+        cell.width = Mm(90)
+    for cell in ft.columns[1].cells:
+        cell.width = Mm(95)
+
+    # Строка 1: роли
+    fr0 = ft.rows[0]
+    _set_cell_text(fr0.cells[0], 'Разработал', bold=True, font_size=9)
+    _set_cell_text(fr0.cells[1], 'Проверил', bold=True, font_size=9)
+
+    # Строка 2: должности + дата + подпись
+    fr1 = ft.rows[1]
+    sig_left = (
+        f'Ведущий инженер технолог\n'
+        f'«{dev_date}» ___________'
+    )
+    sig_right = (
+        f'Начальник лаборатории НК\n'
+        f'«{dev_date}» _________'
+    )
+    if inspector:
+        sig_left += f'\n{inspector}'
+    _set_cell_text(fr1.cells[0], sig_left, font_size=9)
+    _set_cell_text(fr1.cells[1], sig_right, font_size=9)
+
 
 def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     """
@@ -1032,6 +1234,9 @@ def _generate_docx_fallback(params: dict, output_path: str) -> str:
         row.cells[0].paragraphs[0].runs[0].font.size = Pt(9)
         row.cells[1].text = str(vmap.get(key, ''))
         row.cells[1].paragraphs[0].runs[0].font.size = Pt(9)
+
+    # Настраиваем колонтитулы
+    _setup_page_headers_footers(doc, params)
 
     doc.save(output_path)
     return output_path

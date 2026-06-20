@@ -677,26 +677,15 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                             run.text = run.text.replace('_21_»_01___2012г.', f'«{dev_date}»')
                             run.text = run.text.replace('«_21_»_01___2012_г.', f'«{dev_date}»')
 
-    # --- Добавление предупреждений в конец документа ---
-    if params.get('warnings'):
-        doc.add_paragraph()
-        para = doc.add_paragraph()
-        run = para.add_run('Предупреждения при генерации:')
-        run.bold = True
-        run.font.size = Pt(9)
-        for w in params['warnings']:
-            p = doc.add_paragraph(f'⚠ {w}', style='Normal')
-            p.runs[0].font.size = Pt(8)
-            p.runs[0].font.color.rgb = RGBColor(0xFF, 0x80, 0x00)
-
     # --- Вставка изображения схемы просвечивания в поле 6.9 ---
     _insert_scheme_image_into_docx(doc, params, static_root)
 
     # --- Настройка колонтитулов Word ---
-    # Удаляем inline-таблицы-заглушки шапок/подписей,
-    # заменяем на настоящие Word header/footer (появляются на каждой странице)
     _remove_inline_header_footer_tables(doc)
     _setup_page_headers_footers(doc, params)
+
+    # --- Компактизация документа ---
+    _compact_document(doc)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
@@ -982,6 +971,106 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     _set_cell_text(fr1.cells[1], sig_right, font_size=9)
 
 
+def _compact_document(doc: Document):
+    """
+    Делает документ компактным:
+    1. Удаляет заголовок-образец «Пример технологической карты...»
+    2. Убирает все пустые параграфы между таблицами
+    3. Уменьшает отступы в ячейках таблиц
+    4. Уменьшает межстрочный интервал
+
+    :param doc: объект DOCX документа
+    """
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    body = doc.element.body
+    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+    # 1. Удаляем заголовочные параграфы (Heading 1 и подобные,
+    #    а также параграф "Пример технологической карты...")
+    paras_to_remove = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        style_name = para.style.name if para.style else ''
+        # Убираем: заголовок-образец, служебные надписи
+        if (
+            'Пример технологической карты' in text
+            or text == 'Технологическая карта радиографического контроля'
+            or 'Heading' in style_name
+        ):
+            paras_to_remove.append(para._element)
+
+    # 2. Убираем все пустые параграфы в теле документа (между таблицами)
+    for para_el in body.findall(f'{ns}p'):
+        if para_el in paras_to_remove:
+            continue
+        runs = para_el.findall(f'.//{ns}r')
+        text = ''.join(
+            t.text or '' for t in para_el.findall(f'.//{ns}t')
+        ).strip()
+        if not text and not runs:
+            paras_to_remove.append(para_el)
+
+    for el in paras_to_remove:
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+
+    # 3. Уменьшаем отступы ячеек и межстрочный интервал в таблицах
+    _minimize_cell_padding = Pt(1)
+    for table in doc.tables:
+        # Минимальные отступы на уровне таблицы
+        tbl_el = table._tbl
+        tblPr = tbl_el.find(qn('w:tblPr'))
+        if tblPr is None:
+            tblPr = OxmlElement('w:tblPr')
+            tbl_el.insert(0, tblPr)
+
+        # Убираем лишние пробелы после таблицы
+        tblLook = tblPr.find(qn('w:tblLook'))
+        if tblLook is None:
+            tblLook = OxmlElement('w:tblLook')
+            tblPr.append(tblLook)
+
+        # Клеточные поля: минимальные
+        tblCellMar = tblPr.find(qn('w:tblCellMar'))
+        if tblCellMar is not None:
+            tblPr.remove(tblCellMar)
+        tblCellMar = OxmlElement('w:tblCellMar')
+        for side in ('top', 'left', 'bottom', 'right'):
+            mar = OxmlElement(f'w:{side}')
+            mar.set(qn('w:w'), '40')    # 40 twips ≈ 0.7 мм
+            mar.set(qn('w:type'), 'dxa')
+            tblCellMar.append(mar)
+        tblPr.append(tblCellMar)
+
+        # Уменьшаем интервал в каждом параграфе ячеек
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    pPr = para._p.find(qn('w:pPr'))
+                    if pPr is None:
+                        pPr = OxmlElement('w:pPr')
+                        para._p.insert(0, pPr)
+                    # Убираем отступ до/после абзаца
+                    spacing = pPr.find(qn('w:spacing'))
+                    if spacing is None:
+                        spacing = OxmlElement('w:spacing')
+                        pPr.append(spacing)
+                    spacing.set(qn('w:before'), '0')
+                    spacing.set(qn('w:after'), '0')
+                    spacing.set(qn('w:line'), '240')     # одинарный
+                    spacing.set(qn('w:lineRule'), 'auto')
+
+    # 4. Устанавливаем узкие поля страницы (15 мм со всех сторон)
+    for section in doc.sections:
+        section.top_margin = Mm(15)
+        section.bottom_margin = Mm(15)
+        section.left_margin = Mm(20)
+        section.right_margin = Mm(10)
+
+
 def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     """
     Создаёт PDF-версию технологической карты.
@@ -1102,10 +1191,8 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('Специалист НК', params.get('inspector_name') or '___________________'),
     ])
 
-    if params.get('warnings'):
-        story.append(Paragraph('ПРЕДУПРЕЖДЕНИЯ:', head_s))
-        for w in params['warnings']:
-            story.append(Paragraph(f'⚠ {w}', norm_s))
+    # Предупреждения не включаются в готовую техкарту
+    # (они остаются в логах системы)
 
     doc_pdf.build(story)
     return output_path

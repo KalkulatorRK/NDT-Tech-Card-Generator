@@ -10,42 +10,54 @@
       <div class="card">
         <div class="card-header-section">
           <i class="bi bi-4-circle me-2"></i>
-          Шаг 4: Проверка и подтверждение данных
+          Шаг 4: Проверка и подтверждение введённых данных
         </div>
 
         <div class="warning-box mb-4">
           <i class="bi bi-exclamation-triangle me-1"></i>
-          Внимательно проверьте все введённые данные. От правильности исходных данных
-          зависит корректность разработанной технологической карты.
+          <strong>Внимательно проверьте все данные.</strong>
+          От правильности исходной информации зависит корректность
+          разработанной технологической карты.
         </div>
 
-        <!-- Сводка введённых данных -->
-        <h6 class="fw-semibold mb-3">Сводка введённых данных:</h6>
-        <div class="table-responsive mb-4">
-          <table class="table table-sm">
-            <tbody>
-              {% for key, value in session_data.items %}
-              {% if value and key != 'doc_code' %}
-              <tr>
-                <td class="text-muted" style="width:40%;font-size:0.85rem;">{{ key }}</td>
-                <td class="fw-semibold" style="font-size:0.85rem;">{{ value }}</td>
-              </tr>
-              {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
+        <!-- Сводка введённых данных (по секциям, на русском языке) -->
+        {% for section_title, rows in summary %}
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-2 text-primary">
+            <i class="bi bi-check2-square me-1"></i>{{ section_title }}
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <tbody>
+                {% for label, value in rows %}
+                <tr>
+                  <td class="text-muted" style="width:45%;font-size:0.88rem;">
+                    {{ label }}
+                  </td>
+                  <td class="fw-semibold" style="font-size:0.88rem;">
+                    {{ value }}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
+        {% empty %}
+        <div class="text-muted text-center py-3">Данные не найдены. Вернитесь на предыдущий шаг.</div>
+        {% endfor %}
 
+        <!-- Форма подтверждения -->
         <form method="post" novalidate>
           {% csrf_token %}
           {% for field in form %}
-          <div class="form-check mb-3">
+          <div class="form-check mb-3 p-3 rounded border" style="background:#fafcff;">
             {{ field }}
-            <label class="form-check-label" for="{{ field.id_for_label }}">
+            <label class="form-check-label ms-2" for="{{ field.id_for_label }}">
               {{ field.label }}
             </label>
             {% if field.errors %}
-            <div class="text-danger small">{{ field.errors.0 }}</div>
+            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
             {% endif %}
           </div>
           {% endfor %}
@@ -55,7 +67,7 @@
               <i class="bi bi-arrow-left me-1"></i>Назад
             </a>
             <button type="submit" class="btn btn-success btn-lg">
-              <i class="bi bi-lightning-fill me-2"></i>Сгенерировать техкарту
+              <i class="bi bi-lightning-fill me-2"></i>Сгенерировать технологическую карту
             </button>
           </div>
         </form>

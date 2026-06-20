@@ -236,6 +236,9 @@ def create_step4_view(request, doc_code):
     else:
         form = TechCardConfirmForm()
 
+    # Сводка с человекочитаемыми названиями на русском языке
+    summary = _build_human_readable_summary(session_data)
+
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
     return render(request, 'techcards/create_step4.html', {
         'form': form,
@@ -243,8 +246,119 @@ def create_step4_view(request, doc_code):
         'step': 4,
         'total_steps': 4,
         'step_labels': STEP_LABELS,
-        'session_data': session_data,
+        'summary': summary,
     })
+
+
+def _build_human_readable_summary(data: dict) -> list:
+    """
+    Преобразует технические ключи сессионных данных в читаемые
+    русскоязычные описания для отображения на шаге 4.
+
+    :param data: словарь из сессии
+    :return: список кортежей (заголовок_секции, [(метка, значение), ...])
+    """
+    from normative.gost_59023_2 import JOINT_TYPES, WELDING_PROCESSES
+    from normative.calculations import SCHEME_INFO
+
+    # Словари для перевода кодов
+    OBJECT_TYPES = {
+        'pipe': 'Трубопровод (кольцевой шов)',
+        'flat': 'Плоская деталь / пластина',
+        'vessel': 'Сосуд давления / обечайка',
+    }
+    WELD_CATS = {
+        'I': 'I — первый контур АЭУ',
+        'II': 'II — вспомогательные системы',
+        'III': 'III — прочее оборудование',
+        'IV': 'IV — строительные конструкции',
+    }
+    # Схемы: переводим коды вида '5zh' → 'Чертёж 3ж'
+    SCHEME_LABELS = {
+        '4_6': 'Чертёж 2 (плоские детали)',
+        '5a':  'Чертёж 3а (трубопровод, источник снаружи, 1 стенка)',
+        '5b':  'Чертёж 3б (трубопровод, источник снаружи, 1 стенка, эллипс)',
+        '5v':  'Чертёж 3в (малый диаметр, источник снаружи, 2 стенки)',
+        '5g':  'Чертёж 3г (источник снаружи, 2 стенки)',
+        '5d':  'Чертёж 3д (источник снаружи, 2 стенки)',
+        '5zh': 'Чертёж 3ж (панорамный, источник на оси)',
+        '5z':  'Чертёж 3и (большой диаметр, источник внутри)',
+        '5e':  'Чертёж 3е (специальная)',
+    }
+
+    # Метки для отдельных полей
+    FIELD_LABELS = {
+        'organization':       'Организация',
+        'object_name':        'Наименование объекта контроля',
+        'drawing_number':     'Номер чертежа',
+        'weld_number':        'Обозначение сварного соединения',
+        'card_number':        'Номер технологической карты',
+        'inspector_name':     'Специалист НК (ФИО)',
+        'object_type':        'Тип объекта',
+        'material':           'Марка стали',
+        'wall_thickness':     'Толщина стенки, мм',
+        'outer_diameter':     'Наружный диаметр, мм',
+        'joint_designation':  'Условное обозначение шва (ГОСТ Р 59023.2-2020)',
+        'welding_process':    'Способ сварки',
+        'weld_category':      'Категория сварного соединения',
+        'source_code':        'Источник излучения',
+        'focal_spot_mm':      'Размер фокусного пятна (Φ), мм',
+        'source_activity':    'Активность источника',
+        'scheme_type':        'Схема просвечивания',
+        'film_length_mm':     'Длина плёнки (для схемы 3б), мм',
+        'ofd_mm':             'Расстояние объект–детектор (b), мм',
+        'film_name':          'Тип радиографической плёнки',
+    }
+
+    # Секции для группировки
+    sections = [
+        ('1. Идентификационные данные', [
+            'organization', 'object_name', 'drawing_number',
+            'weld_number', 'card_number', 'inspector_name',
+        ]),
+        ('2. Объект контроля', [
+            'object_type', 'material', 'wall_thickness',
+            'outer_diameter', 'joint_designation', 'welding_process',
+            'weld_category',
+        ]),
+        ('3. Параметры просвечивания', [
+            'source_code', 'focal_spot_mm', 'source_activity',
+            'scheme_type', 'film_length_mm', 'ofd_mm', 'film_name',
+        ]),
+    ]
+
+    def _translate(key, val):
+        """Переводит значение поля в читаемый вид."""
+        if not val:
+            return '—'
+        if key == 'object_type':
+            return OBJECT_TYPES.get(val, val)
+        if key == 'weld_category':
+            return WELD_CATS.get(val, val)
+        if key == 'scheme_type':
+            return SCHEME_LABELS.get(val, val)
+        if key == 'welding_process':
+            proc = WELDING_PROCESSES.get(str(val), {})
+            name = proc.get('name', val)
+            return f'Способ {val} — {name}'
+        if key == 'joint_designation':
+            jt = JOINT_TYPES.get(val, {})
+            if jt:
+                return f'{val} — {jt.get("name", "")} ({jt.get("groove", "")})'
+            return val
+        return str(val)
+
+    result = []
+    for section_title, keys in sections:
+        rows = []
+        for key in keys:
+            val = data.get(key)
+            if val is not None and str(val).strip():
+                label = FIELD_LABELS.get(key, key)
+                rows.append((label, _translate(key, val)))
+        if rows:
+            result.append((section_title, rows))
+    return result
 
 
 @login_required

@@ -692,22 +692,35 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
     """
     Вставляет изображение схемы просвечивания в поле 6.9 техкарты.
 
-    Ищет ячейку таблицы с меткой '6.9' и добавляет в неё
-    изображение выбранной схемы из static/img/.
+    Добавляет картинку и текстовое описание прямо в найденную ячейку
+    (строка с меткой '6.9'). Поддерживает как однояченные (слитые),
+    так и многоячеечные строки.
 
     :param doc: объект DOCX документа
-    :param params: параметры техкарты
-    :param static_root: путь к статическим файлам
+    :param params: параметры техкарты (должен содержать scheme_info)
+    :param static_root: путь к статическим файлам Django
     """
     scheme_info = params.get('scheme_info') or {}
     image_rel = scheme_info.get('image', '')
+
     if not image_rel:
         return
 
-    # Путь к изображению в static директории
+    # Схемы хранятся в static/img/ (не img/welds/)
     image_path = os.path.join(static_root, image_rel)
     if not os.path.exists(image_path):
-        return
+        # Попробуем без поддиректории
+        alt_path = os.path.join(static_root, os.path.basename(image_rel))
+        if os.path.exists(alt_path):
+            image_path = alt_path
+        else:
+            return   # Файл не найден — пропускаем без ошибки
+
+    scheme_result = params.get('exposure_scheme') or {}
+    scheme_name = scheme_info.get('name', '')
+    scheme_desc = scheme_info.get('description', '')
+    n_exp = scheme_result.get('n_exposures_min', '')
+    rad_note = params.get('rad_thickness', {}).get('wall_desc', '')
 
     # Ищем ячейку с меткой "6.9"
     for table in doc.tables:
@@ -716,17 +729,42 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
             if not ucells:
                 continue
             label_text = ucells[0].text.strip()
-            if '6.9' in label_text and len(ucells) >= 2:
-                value_cell = ucells[-1]
+            if '6.9' in label_text:
+                # Всегда вставляем в последнюю уникальную ячейку
+                # (при слитой строке — это та же единственная ячейка)
+                target_cell = ucells[-1]
                 try:
-                    # Вставляем изображение (ширина 60мм)
-                    para = value_cell.paragraphs[0] if value_cell.paragraphs else value_cell.add_paragraph()
-                    run = para.add_run()
-                    from docx.shared import Mm as DocxMm
-                    run.add_picture(image_path, width=DocxMm(60))
+                    # Добавляем изображение в новом параграфе ячейки
+                    img_para = target_cell.add_paragraph()
+                    img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run_img = img_para.add_run()
+                    run_img.add_picture(image_path, width=Mm(75))
+
+                    # Добавляем подпись к схеме
+                    desc_para = target_cell.add_paragraph()
+                    desc_run = desc_para.add_run(
+                        f'{scheme_name}. {scheme_desc}'
+                    )
+                    desc_run.font.size = Pt(8)
+                    desc_run.italic = True
+
+                    # Добавляем информацию о радиационной толщине
+                    if rad_note:
+                        rad_para = target_cell.add_paragraph()
+                        s_rad_k = params.get('s_rad_k_mm', '')
+                        s_rad_f = params.get('s_rad_f_mm', '')
+                        rad_run = rad_para.add_run(
+                            f'{rad_note}. '
+                            f'Sрад(К) = {s_rad_k} мм; Sрад(f) = {s_rad_f} мм'
+                        )
+                        rad_run.font.size = Pt(8)
+
+                    return   # Успешно вставили — выходим
+                except Exception as exc:
+                    # Логируем ошибку, но не падаем
+                    import traceback
+                    traceback.print_exc()
                     return
-                except Exception:
-                    pass   # Если не удалось вставить — пропускаем
 
 
 # ---------------------------------------------------------------

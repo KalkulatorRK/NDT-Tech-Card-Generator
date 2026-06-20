@@ -127,6 +127,7 @@ class RadiographicTechCardCalculator:
         self._select_sources()
         self._calc_geometric_params()
         self._calc_exposure_scheme()
+        self._calc_inspection_zones()   # Поля 4.2.2, 4.2.4, 4.2.5 по ГОСТ Р 59023.2-2020
         self._select_film()
         self._calc_screens()
         self._calc_iqi()
@@ -149,18 +150,44 @@ class RadiographicTechCardCalculator:
             'material': d.get('material', ''),
             'wall_thickness': float(d.get('wall_thickness', 10)),
             'outer_diameter': float(d.get('outer_diameter', 0) or 0),
-            'weld_type': d.get('weld_type', 'butt'),
-            'welding_process': d.get('welding_process', ''),
+            # Условное обозначение (ГОСТ Р 59023.2-2020)
+            'joint_designation': d.get('joint_designation', ''),
+            'welding_process': d.get('welding_process', '30'),
             'weld_category': d.get('weld_category', 'II'),
             'source_code': d.get('source_code', ''),
             'source_focal_spot_mm': float(d.get('focal_spot_mm', 2.0) or 2.0),
             'source_activity': d.get('source_activity', ''),
-            'sfd_mm': float(d.get('sfd_mm', 0) or 0),   # 0 = не задан, возьмём f_min
+            'sfd_mm': float(d.get('sfd_mm', 0) or 0),
             'ofd_mm': float(d.get('ofd_mm', 5) or 5),
             'film_name': d.get('film_name', ''),
             'inspector_name': d.get('inspector_name', ''),
             'develop_date': d.get('develop_date', datetime.now().strftime('%d.%m.%Y')),
         })
+
+    def _calc_inspection_zones(self):
+        """
+        Рассчитывает ширину валика шва, ОШЗ и контролируемую зону
+        по ГОСТ Р 59023.2-2020 и НП-105-18.
+        Заполняет поля техкарты 4.2.2, 4.2.4, 4.2.5.
+        """
+        from normative.gost_59023_2 import get_inspection_zone, get_joint_info
+
+        joint_code = self.params.get('joint_designation', '')
+        S = self.params['wall_thickness']
+        method = self.params.get('welding_process', '30')
+
+        zone = get_inspection_zone(joint_code, S, method)
+        joint_info = get_joint_info(joint_code)
+
+        self.params['weld_bead_width_mm'] = zone.get('bead_width_mm', '')
+        self.params['weld_bead_height_mm'] = zone.get('bead_height_mm', '')
+        self.params['haz_width_mm'] = zone.get('haz_width_mm', 5.0)
+        self.params['zone_width_mm'] = zone.get('zone_width_mm', '')
+        self.params['film_width_min_mm'] = zone.get('film_width_min_mm', '')
+        self.params['zone_note'] = zone.get('weld_note', '')
+        self.params['joint_groove'] = joint_info.get('groove', '')
+        self.params['joint_name'] = joint_info.get('name', joint_code)
+        self.params['joint_sketch'] = joint_info.get('sketch', '')
 
     def _calc_sensitivity_class(self):
         weld_cat = self.params['weld_category']
@@ -446,9 +473,23 @@ def _build_value_map(params: dict) -> dict:
         '1.3': params.get('drawing_number', ''),
         '1.4': params.get('weld_number', ''),
         '1.5': params.get('drawing_number', ''),
-        '1.6': _WELD_TYPE_NAMES.get(params.get('weld_type', ''), ''),
+        '1.6': (
+            f'{params.get("joint_designation", "")} — {params.get("joint_name", "")}'
+            if params.get('joint_designation') else
+            _WELD_TYPE_NAMES.get(params.get('weld_type', ''), '')
+        ),
         '1.7': params.get('weld_number', ''),
-        '1.8': params.get('welding_process', ''),
+        '1.8': (
+            f'Способ {params.get("welding_process", "")} — '
+            + {
+                '10': 'АДФ под флюсом', '11': 'АДФ с подваркой корня', '20': 'ЭШС',
+                '30': 'РДС', '31': 'РДС с подваркой корня', '32': 'РДС на подкладке',
+                '40': 'Комбинированная (корень АДС)', '42': 'Комбинированная на подкладке',
+                '51': 'АДС без присадки', '52': 'АДС с присадкой', '53': 'АДС плавящимся',
+                '60': 'ЭЛС',
+            }.get(params.get('welding_process', ''), '')
+            if params.get('welding_process') else ''
+        ),
         '1.9': params.get('material', ''),
         '1.10': params.get('weld_material', ''),
 
@@ -460,14 +501,23 @@ def _build_value_map(params: dict) -> dict:
         '3.1': params.get('weld_category', ''),
         '3.2': str(params.get('control_volume_pct', 100)) + ' %',
 
-        # ---- Раздел 4: Тип и размеры ----
+        # ---- Раздел 4: Тип и размеры (поля 4.2.2, 4.2.4, 4.2.5 по ГОСТ Р 59023.2-2020) ----
         '4.1': _OBJECT_TYPE_NAMES.get(params.get('object_type', ''), ''),
         '4.2.1': f'Dн = {D} мм' if D else 'плоская деталь',
         'толщина': f'S = {S} мм',
-        '4.2.2': '',   # Ширина валика — по замеру на объекте
+        '4.2.2': (
+            f'e = {params.get("weld_bead_width_mm", "—")} мм, '
+            f'g = {params.get("weld_bead_height_mm", "—")} мм '
+            f'({params.get("joint_designation", "—")}, S={S}мм, сп.{params.get("welding_process","—")})'
+            if params.get('weld_bead_width_mm') else 'по замеру на объекте'
+        ),
         '4.2.3': 'не снят',
-        '4.2.4': '5 мм',
-        '4.2.5': 'шов + по 5 мм с каждой стороны',
+        '4.2.4': f'{params.get("haz_width_mm", 5.0):.1f} мм (с каждой стороны от краёв шва)',
+        '4.2.5': (
+            f'{params.get("zone_width_mm", "—")} мм '
+            f'= e({params.get("weld_bead_width_mm","—")})+2×{params.get("haz_width_mm",5.0):.1f}'
+            if params.get('zone_width_mm') else 'ширина шва + 2×5 мм'
+        ),
 
         # ---- Раздел 5: Средства контроля ----
         '5.1': src.get('name', ''),

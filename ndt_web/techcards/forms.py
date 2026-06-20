@@ -9,7 +9,7 @@ from django import forms
 from normative.gost_50_05_07 import get_source_choices, get_film_choices, get_iqi_choices
 from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices, get_material_choices,
-    get_pipe_diameters,
+    get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
 )
 from normative.np_104_18 import get_choices as get_category_choices
 
@@ -53,7 +53,7 @@ class TechCardStep1Form(forms.Form):
 
 
 class TechCardStep2Form(forms.Form):
-    """Шаг 2: Материал и геометрия объекта."""
+    """Шаг 2: Материал, геометрия объекта и тип сварного соединения."""
 
     OBJECT_TYPE_CHOICES = [
         ('pipe', 'Трубопровод (кольцевой шов)'),
@@ -92,27 +92,39 @@ class TechCardStep2Form(forms.Form):
             'placeholder': '219.1',
             'min': '0',
         }),
-        help_text='Указывается только для трубопроводов. Выберите значение из типоряда.',
+        help_text='Указывается только для трубопроводов.',
     )
-    weld_type = forms.ChoiceField(
+    # Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020)
+    joint_designation = forms.ChoiceField(
         choices=get_joint_type_choices(),
-        label='Тип сварного соединения *',
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020) *',
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'id_joint_designation',
+        }),
+        help_text=(
+            'С — стыковое, У — угловое, Т — тавровое. '
+            'Номер определяет тип разделки кромок.'
+        ),
     )
     welding_process = forms.ChoiceField(
         choices=[('', '— Выберите вид сварки —')] + get_welding_process_choices(),
         required=False,
-        label='Вид сварки',
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Способ сварки (код по ГОСТ Р 59023.2-2020) *',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_welding_process'}),
+        help_text=(
+            '10 — АДФ под флюсом; 30 — РДС; 40 — комбинированная; '
+            '51/52 — аргонодуговая; 60 — ЭЛС'
+        ),
     )
     weld_category = forms.ChoiceField(
         choices=get_category_choices(),
         label='Категория сварного соединения (по НП-104-18) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_weld_category'}),
         help_text=(
-            'Категория I — первый контур реакторной установки. '
+            'Категория I — первый контур АЭУ. '
             'Категория II — вспомогательные системы. '
-            'Категория III/IV — прочее оборудование.'
+            'Категория III/IV — прочее.'
         ),
     )
 
@@ -125,6 +137,13 @@ class TechCardStep2Form(forms.Form):
                 'Для трубопровода необходимо указать наружный диаметр.'
             )
         return diameter
+
+    def clean_joint_designation(self):
+        """Проверяем что обозначение шва выбрано."""
+        designation = self.cleaned_data.get('joint_designation')
+        if not designation:
+            raise forms.ValidationError('Выберите условное обозначение сварного соединения.')
+        return designation
 
 
 SCHEME_CHOICES = [

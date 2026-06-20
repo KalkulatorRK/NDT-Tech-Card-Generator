@@ -1,55 +1,121 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Создание техкарты — Шаг 2{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
       {% include "techcards/_steps.html" %}
 
       <div class="card">
         <div class="card-header-section">
           <i class="bi bi-2-circle me-2"></i>
-          Шаг 2: Материал и геометрия объекта
+          Шаг 2: Материал, геометрия объекта и тип сварного соединения
         </div>
 
         <form method="post" novalidate>
           {% csrf_token %}
           <div class="row g-3">
-            <div class="col-12">
+
+            <!-- Тип объекта -->
+            <div class="col-md-6">
               <label class="form-label">{{ form.object_type.label }}</label>
               {{ form.object_type }}
             </div>
+
+            <!-- Марка стали -->
             <div class="col-md-6">
               <label class="form-label">{{ form.material.label }}</label>
               {{ form.material }}
               {% if form.material.errors %}<div class="text-danger small">{{ form.material.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.weld_type.label }}</label>
-              {{ form.weld_type }}
-            </div>
+
+            <!-- Толщина стенки -->
             <div class="col-md-6">
               <label class="form-label">{{ form.wall_thickness.label }}</label>
               {{ form.wall_thickness }}
               {% if form.wall_thickness.errors %}<div class="text-danger small">{{ form.wall_thickness.errors.0 }}</div>{% endif %}
               {% if form.wall_thickness.help_text %}<div class="form-text">{{ form.wall_thickness.help_text }}</div>{% endif %}
             </div>
+
+            <!-- Наружный диаметр (для труб) -->
             <div class="col-md-6" id="diameter-group">
               <label class="form-label">{{ form.outer_diameter.label }}</label>
               {{ form.outer_diameter }}
               {% if form.outer_diameter.errors %}<div class="text-danger small">{{ form.outer_diameter.errors.0 }}</div>{% endif %}
-              {% if form.outer_diameter.help_text %}<div class="form-text">{{ form.outer_diameter.help_text }}</div>{% endif %}
             </div>
+
+            <!-- Разделитель: Тип сварного соединения -->
+            <div class="col-12 mt-2">
+              <div class="card-header-section mb-3">
+                <i class="bi bi-diagram-3 me-2"></i>Тип сварного соединения (ГОСТ Р 59023.2-2020)
+              </div>
+            </div>
+
+            <!-- Условное обозначение шва -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                {{ form.joint_designation.label }}
+                <span class="tooltip-icon" data-bs-toggle="tooltip"
+                  title="С — стыковое, У — угловое, Т — тавровое. Номер обозначает тип разделки кромок и способ сварки.">?</span>
+              </label>
+              {{ form.joint_designation }}
+              {% if form.joint_designation.errors %}<div class="text-danger small">{{ form.joint_designation.errors.0 }}</div>{% endif %}
+              {% if form.joint_designation.help_text %}<div class="form-text">{{ form.joint_designation.help_text }}</div>{% endif %}
+            </div>
+
+            <!-- Эскиз выбранного соединения -->
+            <div class="col-12" id="joint-sketch-block" style="display:none;">
+              <div class="border rounded p-3 bg-light">
+                <div class="row align-items-center">
+                  <div class="col-md-3 text-center">
+                    <img id="joint-sketch-img" src="" alt="Эскиз сварного соединения"
+                         style="max-height:120px; max-width:200px;">
+                  </div>
+                  <div class="col-md-9">
+                    <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
+                    <!-- Рассчитанные размеры зон (заполняются по AJAX) -->
+                    <div id="joint-dimensions" class="mt-2" style="font-size:0.85rem; display:none;">
+                      <div class="row g-2">
+                        <div class="col-6">
+                          <strong>Ширина шва (e):</strong>
+                          <span id="dim-e" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Высота усиления (g):</strong>
+                          <span id="dim-g" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Ширина ОШЗ (a):</strong>
+                          <span id="dim-haz" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Контролируемая зона:</strong>
+                          <span id="dim-zone" class="text-success fw-bold">—</span> мм
+                        </div>
+                      </div>
+                      <div class="mt-1 text-muted" id="dim-note" style="font-size:0.78rem;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Способ сварки -->
             <div class="col-md-6">
-              <label class="form-label">{{ form.welding_process.label }}</label>
+              <label class="form-label fw-semibold">{{ form.welding_process.label }}</label>
               {{ form.welding_process }}
+              {% if form.welding_process.help_text %}<div class="form-text">{{ form.welding_process.help_text }}</div>{% endif %}
             </div>
+
+            <!-- Категория сварного шва -->
             <div class="col-md-6">
               <label class="form-label">{{ form.weld_category.label }}</label>
               {{ form.weld_category }}
               {% if form.weld_category.help_text %}<div class="form-text">{{ form.weld_category.help_text }}</div>{% endif %}
             </div>
+
             <!-- Динамическая подсказка о категории -->
             <div class="col-12">
               <div id="category-info" class="info-box" style="display:none;"></div>
@@ -69,4 +135,101 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Данные о типах соединений из Python (передаются через AJAX)
+// При выборе типа соединения запрашиваем данные и показываем эскиз
+
+var JOINT_DATA = {{ joint_data_json|safe }};
+
+var jointSelect = document.getElementById('id_joint_designation');
+var sketchBlock = document.getElementById('joint-sketch-block');
+var sketchImg = document.getElementById('joint-sketch-img');
+var sketchInfo = document.getElementById('joint-sketch-info');
+var dimensionsBlock = document.getElementById('joint-dimensions');
+
+function updateJointUI(jointCode) {
+  if (!jointCode || !JOINT_DATA[jointCode]) {
+    sketchBlock.style.display = 'none';
+    return;
+  }
+  var info = JOINT_DATA[jointCode];
+
+  // Показываем эскиз
+  if (info.sketch) {
+    sketchImg.src = '{% static "img/welds/" %}' + info.sketch;
+    sketchImg.style.display = '';
+  } else {
+    sketchImg.style.display = 'none';
+  }
+
+  // Описание
+  sketchInfo.innerHTML = '<strong>' + jointCode + '</strong> — ' + info.name +
+    '<br><span class="text-muted">Способы сварки: ' + info.methods.join(', ') +
+    ' | Разделка: ' + info.groove + '</span>';
+
+  sketchBlock.style.display = '';
+
+  // Обновляем список допустимых способов сварки
+  var processSelect = document.getElementById('id_welding_process');
+  if (processSelect && info.methods) {
+    for (var i = 0; i < processSelect.options.length; i++) {
+      var opt = processSelect.options[i];
+      if (opt.value === '') continue;
+      var isAllowed = info.methods.some(function(m) { return opt.value.startsWith(m); });
+      opt.style.color = isAllowed ? '' : '#999';
+      opt.style.background = isAllowed ? '' : '#f8f8f8';
+    }
+  }
+
+  // Рассчитываем зоны если введена толщина
+  calculateZones(jointCode);
+}
+
+function calculateZones(jointCode) {
+  var thickness = parseFloat(document.getElementById('id_wall_thickness') ?
+    document.getElementById('id_wall_thickness').value : 0);
+  var method = document.getElementById('id_welding_process') ?
+    document.getElementById('id_welding_process').value : '30';
+
+  if (!thickness || !jointCode) return;
+
+  fetch('/ajax/joint-zones/?joint=' + encodeURIComponent(jointCode) +
+        '&thickness=' + thickness + '&method=' + method)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) return;
+      document.getElementById('dim-e').textContent = data.bead_width_mm || '—';
+      document.getElementById('dim-g').textContent = data.bead_height_mm || '—';
+      document.getElementById('dim-haz').textContent = data.haz_width_mm || '—';
+      document.getElementById('dim-zone').textContent = data.zone_width_mm || '—';
+      document.getElementById('dim-note').textContent = data.weld_note || '';
+      dimensionsBlock.style.display = '';
+    })
+    .catch(function() {});
+}
+
+if (jointSelect) {
+  jointSelect.addEventListener('change', function() {
+    updateJointUI(this.value);
+  });
+  updateJointUI(jointSelect.value);
+}
+
+// Пересчёт зон при изменении толщины или способа сварки
+var thicknessInput = document.getElementById('id_wall_thickness');
+if (thicknessInput) {
+  thicknessInput.addEventListener('change', function() {
+    if (jointSelect) calculateZones(jointSelect.value);
+  });
+}
+var processSelect = document.getElementById('id_welding_process');
+if (processSelect) {
+  processSelect.addEventListener('change', function() {
+    if (jointSelect) calculateZones(jointSelect.value);
+  });
+}
+</script>
 {% endblock %}

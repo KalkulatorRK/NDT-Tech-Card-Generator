@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
+  <style>
+    line, polyline, path { stroke:#2c3e50; stroke-width:1.5; fill:none; }
+    .weld { fill:#a0c4e8; stroke:#2c3e50; stroke-width:1; }
+    .dim { stroke:#888; stroke-width:0.8; stroke-dasharray:3,2; fill:none; }
+    text { font-family:Arial,sans-serif; font-size:9px; fill:#333; }
+    .label { font-size:8px; fill:#555; }
+  </style>
+  
+  <!-- Горизонтальная деталь -->
+  <polyline points="10,75 190,75 190,100 10,100" />
+  <!-- Вертикальная деталь (по центру) -->
+  <polyline points="90,10 110,10 110,75 90,75 90,10" />
+  <!-- Шов левый -->
+  <polygon class="weld" points="90,75 70,75 90,50" />
+  <!-- Шов правый -->
+  <polygon class="weld" points="110,75 130,75 110,50" />
+  <!-- Катеты -->
+  <line class="dim" x1="70" y1="75" x2="70" y2="50" />
+  <line class="dim" x1="70" y1="50" x2="90" y2="50" />
+  <text x="63" y="65" class="label">К</text>
+  <text x="100" y="108" text-anchor="middle" font-weight="bold">Т (Тавровое)</text>
+  <text x="100" y="118" text-anchor="middle" class="label">Способы 11, 31</text>
+
+</svg>

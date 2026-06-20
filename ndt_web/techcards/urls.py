@@ -30,4 +30,5 @@ urlpatterns = [
 
     # AJAX
     path('ajax/sources/', views.get_sources_ajax, name='ajax_sources'),
+    path('ajax/joint-zones/', views.get_joint_zones_ajax, name='ajax_joint_zones'),
 ]

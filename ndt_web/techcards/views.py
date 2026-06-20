@@ -156,7 +156,7 @@ def create_step1_view(request, doc_code):
 
 
 def create_step2_view(request, doc_code):
-    """Шаг 2: Материал и геометрия."""
+    """Шаг 2: Материал, геометрия и тип сварного соединения."""
     doc = get_object_or_404(NormativeDocument, code=doc_code)
     if not request.user.is_authenticated:
         return redirect('login')
@@ -169,13 +169,25 @@ def create_step2_view(request, doc_code):
     else:
         form = TechCardStep2Form()
 
-    STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
+    # Данные о типах соединений для JavaScript
+    from normative.gost_59023_2 import JOINT_TYPES
+    joint_data = {
+        code: {
+            'name': info['name'],
+            'methods': info['methods'],
+            'groove': info['groove'],
+            'sketch': info.get('sketch', ''),
+        }
+        for code, info in JOINT_TYPES.items()
+    }
+
     return render(request, 'techcards/create_step2.html', {
         'form': form,
         'doc': doc,
         'step': 2,
         'total_steps': 4,
-        'step_labels': STEP_LABELS,
+        'step_labels': ['Объект', 'Параметры', 'Источник', 'Подтверждение'],
+        'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
     })
 
 
@@ -369,3 +381,19 @@ def get_sources_ajax(request):
 
     sources = get_suitable_sources(thickness)
     return JsonResponse({'sources': sources})
+
+
+def get_joint_zones_ajax(request):
+    """AJAX: рассчитывает зоны контроля для типа соединения и толщины."""
+    joint_code = request.GET.get('joint', '')
+    thickness = request.GET.get('thickness', 10)
+    method = request.GET.get('method', '30')
+
+    try:
+        thickness = float(thickness)
+    except (ValueError, TypeError):
+        thickness = 10.0
+
+    from normative.gost_59023_2 import get_inspection_zone
+    result = get_inspection_zone(joint_code, thickness, method)
+    return JsonResponse(result)

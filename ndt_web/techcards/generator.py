@@ -351,13 +351,26 @@ class RadiographicTechCardCalculator:
         # Информация о схеме (описание, изображение)
         scheme_info = SCHEME_INFO.get(scheme, {})
 
-        # Сохраняем рассчитанные параметры
+        # Флаг «опытным путём» по ГОСТ Р 50.05.07-2018 п. Г.5
+        is_empirical = calc_result.get('is_empirical', False)
+        empirical_reason = calc_result.get('empirical_reason', '')
+
         self.params['scheme_type'] = scheme
         self.params['exposure_scheme'] = calc_result
         self.params['scheme_info'] = scheme_info
-        self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
-        self.params['N_calculated'] = calc_result.get('N', '')
-        self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+        self.params['is_empirical'] = is_empirical
+        self.params['empirical_reason'] = empirical_reason
+
+        if is_empirical:
+            # Расчётные значения для справки (или None)
+            self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
+            self.params['N_calculated'] = calc_result.get('N', '')
+            self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+        else:
+            self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
+            self.params['N_calculated'] = calc_result.get('N', '')
+            self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+
         self.params['scheme_formula'] = calc_result.get('formula', '')
         self.params['scheme_notes'] = calc_result.get('notes', '')
         self.params['scheme_image'] = scheme_info.get('image', '')
@@ -466,35 +479,51 @@ def _build_value_map(params: dict) -> dict:
     L_val = params.get('L_calculated_mm', '')
     C_val = params.get('C_coeff', '')
     sfd_used = params.get('sfd_used_mm', params.get('sfd_mm', ''))
+    is_empirical = params.get('is_empirical', False)
+    empirical_reason = params.get('empirical_reason', '')
 
-    # Формирование строк для полей техкарты
-    f_str = f'{f_val} мм' if f_val else '— мм'
-    N_str = str(N_val) if N_val else '—'
-    L_str = f'{L_val} мм' if L_val else '—'
+    # --- Формирование полей 6.5, 6.6, 6.7, 6.8 ---
+    EMPIRICAL_TEXT = (
+        'Определяется опытным путём в соответствии с требованиями '
+        'ГОСТ Р 50.05.07-2018, п. Г.5'
+    )
 
-    # Поле 6.5: расстояние источника с обоснованием
-    if f_val:
-        f_field = (
-            f'f = {f_val} мм '
-            f'(расчёт: {params.get("scheme_formula", "")})'
-        )
+    if is_empirical:
+        # Схемы 3б (l < d_вн) и 3ж: f и N — опытным путём
+        f_field = EMPIRICAL_TEXT
+        N_str = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
+        l_field = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
+        if f_val:
+            f_field += f'\n(справочно: f_расч ≥ {f_val} мм)'
+        if N_val:
+            N_str += f'\n(справочно: N_расч ≥ {N_val})'
     else:
-        f_field = f'{sfd_used} мм'
+        # Обычные схемы: показываем рассчитанные значения
+        if f_val:
+            f_field = (
+                f'f = {f_val} мм '
+                f'(расчёт: {params.get("scheme_formula", "")})'
+            )
+        else:
+            f_field = f'{sfd_used} мм'
 
-    # Поле 6.8: размер участка
-    if L_val:
-        l_field = (
-            f'{L_val} мм = π × {D} / {N_val}'
-            if D and N_val else f'{L_val} мм'
-        )
-    else:
-        l_field = '350 × (длина шва / N) мм'
+        N_str = str(N_val) if N_val else '—'
+
+        if L_val:
+            l_field = (
+                f'{L_val} мм = π × {D} / {N_val}'
+                if D and N_val else f'{L_val} мм'
+            )
+        else:
+            l_field = '350 × (длина шва / N) мм'
 
     # Поле 6.9: схема просвечивания
     scheme_name = scheme_info.get('name', params.get('scheme_type', ''))
     scheme_desc = scheme_info.get('description', '')
     scheme_notes = params.get('scheme_notes', '')
-    scheme_formula = params.get('scheme_formula', '')
+    if is_empirical and empirical_reason:
+        scheme_notes = empirical_reason
+    scheme_formula = params.get('scheme_formula', '') if not is_empirical else ''
     scheme_field = '\n'.join(filter(None, [scheme_name, scheme_desc, scheme_formula, scheme_notes]))
 
     # Угол просвечивания (для поля 6.4)

@@ -387,10 +387,12 @@ def calc_scheme_5zh(focal_spot_mm: float, d_outer_mm: float,
     """
     Расчёт параметров для схемы 5ж (панорамный, источник на оси, D ≤ 2 м).
 
-    Формулы:
-      f ≥ 0,5C(1 - m)D
-      r = √(1 - (0,25C²(1 - m²)) / (m²(C + 1)))
-      N ≥ 180° / (arcsin(rm) + arcsin(rm/(2n - m)))
+    ВАЖНО: По ГОСТ Р 50.05.07-2018, п. Г.5 для схемы на рисунке 3ж
+    расстояние f и число экспозиций N определяются ОПЫТНЫМ ПУТЁМ
+    с учётом требований настоящего стандарта.
+
+    Расчётные значения приведены для справки (по методике ГОСТ 7512-82)
+    и являются МИНИМАЛЬНЫМИ ориентировочными значениями.
     """
     m = d_inner_mm / d_outer_mm
     C = _get_C(focal_spot_mm, sensitivity_mm)
@@ -400,10 +402,14 @@ def calc_scheme_5zh(focal_spot_mm: float, d_outer_mm: float,
     if f_min > d_inner_mm:
         return {
             'scheme': '5zh',
-            'error': (
-                f'Условие не выполняется: f_min = {f_min:.1f} мм > d = {d_inner_mm} мм. '
-                'Необходим источник с меньшим фокусным пятном.'
+            'is_empirical': True,
+            'empirical_reason': (
+                f'f_расч = {f_min:.1f} мм > d_вн = {d_inner_mm} мм — '
+                'источник не помещается, параметры только опытным путём.'
             ),
+            'error': None,
+            'f_min_mm': None,
+            'N': None,
         }
 
     # Вспомогательный коэффициент r
@@ -411,7 +417,6 @@ def calc_scheme_5zh(focal_spot_mm: float, d_outer_mm: float,
     denominator = (m ** 2) * (C + 1)
     r = math.sqrt(1 - numerator / denominator)
 
-    # Минимальное N по итерации n = 1..5
     optimal_N = float('inf')
     optimal_n = 1
     for n in range(1, 6):
@@ -431,6 +436,14 @@ def calc_scheme_5zh(focal_spot_mm: float, d_outer_mm: float,
 
     return {
         'scheme': '5zh',
+        # --- ОПЫТНЫЙ ПУТЬ (обязательно по ГОСТ Р 50.05.07-2018 п. Г.5) ---
+        'is_empirical': True,
+        'empirical_reason': (
+            'По ГОСТ Р 50.05.07-2018, п. Г.5: для схемы 3ж расстояние f '
+            'и число экспозиций N определяются ОПЫТНЫМ ПУТЁМ. '
+            'Расчётные значения — для справки.'
+        ),
+        # Расчётные значения (справочно, по ГОСТ 7512-82)
         'C': round(C, 4),
         'm': round(m, 4),
         'r': round(r, 4),
@@ -438,12 +451,11 @@ def calc_scheme_5zh(focal_spot_mm: float, d_outer_mm: float,
         'N': optimal_N if optimal_N != float('inf') else '—',
         'L_mm': round(L, 0) if L else None,
         'formula': (
-            f'f ≥ 0,5C(1 - m)D = 0,5 × {C:.2f} × (1 - {m:.4f}) × {d_outer_mm} = {f_min:.1f} мм; '
-            f'r = {r:.4f}; N ≥ {optimal_N} экспозиций'
+            f'f_справ ≥ {f_min:.1f} мм; r = {r:.4f}; N_справ ≥ {optimal_N}'
         ),
         'notes': (
-            'По методике ГОСТ 7512-82 для схемы 3ж. '
-            'Максимально возможное f определяется из условия размещения источника внутри трубы.'
+            'По ГОСТ Р 50.05.07-2018, п. Г.5 — опытным путём. '
+            'Расчёт по ГОСТ 7512-82 — ориентировочно.'
         ),
     }
 
@@ -454,9 +466,12 @@ def calc_scheme_5b_iterative(focal_spot_mm: float, d_outer_mm: float,
     """
     Расчёт параметров для схемы 5б (источник снаружи, просвечивание через 1 стенку).
 
-    Итерационный алгоритм по ГОСТ 7512-82, Приложение 4, п. 4.
+    По ГОСТ Р 50.05.07-2018, п. Г.5:
+    - Если длина плёнки (l) < внутреннего диаметра (d_вн):
+        f и N определяются ОПЫТНЫМ ПУТЁМ.
+    - Если l >= d_вн: расчёт по формулам ГОСТ 7512-82, Прил. 4, п. 4.
 
-    Формулы:
+    Формулы (для случая l >= d_вн):
       b = l/d
       C = max(2Φ/K, 4)
       f ≥ 0,5C(1 - m√(1 - b²))D
@@ -466,15 +481,36 @@ def calc_scheme_5b_iterative(focal_spot_mm: float, d_outer_mm: float,
     m = d_inner_mm / d_outer_mm
     C = _get_C(focal_spot_mm, sensitivity_mm)
 
-    if film_length_mm >= d_inner_mm:
+    # --- Проверка по ГОСТ Р 50.05.07-2018 п. Г.5 ---
+    if film_length_mm < d_inner_mm:
+        # Длина плёнки меньше внутреннего диаметра → ОПЫТНЫМ ПУТЁМ
+        # Формула из ГОСТ 7512-82 применима (b = l/d < 1), но результат
+        # является расчётным ориентиром — итоговые параметры определяются опытно.
+        empirical_prefix = (
+            f'По ГОСТ Р 50.05.07-2018, п. Г.5: l = {film_length_mm:.0f} мм '
+            f'< d_вн = {d_inner_mm:.1f} мм — '
+            'f и N определяются ОПЫТНЫМ ПУТЁМ. '
+            'Расчётные значения — для справки (ГОСТ 7512-82, Прил. 4).'
+        )
+        is_empirical = True
+    elif film_length_mm >= d_inner_mm:
+        # l >= d_вн: формула неприменима (b = l/d ≥ 1 → sqrt ошибка)
         return {
             'scheme': '5b',
-            'error': (
-                f'Длина снимка l ({film_length_mm} мм) ≥ d ({d_inner_mm} мм). '
-                'Длина снимка должна быть меньше внутреннего диаметра.'
+            'is_empirical': True,
+            'empirical_reason': (
+                f'По ГОСТ Р 50.05.07-2018, п. Г.5: l = {film_length_mm:.0f} мм '
+                f'>= d_вн = {d_inner_mm:.1f} мм — расчётная формула неприменима. '
+                'f и N определяются ОПЫТНЫМ ПУТЁМ.'
             ),
+            'f_min_mm': None, 'N': None, 'L_mm': None,
+            'C': round(C, 4), 'm': round(m, 4),
+            'formula': f'Формула неприменима при l={film_length_mm:.0f} ≥ d_вн={d_inner_mm:.1f}',
+            'notes': 'ГОСТ Р 50.05.07-2018, п. Г.5',
         }
-
+    else:
+        empirical_prefix = ''
+        is_empirical = False
     current_L = film_length_mm
     optimal_N = None
     optimal_f = None
@@ -523,8 +559,16 @@ def calc_scheme_5b_iterative(focal_spot_mm: float, d_outer_mm: float,
 
     L_section = math.pi * d_outer_mm / optimal_N
 
+    notes = 'Расчёт по методике ГОСТ 7512-82, Приложение 4, п. 4. '
+    if optimal_L < film_length_mm:
+        notes += f'Длина снимка уменьшена до {optimal_L:.1f} мм.'
+
     return {
         'scheme': '5b',
+        # Флаг опытного определения (ГОСТ Р 50.05.07-2018 п. Г.5)
+        'is_empirical': is_empirical,
+        'empirical_reason': empirical_prefix if is_empirical else '',
+        # Расчётные значения
         'C': round(C, 4),
         'm': round(m, 4),
         'b': round(optimal_L / d_inner_mm, 4),
@@ -534,14 +578,13 @@ def calc_scheme_5b_iterative(focal_spot_mm: float, d_outer_mm: float,
         'L_mm': round(L_section, 0),
         'film_length_used_mm': round(optimal_L, 1),
         'formula': (
-            f'f ≥ 0,5C(1 - m√(1 - b²))D = {optimal_f:.1f} мм; '
-            f'N = {optimal_N} экспозиций (b = {optimal_L/d_inner_mm:.4f}, q = {optimal_q:.4f})'
+            f'f_справ ≥ {optimal_f:.1f} мм; N_справ = {optimal_N} экспоз. '
+            f'(b = {optimal_L/d_inner_mm:.4f}, q = {optimal_q:.4f})'
+            if is_empirical else
+            f'f ≥ 0,5C(1-m√(1-b²))D = {optimal_f:.1f} мм; '
+            f'N = {optimal_N} экспозиций'
         ),
-        'notes': (
-            'Расчёт по методике ГОСТ 7512-82, Приложение 4, п. 4. '
-            + (f'Длина снимка автоматически уменьшена до {optimal_L:.1f} мм.'
-               if optimal_L < film_length_mm else '')
-        ),
+        'notes': (empirical_prefix + '\n' if is_empirical else '') + notes,
     }
 
 

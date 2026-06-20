@@ -512,40 +512,70 @@ def get_joint_info(joint_code: str) -> dict:
 
 def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
     """
-    Возвращает ширину шва (e) и высоту усиления (g) для заданного
-    типа соединения и толщины стенки.
+    Возвращает ширину шва (e), высоту усиления (g_nom, g_min, g_max)
+    для заданного типа соединения и толщины стенки.
 
-    :param joint_code: условное обозначение соединения (напр. 'С-1')
+    Данные берутся из таблиц ГОСТ Р 59023.2-2020.
+    Формат кортежа dimensions:
+        4 элемента: (S_min, S_max, e, g_nom)  — g_min/g_max рассчитываются по умолчанию
+        6 элементов: (S_min, S_max, e, g_nom, g_min, g_max) — точные значения
+
+    :param joint_code: условное обозначение соединения
     :param thickness_mm: номинальная толщина стенки, мм
-    :return: словарь {'e_mm': ..., 'g_mm': ..., 'note': ...}
+    :return: словарь с e_mm, g_nom, g_min_mm, g_max_mm, note
     """
     info = JOINT_TYPES.get(joint_code)
     if not info:
-        return {'e_mm': None, 'g_mm': None, 'note': f'Тип {joint_code} не найден'}
-
-    dims = info.get('dimensions', [])
-    for s_min, s_max, e, g in dims:
-        if s_min <= thickness_mm <= s_max:
-            return {
-                'e_mm': e,
-                'g_mm': g,
-                'note': f'По Таблице ГОСТ Р 59023.2-2020 для {joint_code}, S={thickness_mm} мм',
-            }
-
-    # Если точного совпадения нет — берём ближайшую строку
-    if dims:
-        # Ближайшее значение
-        closest = min(dims, key=lambda d: abs((d[0] + d[1]) / 2 - thickness_mm))
         return {
-            'e_mm': closest[2],
-            'g_mm': closest[3],
-            'note': (
-                f'Приближённо для {joint_code}, S={thickness_mm} мм '
-                f'(ближайший диапазон {closest[0]}–{closest[1]} мм)'
-            ),
+            'e_mm': None, 'g_nom': 2.0,
+            'g_min_mm': 0.5, 'g_max_mm': 3.5,
+            'note': f'Тип {joint_code} не найден в справочнике',
         }
 
-    return {'e_mm': None, 'g_mm': None, 'note': 'Нет данных'}
+    dims = info.get('dimensions', [])
+    match_row = None
+    for row in dims:
+        s_min, s_max = row[0], row[1]
+        if s_min <= thickness_mm <= s_max:
+            match_row = row
+            break
+
+    if match_row is None and dims:
+        match_row = min(dims, key=lambda d: abs((d[0] + d[1]) / 2 - thickness_mm))
+
+    if match_row is None:
+        return {
+            'e_mm': None, 'g_nom': 2.0,
+            'g_min_mm': 0.5, 'g_max_mm': 3.5,
+            'note': 'Нет данных',
+        }
+
+    e = match_row[2]
+    g_nom = match_row[3]
+
+    if len(match_row) >= 6:
+        # Точные значения из таблицы (новый формат)
+        g_min = match_row[4]
+        g_max = match_row[5]
+    else:
+        # Типовые допуски: ±1.5 мм для усиления, минимум 0.5 мм
+        g_min = max(0.0, g_nom - 1.5)
+        g_max = g_nom + 1.5
+
+    note = f'По Таблице ГОСТ Р 59023.2-2020 для {joint_code}, S={thickness_mm} мм'
+    if match_row[0] > thickness_mm or match_row[1] < thickness_mm:
+        note = (
+            f'Приближённо для {joint_code}, S={thickness_mm} мм '
+            f'(ближайший диапазон {match_row[0]}–{match_row[1]} мм)'
+        )
+
+    return {
+        'e_mm': e,
+        'g_nom': g_nom,
+        'g_min_mm': round(g_min, 1),
+        'g_max_mm': round(g_max, 1),
+        'note': note,
+    }
 
 
 # ------------------------------------------------------------------
@@ -571,7 +601,8 @@ def get_inspection_zone(
     welding_method: str = '30',
 ) -> dict:
     """
-    Рассчитывает геометрические параметры контролируемой зоны.
+    Рассчитывает геометрические параметры контролируемой зоны
+    и радиационной толщины для РГК.
 
     Поля 4.2.2 / 4.2.4 / 4.2.5 технологической карты.
 
@@ -581,17 +612,16 @@ def get_inspection_zone(
     :return: словарь с параметрами зоны контроля
     """
     weld = get_weld_width(joint_code, thickness_mm)
-    e = weld.get('e_mm') or (thickness_mm * 1.5)   # оценочное значение если нет данных
-    g = weld.get('g_mm') or 2.0
+    e = weld.get('e_mm') or (thickness_mm * 1.5)
+    g_nom = weld.get('g_nom') or 2.0
+    g_min = weld.get('g_min_mm', max(0.0, g_nom - 1.5))
+    g_max = weld.get('g_max_mm', g_nom + 1.5)
 
-    # Ширина валика усиления по обе стороны шва (4.2.2)
-    # Для стыковых: = ширина шва e плюс половина от разделки
-    # Упрощённо: = e
+    # Ширина валика усиления
     bead_width_surface = e
 
-    # Ширина около шовной зоны (4.2.4) — по НП-105-18 и ГОСТ Р 50.05.07-2018
-    # Для ЭШС (код 20) — зона шире
-    if welding_method == '20':
+    # Ширина ОШЗ (4.2.4) — по НП-105-18 и ГОСТ Р 50.05.07-2018
+    if welding_method == '20':   # ЭШС — зона шире
         haz_width = max(20.0, thickness_mm * 0.5)
     elif thickness_mm <= 5:
         haz_width = HAZ_WIDTH_MM
@@ -602,10 +632,10 @@ def get_inspection_zone(
 
     haz_width = round(haz_width, 1)
 
-    # Ширина контролируемой зоны (4.2.5) = ширина шва + 2 × ОШЗ
+    # Ширина контролируемой зоны (4.2.5)
     zone_width = e + 2 * haz_width
 
-    # Ширина снимка по ГОСТ Р 50.05.07-2018 п.6.3.13
+    # Минимальная ширина снимка по ГОСТ Р 50.05.07-2018 п.6.3.13
     if welding_method == '20':
         film_width_min = max(50.0, zone_width)
     elif thickness_mm <= 5:
@@ -613,17 +643,19 @@ def get_inspection_zone(
     elif thickness_mm <= 20:
         film_width_min = e + 10
     else:
-        film_width_min = e + 40   # не менее 20мм с каждой стороны
+        film_width_min = e + 40
 
     return {
-        # 4.2.2 — ширина валика усиления на поверхности
+        # 4.2.2 — ширина валика и высота усиления
         'bead_width_mm': round(bead_width_surface, 1),
-        'bead_height_mm': round(g, 1),
-        # 4.2.4 — ширина околошовной зоны
+        'bead_height_mm': round(g_nom, 1),
+        'g_min_mm': round(g_min, 1),
+        'g_max_mm': round(g_max, 1),
+        # 4.2.4 — ширина ОШЗ
         'haz_width_mm': haz_width,
         # 4.2.5 — ширина контролируемой зоны
         'zone_width_mm': round(zone_width, 1),
-        # Минимальная ширина снимка
+        # Ширина снимка
         'film_width_min_mm': round(film_width_min, 1),
         # Детали расчёта
         'weld_note': weld.get('note', ''),

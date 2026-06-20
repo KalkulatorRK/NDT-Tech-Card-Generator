@@ -144,10 +144,76 @@ SCHEME_INFO = {
     },
 }
 
+# Количество стенок, через которые проходит излучение, и позиция детектора
+# Ключи: код схемы → (wall_count, source_position, film_position)
+# По описанию пользователя:
+#   Схемы 3а, 3б (5a, 5b): источник снаружи, плёнка ВНУТРИ — 1 стенка
+#   Схемы 3в, 3г, 3д (5v, 5g, 5d): источник снаружи, плёнка СНАРУЖИ — 2 стенки
+#   Панорамные (5zh, 5z): источник внутри на оси — 1 стенка
+SCHEME_WALL_COUNT = {
+    '4_6': 1,    # Плоские детали: 1 стенка
+    '5a':  1,    # 3а: источник снаружи, плёнка внутри — 1 стенка
+    '5b':  1,    # 3б: источник снаружи, плёнка внутри (эллипс) — 1 стенка
+    '5v':  2,    # 3в: оба снаружи — 2 стенки
+    '5g':  2,    # 3г: оба снаружи — 2 стенки
+    '5d':  2,    # 3д: оба снаружи — 2 стенки
+    '5zh': 1,    # 3ж: панорамный (источник по оси) — 1 стенка
+    '5z':  1,    # 3и: источник внутри — 1 стенка
+    '5e':  1,    # 3е: 1 стенка
+}
 
-# ------------------------------------------------------------------
-# 1. Расчёт параметров просвечивания
-# ------------------------------------------------------------------
+# Обновляем SCHEME_INFO полем wall_count
+for _code, _walls in SCHEME_WALL_COUNT.items():
+    if _code in SCHEME_INFO:
+        SCHEME_INFO[_code]['wall_count'] = _walls
+
+
+def calc_radiation_thickness(
+    wall_thickness_mm: float,
+    g_min_mm: float,
+    g_max_mm: float,
+    scheme_code: str,
+) -> dict:
+    """
+    Рассчитывает радиационную толщину для заданной схемы просвечивания.
+
+    По ГОСТ Р 50.05.07-2018 (раздел 6.3.5):
+    - Для расчёта чувствительности K применяется НАИМЕНЬШАЯ высота валика (g_min):
+        S_рад(K) = S + g_min (1 стенка) или 2S + 2g_min (2 стенки)
+    - Для расчёта минимального расстояния f применяется НАИБОЛЬШАЯ высота (g_max):
+        S_рад(f) = S + g_max (1 стенка) или 2S + 2g_max (2 стенки)
+
+    :param wall_thickness_mm: толщина стенки S, мм
+    :param g_min_mm: наименьшая допустимая высота валика шва, мм
+    :param g_max_mm: наибольшая допустимая высота валика шва, мм
+    :param scheme_code: код схемы просвечивания
+    :return: словарь с S_rad_K, S_rad_f и формулами
+    """
+    walls = SCHEME_WALL_COUNT.get(scheme_code, 1)
+
+    if walls == 2:
+        s_rad_k = 2 * wall_thickness_mm + 2 * g_min_mm
+        s_rad_f = 2 * wall_thickness_mm + 2 * g_max_mm
+        formula_k = f'2×{wall_thickness_mm} + 2×{g_min_mm:.1f} = {s_rad_k:.1f} мм'
+        formula_f = f'2×{wall_thickness_mm} + 2×{g_max_mm:.1f} = {s_rad_f:.1f} мм'
+        wall_desc = 'Две стенки (пленка снаружи)'
+    else:
+        s_rad_k = wall_thickness_mm + g_min_mm
+        s_rad_f = wall_thickness_mm + g_max_mm
+        formula_k = f'{wall_thickness_mm} + {g_min_mm:.1f} = {s_rad_k:.1f} мм'
+        formula_f = f'{wall_thickness_mm} + {g_max_mm:.1f} = {s_rad_f:.1f} мм'
+        wall_desc = 'Одна стенка'
+
+    return {
+        'wall_count': walls,
+        'wall_desc': wall_desc,
+        's_rad_k_mm': round(s_rad_k, 1),  # Для расчёта K (чувствительность)
+        's_rad_f_mm': round(s_rad_f, 1),  # Для расчёта f (расстояние)
+        'g_min_mm': g_min_mm,
+        'g_max_mm': g_max_mm,
+        'formula_k': formula_k,
+        'formula_f': formula_f,
+    }
 
 def _get_C(focal_spot_mm: float, sensitivity_mm: float) -> float:
     """

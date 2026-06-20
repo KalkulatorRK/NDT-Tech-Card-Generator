@@ -123,11 +123,13 @@ class RadiographicTechCardCalculator:
         """Выполняет все расчёты и возвращает словарь параметров."""
         self._extract_inputs()
         self._calc_sensitivity_class()
+        # Сначала получаем g_min/g_max из таблиц сварных соединений
+        self._calc_inspection_zones()
+        # Затем рассчитываем K с правильной радиационной толщиной S_рад
         self._calc_sensitivity_value()
         self._select_sources()
         self._calc_geometric_params()
         self._calc_exposure_scheme()
-        self._calc_inspection_zones()   # Поля 4.2.2, 4.2.4, 4.2.5 по ГОСТ Р 59023.2-2020
         self._select_film()
         self._calc_screens()
         self._calc_iqi()
@@ -168,6 +170,7 @@ class RadiographicTechCardCalculator:
         """
         Рассчитывает ширину валика шва, ОШЗ и контролируемую зону
         по ГОСТ Р 59023.2-2020 и НП-105-18.
+        Сохраняет g_min, g_max для расчёта радиационной толщины в схеме.
         Заполняет поля техкарты 4.2.2, 4.2.4, 4.2.5.
         """
         from normative.gost_59023_2 import get_inspection_zone, get_joint_info
@@ -181,6 +184,9 @@ class RadiographicTechCardCalculator:
 
         self.params['weld_bead_width_mm'] = zone.get('bead_width_mm', '')
         self.params['weld_bead_height_mm'] = zone.get('bead_height_mm', '')
+        # g_min и g_max для расчёта радиационной толщины (используются в _calc_sensitivity_value)
+        self.params['g_min_mm'] = zone.get('g_min_mm', 0.5)
+        self.params['g_max_mm'] = zone.get('g_max_mm', 3.5)
         self.params['haz_width_mm'] = zone.get('haz_width_mm', 5.0)
         self.params['zone_width_mm'] = zone.get('zone_width_mm', '')
         self.params['film_width_min_mm'] = zone.get('film_width_min_mm', '')
@@ -198,14 +204,40 @@ class RadiographicTechCardCalculator:
         }.get(cls, cls)
 
     def _calc_sensitivity_value(self):
+        """
+        Рассчитывает требуемое значение чувствительности K.
+
+        Использует РАДИАЦИОННУЮ ТОЛЩИНУ с учётом схемы просвечивания
+        и НАИМЕНЬШЕЙ допустимой высоты валика (g_min):
+          S_рад(K) = S + g_min     (1 стенка)
+          S_рад(K) = 2S + 2×g_min (2 стенки)
+        """
+        from normative.calculations import calc_radiation_thickness
+
         S = self.params['wall_thickness']
         cls = self.params['control_class']
-        pct = get_sensitivity(S, cls)
-        mm_val = get_sensitivity_mm(S, cls)
-        self.params['required_sensitivity_pct'] = pct
+        scheme = self.data.get('scheme_type', '4_6')
+        g_min = self.params.get('g_min_mm', 0.5)
+        g_max = self.params.get('g_max_mm', 3.5)
+
+        # Радиационная толщина для K и f
+        rad = calc_radiation_thickness(S, g_min, g_max, scheme)
+        self.params['rad_thickness'] = rad
+
+        s_rad_k = rad['s_rad_k_mm']
+        s_rad_f = rad['s_rad_f_mm']
+
+        K = get_sensitivity(s_rad_k, cls)
+        mm_val = get_sensitivity_mm(s_rad_k, cls)
+
+        self.params['required_sensitivity_pct'] = K
         self.params['required_sensitivity_mm'] = mm_val
+        self.params['s_rad_k_mm'] = s_rad_k
+        self.params['s_rad_f_mm'] = s_rad_f
         self.params['sensitivity_desc'] = (
-            f'не более {mm_val:.3f} мм ({pct}% от {S} мм)'
+            f'не более {mm_val:.3f} мм '
+            f'(S_рад = {rad["formula_k"]} — {rad["wall_desc"]}; '
+            f'K по НП-105-18 для S_рад = {s_rad_k:.1f} мм)'
         )
 
     def _select_sources(self):
@@ -544,8 +576,10 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
         '6.2': (
-            f'Sк = {S} мм '
-            f'(чувствительность: {params.get("sensitivity_desc", "")})'
+            f'Sк = {params.get("s_rad_k_mm", S):.1f} мм '
+            f'({params.get("rad_thickness", {}).get("formula_k", str(S)+" мм")}; '
+            f'{params.get("rad_thickness", {}).get("wall_desc", "")}); '
+            f'K = {params.get("required_sensitivity_mm", "—"):.3f} мм'
         ),
         '6.3': params.get('sensitivity_desc', ''),
         '6.4': angle,
@@ -565,7 +599,8 @@ def _build_value_map(params: dict) -> dict:
     }
 
 
-def generate_from_template(params: dict, template_path: str, output_path: str) -> str:
+def generate_from_template(params: dict, template_path: str, output_path: str,
+                           static_root: str = '') -> str:
     """
     Заполняет шаблон DOCX технологической карты расчётными данными.
 
@@ -645,9 +680,53 @@ def generate_from_template(params: dict, template_path: str, output_path: str) -
             p.runs[0].font.size = Pt(8)
             p.runs[0].font.color.rgb = RGBColor(0xFF, 0x80, 0x00)
 
+    # --- Вставка изображения схемы просвечивания в поле 6.9 ---
+    _insert_scheme_image_into_docx(doc, params, static_root)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
     return output_path
+
+
+def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str):
+    """
+    Вставляет изображение схемы просвечивания в поле 6.9 техкарты.
+
+    Ищет ячейку таблицы с меткой '6.9' и добавляет в неё
+    изображение выбранной схемы из static/img/.
+
+    :param doc: объект DOCX документа
+    :param params: параметры техкарты
+    :param static_root: путь к статическим файлам
+    """
+    scheme_info = params.get('scheme_info') or {}
+    image_rel = scheme_info.get('image', '')
+    if not image_rel:
+        return
+
+    # Путь к изображению в static директории
+    image_path = os.path.join(static_root, image_rel)
+    if not os.path.exists(image_path):
+        return
+
+    # Ищем ячейку с меткой "6.9"
+    for table in doc.tables:
+        for row in table.rows:
+            ucells = _unique_cells(row)
+            if not ucells:
+                continue
+            label_text = ucells[0].text.strip()
+            if '6.9' in label_text and len(ucells) >= 2:
+                value_cell = ucells[-1]
+                try:
+                    # Вставляем изображение (ширина 60мм)
+                    para = value_cell.paragraphs[0] if value_cell.paragraphs else value_cell.add_paragraph()
+                    run = para.add_run()
+                    from docx.shared import Mm as DocxMm
+                    run.add_picture(image_path, width=DocxMm(60))
+                    return
+                except Exception:
+                    pass   # Если не удалось вставить — пропускаем
 
 
 # ---------------------------------------------------------------
@@ -820,8 +899,11 @@ def generate_tech_card(input_data: dict, media_root: str,
     os.makedirs(os.path.dirname(pdf_abs), exist_ok=True)
 
     # DOCX: используем шаблон если он есть
+    from django.conf import settings as django_settings
+    static_root = str(getattr(django_settings, 'STATICFILES_DIRS', [''])[0]) if getattr(django_settings, 'STATICFILES_DIRS', []) else ''
+
     if template_path and os.path.exists(template_path):
-        generate_from_template(params, template_path, docx_abs)
+        generate_from_template(params, template_path, docx_abs, static_root=static_root)
     else:
         _generate_docx_fallback(params, docx_abs)
 

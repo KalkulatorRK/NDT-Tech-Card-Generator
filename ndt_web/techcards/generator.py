@@ -207,15 +207,19 @@ class RadiographicTechCardCalculator:
         """
         Рассчитывает требуемое значение чувствительности K по НП-105-18.
 
-        Согласно НП-105-18, Таблица N 4.8, заголовок столбца:
-        «Номинальная толщина сваренных деталей в месте сварки, мм».
-        
-        Поэтому K определяется по НОМИНАЛЬНОЙ толщине стенки S,
-        а НЕ по радиационной толщине.
+        По НП-105-18, Таблица N 4.8, заголовок: «Номинальная толщина
+        сваренных деталей в месте сварки, мм».
 
-        Радиационные толщины используются ТОЛЬКО для расчёта расстояния f:
-          S_рад(f) = S + g_max   (1 стенка)
-          S_рад(f) = 2S + 2g_max (2 стенки)
+        «Номинальная толщина в месте сварки» — это толщина стенки
+        ВМЕСТЕ с минимальным усилением шва:
+            S_K = S_ном + g_min
+
+        Для схем ЧЕРЕЗ ОБЕ СТЕНКИ K ищется по одной стенке (S + g_min),
+        а не по двойной радиационной толщине (2S + 2g_min).
+
+        Для расчёта расстояния f используется наибольшая толщина:
+            S_рад(f) = S + g_max       (1 стенка)
+            S_рад(f) = 2S + 2×g_max   (2 стенки)
         """
         from normative.calculations import calc_radiation_thickness
 
@@ -225,21 +229,24 @@ class RadiographicTechCardCalculator:
         g_min = self.params.get('g_min_mm', 0.5)
         g_max = self.params.get('g_max_mm', 3.5)
 
-        # Радиационная толщина для расстояния f (НЕ для K)
+        # Радиационные толщины
         rad = calc_radiation_thickness(S, g_min, g_max, scheme)
         self.params['rad_thickness'] = rad
 
-        # K ищем по НОМИНАЛЬНОЙ толщине S (заголовок Табл.4.8 НП-105-18)
-        K = get_sensitivity(S, cls)
-        mm_val = get_sensitivity_mm(S, cls)
+        # K ищем по S + g_min — «номинальная толщина в месте сварки»
+        # (одна стенка + минимальное усиление, независимо от числа стенок)
+        s_k = round(S + g_min, 1)
+        K = get_sensitivity(s_k, cls)
+        mm_val = get_sensitivity_mm(s_k, cls)
 
         self.params['required_sensitivity_pct'] = K
         self.params['required_sensitivity_mm'] = mm_val
-        self.params['s_rad_k_mm'] = rad['s_rad_k_mm']  # сохраняем для справки
-        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']  # используется в расчёте f
+        self.params['s_k_mm'] = s_k            # S + g_min (для поиска K)
+        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']  # для расчёта f
         self.params['sensitivity_desc'] = (
             f'K ≤ {mm_val:.3f} мм '
-            f'(по НП-105-18, Табл.4.8, Sном = {S} мм, кат. {self.params.get("weld_category","")})'
+            f'(НП-105-18, Табл. 4.8: Sном+g_min = {S}+{g_min} = {s_k} мм, '
+            f'кат. {self.params.get("weld_category","")})'
         )
 
     def _select_sources(self):
@@ -578,9 +585,10 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
         '6.2': (
-            f'Sном = {S} мм (Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", str(S)+" мм")}); '
-            f'К = {params.get("required_sensitivity_mm", "—"):.3f} мм '
-            f'(по НП-105-18, Табл. 4.8)'
+            f'Sном+g_min = {S}+{params.get("g_min_mm",0.5)} = {params.get("s_k_mm", S+0.5):.1f} мм → '
+            f'K ≤ {params.get("required_sensitivity_mm","—"):.3f} мм '
+            f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category","")});  '
+            f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
         ),
         '6.3': params.get('sensitivity_desc', ''),
         '6.4': angle,

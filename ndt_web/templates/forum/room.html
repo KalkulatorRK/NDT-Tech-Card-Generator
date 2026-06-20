@@ -28,15 +28,12 @@
   {% with prev_date=None %}
   {% for msg in chat_messages %}
 
-    {# Разделитель дат #}
-    {% if forloop.first or msg.created_at|date:"d.m.Y" != chat_messages|first_date_for:msg %}
-    {% endif %}
-
-    <div class="msg-date-divider" data-date="{{ msg.created_at|date:'d.m.Y' }}"
-         id="date-{{ msg.created_at|date:'Ymd' }}"
-         style="display:none;">
+    {# Разделитель дат — показываем при смене даты или в начале #}
+    {% if forloop.first %}
+    <div class="msg-date-divider">
       <span>{{ msg.created_at|date:"d E Y" }}</span>
     </div>
+    {% endif %}
 
     {% if msg.author == user %}
     <div class="msg-wrapper own" data-msg-id="{{ msg.pk }}">
@@ -118,28 +115,10 @@ var pollTimer = null;
 
 // ---- Инициализация ----
 document.addEventListener('DOMContentLoaded', function() {
-    showDateDividers();
     scrollToBottom(false);
     startPolling();
-
-    // Фокус на поле ввода
     document.getElementById('messageInput').focus();
 });
-
-// ---- Разделители дат ----
-function showDateDividers() {
-    var seen = {};
-    document.querySelectorAll('[data-msg-id]').forEach(function(el) {
-        var dateDiv = el.previousElementSibling;
-        if (dateDiv && dateDiv.classList.contains('msg-date-divider')) {
-            var date = dateDiv.dataset.date;
-            if (!seen[date]) {
-                dateDiv.style.display = '';
-                seen[date] = true;
-            }
-        }
-    });
-}
 
 // ---- Прокрутка вниз ----
 function scrollToBottom(smooth) {

@@ -85,7 +85,12 @@ def chat_room_view(request, room_id):
     request.session['last_chat_room_id'] = room_id
 
     # История сообщений (последние 100)
-    chat_messages = room.messages.select_related('author', 'reply_to__author').order_by('created_at')[:100]
+    # Используем list() чтобы избежать ошибки при вызове .last() на срезе
+    qs = room.messages.select_related('author', 'reply_to__author').order_by('created_at')
+    total = qs.count()
+    chat_messages = list(qs[max(0, total - 100):])
+
+    last_message_id = chat_messages[-1].pk if chat_messages else 0
 
     # Данные для сайдбара (те же что на главной)
     public_rooms = ChatRoom.objects.filter(
@@ -106,7 +111,7 @@ def chat_room_view(request, room_id):
         'private_room': private_room,
         'private_unread': private_room.unread_count(user) if private_room else 0,
         'active_room': room,
-        'last_message_id': chat_messages.last().pk if chat_messages.exists() else 0,
+        'last_message_id': last_message_id,
     }
     return render(request, 'forum/room.html', context)
 

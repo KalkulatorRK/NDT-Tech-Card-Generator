@@ -31,6 +31,9 @@ class Command(BaseCommand):
         self.stdout.write('Загрузка тарифных планов...')
         self._create_tariffs()
 
+        self.stdout.write('Создание тем форума...')
+        self._create_forum_rooms()
+
         self.stdout.write('Создание суперпользователя...')
         self._create_superuser(options['admin_password'])
 
@@ -116,6 +119,93 @@ class Command(BaseCommand):
                 defaults=t,
             )
             self.stdout.write(f"  Тариф: {t['cards_count']} опер. — {t['price']} руб.")
+
+    def _create_forum_rooms(self):
+        """Создаёт начальные публичные темы форума."""
+        try:
+            from forum.models import ChatRoom, Message
+        except ImportError:
+            self.stdout.write('  Пропуск: приложение forum не установлено')
+            return
+
+        topics = [
+            {
+                'name': 'Объявления и новости',
+                'description': 'Официальные объявления, обновления приложения «НК-Карта».',
+                'icon': 'bi-broadcast',
+                'is_pinned': True,
+                'welcome': (
+                    'Добро пожаловать в «НК-Карта»! '
+                    'Здесь публикуются официальные объявления, '
+                    'информация об обновлениях и изменениях в приложении.'
+                ),
+            },
+            {
+                'name': 'Радиографический контроль (РГК)',
+                'description': 'Вопросы и обсуждения по ГОСТ Р 50.05.07-2018, НП-105-18.',
+                'icon': 'bi-radioactive',
+                'is_pinned': False,
+                'welcome': (
+                    'Тема для обсуждения радиографического контроля: '
+                    'расчёт параметров, схемы просвечивания, нормативные документы.'
+                ),
+            },
+            {
+                'name': 'Оценка качества сварных соединений',
+                'description': 'Обсуждение критериев оценки дефектов по НП-105-18.',
+                'icon': 'bi-check2-circle',
+                'is_pinned': False,
+                'welcome': (
+                    'Тема для обсуждения оценки качества: типы дефектов, '
+                    'допустимые размеры, нормативная база (НП-105-18).'
+                ),
+            },
+            {
+                'name': 'Вопросы по работе с приложением',
+                'description': 'Помощь по работе с «НК-Карта»: инструкции, советы.',
+                'icon': 'bi-question-circle',
+                'is_pinned': False,
+                'welcome': (
+                    'Здесь вы можете задать любой вопрос по работе с приложением «НК-Карта».'
+                ),
+            },
+            {
+                'name': 'Предложения по улучшению',
+                'description': 'Ваши идеи и предложения по развитию приложения.',
+                'icon': 'bi-lightbulb',
+                'is_pinned': False,
+                'welcome': (
+                    'Делитесь своими идеями! Какие функции вам нужны? '
+                    'Что можно улучшить в «НК-Карта»?'
+                ),
+            },
+        ]
+
+        from django.contrib.auth import get_user_model
+        AdminUser = get_user_model()
+        admin = AdminUser.objects.filter(is_staff=True).first()
+        import uuid
+
+        for topic in topics:
+            if ChatRoom.objects.filter(name=topic['name']).exists():
+                continue
+            slug = f"sys-{uuid.uuid4().hex[:8]}"
+            room = ChatRoom.objects.create(
+                name=topic['name'],
+                slug=slug,
+                description=topic['description'],
+                room_type=ChatRoom.TYPE_PUBLIC,
+                icon=topic['icon'],
+                is_pinned=topic['is_pinned'],
+                creator=admin,
+            )
+            if admin:
+                Message.objects.create(
+                    room=room,
+                    author=admin,
+                    text=topic['welcome'],
+                )
+            self.stdout.write(f"  Тема: {topic['name']}")
 
     def _create_superuser(self, password: str):
         """Создаёт суперпользователя, если его нет."""

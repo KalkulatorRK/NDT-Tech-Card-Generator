@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'quality.apps.QualityConfig',
     'payments.apps.PaymentsConfig',
     'normative.apps.NormativeConfig',
+    'forum.apps.ForumConfig',
 ]
 
 MIDDLEWARE = [

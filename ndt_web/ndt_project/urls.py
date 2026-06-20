@@ -29,6 +29,9 @@ urlpatterns = [
     # Платежи
     path('payments/', include('payments.urls')),
 
+    # Форум и чаты
+    path('forum/', include('forum.urls')),
+
     # Контакты
     path('contacts/', TemplateView.as_view(template_name='contacts.html'), name='contacts'),
 ]

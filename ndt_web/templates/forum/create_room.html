@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Создать тему{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header-section">
+          <i class="bi bi-plus-circle me-2"></i>Создать публичную тему
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Название темы *</label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="Например: Вопросы по радиографическому контролю" required maxlength="200">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Описание</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Краткое описание темы"></textarea>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Иконка</label>
+            <div class="row g-2">
+              {% for icon_code, icon_name in icons %}
+              <div class="col-3">
+                <label class="d-block border rounded p-2 text-center cursor-pointer"
+                       style="cursor:pointer;" id="icon-label-{{ forloop.counter }}">
+                  <input type="radio" name="icon" value="{{ icon_code }}"
+                         {% if forloop.first %}checked{% endif %}
+                         class="d-none"
+                         onchange="updateIconLabels()">
+                  <i class="{{ icon_code }} fs-4 d-block mb-1"></i>
+                  <small>{{ icon_name }}</small>
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="d-flex gap-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check2 me-1"></i>Создать тему
+            </button>
+            <a href="{% url 'forum_index' %}" class="btn btn-outline-secondary">Отмена</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateIconLabels() {
+  document.querySelectorAll('[name=icon]').forEach(function(radio) {
+    var label = radio.closest('label');
+    if (radio.checked) {
+      label.style.background = 'var(--primary-light)';
+      label.style.borderColor = 'var(--primary)';
+    } else {
+      label.style.background = '';
+      label.style.borderColor = '';
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', updateIconLabels);
+</script>
+{% endblock %}

@@ -57,6 +57,13 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if 'forum' in request.path %}active{% endif %}"
+             href="{% url 'forum_index' %}" id="nav-forum-link">
+            <i class="bi bi-chat-dots me-1"></i>Форум
+            <span class="badge bg-danger ms-1 d-none" id="nav-forum-badge"></span>
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'contacts' %}active{% endif %}"
              href="{% url 'contacts' %}">
             <i class="bi bi-envelope me-1"></i>Контакты
@@ -201,6 +208,29 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% load static %}
 <script src="{% static 'js/main.js' %}"></script>
+{% if user.is_authenticated %}
+<script>
+// Обновляем счётчик непрочитанных в навигации
+function updateForumBadge() {
+  fetch('/forum/unread/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var total = Object.values(data.unread || {}).reduce(function(a,b){ return a+b; }, 0);
+      var badge = document.getElementById('nav-forum-badge');
+      if (!badge) return;
+      if (total > 0) {
+        badge.textContent = total > 99 ? '99+' : total;
+        badge.classList.remove('d-none');
+      } else {
+        badge.classList.add('d-none');
+      }
+    }).catch(function(){});
+}
+// Обновляем при загрузке и каждые 30 секунд
+document.addEventListener('DOMContentLoaded', updateForumBadge);
+setInterval(updateForumBadge, 30000);
+</script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>

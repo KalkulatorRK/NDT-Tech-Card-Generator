@@ -1,0 +1,298 @@
+{% extends "forum/index.html" %}
+
+{% block chat_content %}
+<!-- Заголовок комнаты -->
+<div class="chat-main-header">
+  <div class="room-icon">
+    <i class="{{ room.icon }}"></i>
+  </div>
+  <div>
+    <div>{{ room.name }}</div>
+    {% if room.description %}
+    <div style="font-size:0.78rem;font-weight:400;color:var(--text-muted);">
+      {{ room.description|truncatechars:80 }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Область сообщений -->
+<div class="messages-area" id="messagesArea">
+  {% if not chat_messages %}
+  <div class="text-center text-muted py-5" style="font-size:0.9rem;">
+    <i class="bi bi-chat-dots d-block fs-2 mb-2 opacity-25"></i>
+    Пока нет сообщений. Напишите первым!
+  </div>
+  {% endif %}
+
+  {% with prev_date=None %}
+  {% for msg in chat_messages %}
+
+    {# Разделитель дат #}
+    {% if forloop.first or msg.created_at|date:"d.m.Y" != chat_messages|first_date_for:msg %}
+    {% endif %}
+
+    <div class="msg-date-divider" data-date="{{ msg.created_at|date:'d.m.Y' }}"
+         id="date-{{ msg.created_at|date:'Ymd' }}"
+         style="display:none;">
+      <span>{{ msg.created_at|date:"d E Y" }}</span>
+    </div>
+
+    {% if msg.author == user %}
+    <div class="msg-wrapper own" data-msg-id="{{ msg.pk }}">
+    {% elif msg.author.is_admin %}
+    <div class="msg-wrapper admin" data-msg-id="{{ msg.pk }}">
+    {% else %}
+    <div class="msg-wrapper other" data-msg-id="{{ msg.pk }}">
+    {% endif %}
+
+      {% if msg.author != user %}
+      <div class="msg-avatar" title="{{ msg.author }}">
+        {{ msg.author.get_full_name|default:msg.author.username|first|upper }}
+      </div>
+      {% endif %}
+
+      <div>
+        {% if msg.author != user %}
+        <div class="msg-author">
+          {{ msg.author.get_full_name|default:msg.author.username }}
+          {% if msg.author.is_admin %}<i class="bi bi-shield-check ms-1" style="font-size:0.7rem;"></i>{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="msg-bubble">
+          {% if msg.reply_to %}
+          <div class="msg-reply-preview">
+            <strong>{{ msg.reply_to.author }}</strong><br>
+            {{ msg.reply_to.text|truncatechars:60 }}
+          </div>
+          {% endif %}
+          {{ msg.text|linebreaksbr }}
+          <div class="msg-meta">{{ msg.created_at|date:"H:i" }}</div>
+        </div>
+      </div>
+
+    </div>
+  {% endfor %}
+  {% endwith %}
+</div>
+
+<!-- Поле ввода -->
+<div class="chat-input-area">
+  <!-- Предпросмотр ответа (скрыт по умолчанию) -->
+  <div class="reply-preview-bar d-none" id="replyPreviewBar">
+    <div>
+      <small class="fw-bold" id="replyAuthor"></small>
+      <div id="replyText" style="font-size:0.82rem;"></div>
+    </div>
+    <button type="button" class="btn btn-sm btn-link text-muted p-0"
+            onclick="cancelReply()"><i class="bi bi-x-lg"></i></button>
+  </div>
+
+  <form class="chat-input-form" id="chatForm" onsubmit="sendMessage(event)">
+    {% csrf_token %}
+    <textarea
+      class="chat-textarea" id="messageInput"
+      placeholder="Напишите сообщение... (Enter — отправить, Shift+Enter — перенос)"
+      rows="1"
+      maxlength="4000"
+      onkeydown="handleKeyDown(event)"
+      oninput="autoResize(this)"
+    ></textarea>
+    <button type="submit" class="chat-send-btn" title="Отправить">
+      <i class="bi bi-send-fill"></i>
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var ROOM_ID = {{ room.pk }};
+var CURRENT_USER_ID = {{ user.pk }};
+var CURRENT_USER_NAME = '{{ user.get_full_name|default:user.username|escapejs }}';
+var IS_ADMIN = {% if user.is_admin %}true{% else %}false{% endif %};
+var lastMessageId = {{ last_message_id }};
+var replyToId = null;
+var pollTimer = null;
+
+// ---- Инициализация ----
+document.addEventListener('DOMContentLoaded', function() {
+    showDateDividers();
+    scrollToBottom(false);
+    startPolling();
+
+    // Фокус на поле ввода
+    document.getElementById('messageInput').focus();
+});
+
+// ---- Разделители дат ----
+function showDateDividers() {
+    var seen = {};
+    document.querySelectorAll('[data-msg-id]').forEach(function(el) {
+        var dateDiv = el.previousElementSibling;
+        if (dateDiv && dateDiv.classList.contains('msg-date-divider')) {
+            var date = dateDiv.dataset.date;
+            if (!seen[date]) {
+                dateDiv.style.display = '';
+                seen[date] = true;
+            }
+        }
+    });
+}
+
+// ---- Прокрутка вниз ----
+function scrollToBottom(smooth) {
+    var area = document.getElementById('messagesArea');
+    if (!area) return;
+    area.scrollTo({
+        top: area.scrollHeight,
+        behavior: smooth ? 'smooth' : 'instant',
+    });
+}
+
+// ---- Отправка сообщения ----
+function sendMessage(event) {
+    if (event) event.preventDefault();
+    var input = document.getElementById('messageInput');
+    var text = input.value.trim();
+    if (!text) return;
+
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch('/forum/room/' + ROOM_ID + '/send/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({text: text, reply_to: replyToId}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert(data.error); return; }
+        appendMessage(data, true);
+        lastMessageId = data.id;
+        input.value = '';
+        input.style.height = '';
+        cancelReply();
+        scrollToBottom(true);
+    })
+    .catch(function(e) { console.error(e); });
+}
+
+function handleKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage(null);
+    }
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ---- Построение HTML пузыря ----
+function appendMessage(msg, isOwn) {
+    var area = document.getElementById('messagesArea');
+    var div = document.createElement('div');
+
+    var cls = 'msg-wrapper ';
+    if (isOwn) cls += 'own';
+    else if (msg.is_admin) cls += 'admin';
+    else cls += 'other';
+
+    div.className = cls;
+    div.dataset.msgId = msg.id;
+
+    var replyHtml = '';
+    if (msg.reply_to) {
+        replyHtml = '<div class="msg-reply-preview">'
+            + '<strong>' + escapeHtml(msg.reply_to.author) + '</strong><br>'
+            + escapeHtml(msg.reply_to.text) + '</div>';
+    }
+
+    var authorHtml = '';
+    if (!isOwn) {
+        var adminBadge = msg.is_admin ? ' <i class="bi bi-shield-check" style="font-size:0.7rem;"></i>' : '';
+        authorHtml = '<div class="msg-author">' + escapeHtml(msg.author) + adminBadge + '</div>';
+    }
+
+    var avatarHtml = '';
+    if (!isOwn) {
+        var initial = msg.author ? msg.author[0].toUpperCase() : '?';
+        avatarHtml = '<div class="msg-avatar">' + initial + '</div>';
+    }
+
+    div.innerHTML = avatarHtml + '<div>'
+        + authorHtml
+        + '<div class="msg-bubble">'
+        + replyHtml
+        + escapeHtml(msg.text).replace(/\n/g, '<br>')
+        + '<div class="msg-meta">' + msg.created_at + '</div>'
+        + '</div></div>';
+
+    area.appendChild(div);
+}
+
+// ---- Поллинг новых сообщений ----
+function startPolling() {
+    pollTimer = setInterval(pollMessages, 10000);
+}
+
+function pollMessages() {
+    fetch('/forum/room/' + ROOM_ID + '/poll/?last_id=' + lastMessageId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.messages || data.messages.length === 0) return;
+        var area = document.getElementById('messagesArea');
+        var isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 60;
+        data.messages.forEach(function(msg) {
+            appendMessage(msg, msg.is_own);
+            lastMessageId = msg.id;
+        });
+        if (isAtBottom) scrollToBottom(true);
+    })
+    .catch(function() {});
+}
+
+// ---- Ответ на сообщение ----
+function replyTo(msgId, author, text) {
+    replyToId = msgId;
+    document.getElementById('replyAuthor').textContent = author;
+    document.getElementById('replyText').textContent = text.substring(0, 80);
+    document.getElementById('replyPreviewBar').classList.remove('d-none');
+    document.getElementById('messageInput').focus();
+}
+
+function cancelReply() {
+    replyToId = null;
+    document.getElementById('replyPreviewBar').classList.add('d-none');
+}
+
+// Двойной клик на пузырь — ответить
+document.addEventListener('dblclick', function(e) {
+    var bubble = e.target.closest('.msg-bubble');
+    if (!bubble) return;
+    var wrapper = bubble.closest('[data-msg-id]');
+    if (!wrapper) return;
+    var msgId = wrapper.dataset.msgId;
+    var authorEl = wrapper.querySelector('.msg-author');
+    var author = authorEl ? authorEl.textContent.trim() : CURRENT_USER_NAME;
+    var textEl = wrapper.querySelector('.msg-bubble');
+    var text = textEl ? textEl.textContent.trim().replace(/\d{2}:\d{2}$/, '').trim() : '';
+    replyTo(msgId, author, text);
+});
+
+// ---- Утилиты ----
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

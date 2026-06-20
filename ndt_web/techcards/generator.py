@@ -706,12 +706,15 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                             run.text = run.text.replace('_21_»_01___2012г.', f'«{dev_date}»')
                             run.text = run.text.replace('«_21_»_01___2012_г.', f'«{dev_date}»')
 
-    # --- Вставка изображения схемы просвечивания в поле 6.9 ---
-    _insert_scheme_image_into_docx(doc, params, static_root)
+    # --- Вставка изображения схемы просвечивания ОТКЛЮЧЕНА ---
+    # (по требованию: изображение схемы в техкарту не вставляется)
 
     # --- Настройка колонтитулов Word ---
     _remove_inline_header_footer_tables(doc)
     _setup_page_headers_footers(doc, params)
+
+    # --- Раздел 10 «Оценка качества» на отдельном листе ---
+    _insert_page_break_before_section10(doc)
 
     # --- Компактизация документа ---
     _compact_document(doc)
@@ -998,6 +1001,44 @@ def _setup_page_headers_footers(doc: Document, params: dict):
         sig_left += f'\n{inspector}'
     _set_cell_text(fr1.cells[0], sig_left, font_size=9)
     _set_cell_text(fr1.cells[1], sig_right, font_size=9)
+
+
+def _insert_page_break_before_section10(doc: Document):
+    """
+    Вставляет разрыв страницы перед разделом «10. Оценка качества»,
+    чтобы он всегда начинался с нового листа.
+
+    Ищет таблицу, содержащую текст '10.' или '10.Оценка', и вставляет
+    перед ней параграф с разрывом страницы.
+    """
+    body = doc.element.body
+
+    for table in doc.tables:
+        # Ищем таблицу с разделом 10
+        table_text = ' '.join(
+            cell.text for row in table.rows for cell in row.cells
+        )
+        if '10.' in table_text and (
+            'Оценка' in table_text or 'оценк' in table_text.lower()
+        ):
+            tbl_el = table._tbl
+            parent = tbl_el.getparent()
+            if parent is None:
+                continue
+
+            # Создаём параграф с разрывом страницы
+            ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+            p_el = OxmlElement('w:p')
+            r_el = OxmlElement('w:r')
+            br_el = OxmlElement('w:br')
+            br_el.set(qn('w:type'), 'page')
+            r_el.append(br_el)
+            p_el.append(r_el)
+
+            # Вставляем параграф прямо перед таблицей
+            idx = list(parent).index(tbl_el)
+            parent.insert(idx, p_el)
+            return   # Достаточно одного разрыва
 
 
 def _compact_document(doc: Document):

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Подтвердите email{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7">
+      <div class="card text-center p-4">
+        <div style="width:60px;height:60px;border-radius:50%;background:var(--primary-light);
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="bi bi-envelope-check" style="font-size:1.8rem;color:var(--primary);"></i>
+        </div>
+        <h3>Проверьте электронную почту</h3>
+        <p class="text-muted">
+          Мы отправили письмо со ссылкой для подтверждения регистрации.
+          Перейдите по ссылке в письме, чтобы активировать аккаунт и войти в систему.
+        </p>
+        <div class="info-box text-start mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Если письмо не пришло в течение нескольких минут, проверьте папку «Спам»
+          или запросите повторную отправку.
+        </div>
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+          <a href="{% url 'resend_verification' %}" class="btn btn-outline-primary">
+            Отправить письмо повторно
+          </a>
+          <a href="{% url 'login' %}" class="btn btn-primary">Перейти ко входу</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

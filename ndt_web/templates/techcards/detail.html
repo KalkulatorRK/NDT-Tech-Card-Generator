@@ -14,12 +14,15 @@
       </h3>
     </div>
     {% if techcard.is_ready %}
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <a href="{% url 'download_file' techcard.pk 'docx' %}" class="btn btn-outline-primary">
         <i class="bi bi-file-word me-1"></i>Скачать DOCX
       </a>
       <a href="{% url 'download_file' techcard.pk 'pdf' %}" class="btn btn-outline-danger">
         <i class="bi bi-file-pdf me-1"></i>Скачать PDF
+      </a>
+      <a href="{% url 'download_file' techcard.pk 'reference' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-journal-text me-1"></i>Техническая справка (расчёты)
       </a>
     </div>
     {% endif %}

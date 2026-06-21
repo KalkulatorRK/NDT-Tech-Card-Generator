@@ -38,6 +38,10 @@
         <div class="text-center text-muted" style="font-size:0.9rem;">
           Ещё нет аккаунта?
           <a href="{% url 'register' %}">Зарегистрироваться</a>
+          <br>
+          <a href="{% url 'resend_verification' %}" class="mt-1 d-inline-block">
+            Не пришло письмо подтверждения?
+          </a>
         </div>
       </div>
     </div>

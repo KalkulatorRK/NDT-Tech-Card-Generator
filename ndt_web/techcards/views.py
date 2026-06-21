@@ -19,6 +19,7 @@ from django.utils import timezone
 from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
 from .generator import generate_tech_card
+from .calculation_reference import generate_calculation_reference_docx
 from accounts.models import UserBalance
 from normative.gost_50_05_07 import get_suitable_sources
 
@@ -490,6 +491,24 @@ def download_file_view(request, pk, file_type):
     elif file_type == 'pdf' and techcard.pdf_file:
         file_path = os.path.join(settings.MEDIA_ROOT, str(techcard.pdf_file))
         filename = f'TC_{techcard.card_number or pk}.pdf'
+    elif file_type == 'reference':
+        buffer = generate_calculation_reference_docx(
+            techcard.input_data,
+            techcard.generated_data,
+            card_number=techcard.card_number,
+            normative_doc_code=techcard.normative_doc.code,
+        )
+        filename = f'TS_{techcard.card_number or pk}_расчёты.docx'
+        response = FileResponse(
+            buffer,
+            as_attachment=True,
+            filename=filename,
+            content_type=(
+                'application/vnd.openxmlformats-officedocument'
+                '.wordprocessingml.document'
+            ),
+        )
+        return response
     else:
         raise Http404('Файл не найден.')
 

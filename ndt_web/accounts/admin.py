@@ -26,10 +26,10 @@ class CustomUserAdmin(UserAdmin):
 
     inlines = [UserBalanceInline]
     list_display = (
-        'username', 'get_full_name', 'email', 'organization',
+        'username', 'get_full_name', 'email', 'email_verified', 'organization',
         'role', 'get_credits', 'get_certificate_status', 'date_joined', 'is_active',
     )
-    list_filter = ('role', 'is_active', 'is_staff', 'ndt_level')
+    list_filter = ('role', 'is_active', 'is_staff', 'email_verified', 'ndt_level')
     search_fields = ('username', 'email', 'first_name', 'last_name', 'organization')
     ordering = ('-date_joined',)
 

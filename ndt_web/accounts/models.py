@@ -55,6 +55,11 @@ class CustomUser(AbstractUser):
         null=True, blank=True,
         verbose_name='Срок действия удостоверения',
     )
+    email_verified = models.BooleanField(
+        default=False,
+        verbose_name='Email подтверждён',
+        help_text='Пользователь перешёл по ссылке из письма после регистрации',
+    )
 
     class Meta:
         verbose_name = 'Пользователь'

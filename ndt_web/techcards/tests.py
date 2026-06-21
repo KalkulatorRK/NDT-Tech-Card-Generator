@@ -293,3 +293,73 @@ class NormativeDocumentModelTests(TestCase):
     def test_method_display(self):
         """Метод контроля отображается корректно."""
         self.assertEqual(self.doc.get_control_method_display(), 'Радиографический контроль (РГК)')
+
+
+class CalculationReferenceTests(TestCase):
+    """Тесты генерации технической справки по расчётам."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            'refuser', email='ref@test.com', password='pass123', email_verified=True,
+        )
+        self.doc = NormativeDocument.objects.create(
+            code='ГОСТ Р 50.05.07-2018',
+            full_name='Радиографический контроль',
+            control_method='RT',
+            is_implemented=True,
+        )
+        input_data = {
+            'organization': 'АО Тест',
+            'object_name': 'Трубопровод',
+            'wall_thickness': 10,
+            'outer_diameter': 108,
+            'joint_designation': 'C1',
+            'weld_category': 'II',
+            'welding_process': '30',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 2.0,
+            'ofd_mm': 5,
+            'scheme_type': '5a',
+            'card_number': 'TC-001',
+        }
+        calc = RadiographicTechCardCalculator(input_data)
+        params = calc.calculate()
+        self.techcard = TechCard.objects.create(
+            user=self.user,
+            normative_doc=self.doc,
+            title='Трубопровод',
+            card_number='TC-001',
+            status=TechCard.STATUS_DONE,
+            input_data=input_data,
+            generated_data=params,
+        )
+
+    def test_build_calculation_log_has_sections(self):
+        """Лог расчётов содержит основные секции."""
+        from .calculation_reference import build_calculation_log
+        sections = build_calculation_log(self.techcard.input_data, self.techcard.generated_data)
+        titles = [s['title'] for s in sections]
+        self.assertIn('4. Требуемая чувствительность K', titles)
+        self.assertIn('7. Параметры схемы просвечивания', titles)
+
+    def test_generate_reference_docx(self):
+        """DOCX технической справки генерируется без ошибок."""
+        from .calculation_reference import generate_calculation_reference_docx
+        buffer = generate_calculation_reference_docx(
+            self.techcard.input_data,
+            self.techcard.generated_data,
+            card_number=self.techcard.card_number,
+        )
+        self.assertGreater(len(buffer.getvalue()), 1000)
+
+    def test_download_reference_endpoint(self):
+        """Эндпоинт скачивания технической справки доступен владельцу."""
+        self.client = Client()
+        self.client.login(username='refuser', password='pass123')
+        url = reverse('download_file', args=[self.techcard.pk, 'reference'])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'wordprocessingml',
+            response['Content-Type'],
+        )

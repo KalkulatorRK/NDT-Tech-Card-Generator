@@ -22,7 +22,7 @@
           неограниченная оценка качества.
         </div>
 
-        <form method="post" novalidate>
+        <form method="post" novalidate id="register-form">
           {% csrf_token %}
           <div class="row g-3">
             <div class="col-md-6">
@@ -68,6 +68,12 @@
                 {% if form.agree_terms.errors %}<div class="text-danger small mt-1">{{ form.agree_terms.errors.0 }}</div>{% endif %}
               </div>
             </div>
+            {% if form.captcha %}
+            <div class="col-12">
+              {{ form.captcha }}
+              {% if form.captcha.errors %}<div class="text-danger small mt-1">{{ form.captcha.errors.0 }}</div>{% endif %}
+            </div>
+            {% endif %}
           </div>
 
           <div class="d-grid mt-4">

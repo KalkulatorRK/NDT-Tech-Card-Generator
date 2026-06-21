@@ -5,6 +5,7 @@
 """
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import (
     UserCreationForm, AuthenticationForm, PasswordChangeForm,
 )
@@ -13,6 +14,14 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Row, Column, Submit, HTML
 
 from .models import CustomUser
+
+
+def _recaptcha_enabled() -> bool:
+    """reCAPTCHA включается только при наличии ключей в настройках."""
+    return bool(
+        getattr(settings, 'RECAPTCHA_PUBLIC_KEY', '')
+        and getattr(settings, 'RECAPTCHA_PRIVATE_KEY', '')
+    )
 
 
 class RegistrationForm(UserCreationForm):
@@ -59,6 +68,14 @@ class RegistrationForm(UserCreationForm):
                                          forms.PasswordInput, forms.Select)):
                 field.widget.attrs.setdefault('class', 'form-control')
 
+        if _recaptcha_enabled():
+            from django_recaptcha.fields import ReCaptchaField
+            from django_recaptcha.widgets import ReCaptchaV3
+            self.fields['captcha'] = ReCaptchaField(
+                widget=ReCaptchaV3(action='register'),
+                label='',
+            )
+
     def clean_email(self):
         """Проверяет, что email ещё не зарегистрирован."""
         email = self.cleaned_data.get('email', '').strip().lower()
@@ -72,6 +89,7 @@ class RegistrationForm(UserCreationForm):
         user = super().save(commit=False)
         user.email = self.cleaned_data['email']
         user.organization = self.cleaned_data.get('organization', '')
+        user.email_verified = False
         if commit:
             user.save()
         return user
@@ -86,6 +104,25 @@ class LoginForm(AuthenticationForm):
         self.fields['username'].widget.attrs.update({'class': 'form-control', 'autofocus': True})
         self.fields['password'].label = 'Пароль'
         self.fields['password'].widget.attrs.update({'class': 'form-control'})
+
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)
+        if not user.email_verified:
+            self.email_not_verified = True
+            raise forms.ValidationError(
+                'Подтвердите адрес электронной почты. '
+                'Проверьте входящие или запросите повторную отправку письма.',
+                code='email_not_verified',
+            )
+
+
+class ResendVerificationForm(forms.Form):
+    """Форма повторной отправки письма подтверждения."""
+
+    email = forms.EmailField(
+        label='Электронная почта',
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'autofocus': True}),
+    )
 
 
 class ProfileEditForm(forms.ModelForm):

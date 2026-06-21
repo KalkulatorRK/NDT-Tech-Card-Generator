@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     # Сторонние библиотеки
     'crispy_forms',
     'crispy_bootstrap5',
+    'django_recaptcha',
 
     # Приложения проекта
     'accounts.apps.AccountsConfig',
@@ -145,6 +146,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ------------------------------------------------------------------
+# Кэш (для django-ratelimit)
+# ------------------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ndt-cache',
+    }
+}
+
+# ------------------------------------------------------------------
+# reCAPTCHA v3 (защита формы регистрации от ботов)
+# ------------------------------------------------------------------
+RECAPTCHA_PUBLIC_KEY = config('RECAPTCHA_PUBLIC_KEY', default='')
+RECAPTCHA_PRIVATE_KEY = config('RECAPTCHA_PRIVATE_KEY', default='')
+RECAPTCHA_REQUIRED_SCORE = config('RECAPTCHA_REQUIRED_SCORE', default=0.5, cast=float)
+
+# ------------------------------------------------------------------
+# Лимиты регистрации
+# ------------------------------------------------------------------
+REGISTRATION_RATE_LIMIT = '5/h'
 
 # ------------------------------------------------------------------
 # Crispy Forms (Bootstrap 5)

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ошибка подтверждения{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7">
+      <div class="card text-center p-4">
+        <div style="width:60px;height:60px;border-radius:50%;background:#fde8e8;
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="bi bi-x-circle" style="font-size:1.8rem;color:#c0392b;"></i>
+        </div>
+        <h3>Не удалось подтвердить email</h3>
+        <p class="text-muted">{{ message }}</p>
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+          <a href="{% url 'resend_verification' %}" class="btn btn-outline-primary">
+            Запросить новое письмо
+          </a>
+          <a href="{% url 'register' %}" class="btn btn-secondary">Регистрация</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

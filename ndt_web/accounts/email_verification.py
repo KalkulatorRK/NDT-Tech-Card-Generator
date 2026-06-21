@@ -28,6 +28,27 @@ def build_verification_url(user: CustomUser) -> str:
     return f'{site_url}/accounts/verify/{uid}/{token}/'
 
 
+def _format_email_error(exc: Exception) -> str:
+    """Переводит типичные ошибки SMTP в понятные подсказки."""
+    message = str(exc)
+    if '535' in message and 'access rights' in message.lower():
+        return (
+            'Яндекс отклонил вход: у ящика moohobor@yandex.ru не включена отправка '
+            'через почтовые программы (SMTP). Откройте mail.yandex.ru → Настройки → '
+            '«Почтовые программы» → разрешите доступ с IMAP/SMTP, затем используйте '
+            '«Пароль приложения» из id.yandex.ru в переменной EMAIL_HOST_PASSWORD на Render.'
+        )
+    if '535' in message or 'authentication failed' in message.lower():
+        return (
+            'Ошибка авторизации SMTP. Проверьте EMAIL_HOST_USER и EMAIL_HOST_PASSWORD '
+            'на Render: нужен пароль приложения Яндекса (не обычный пароль от аккаунта).'
+        )
+    return (
+        'Не удалось отправить письмо. Проверьте настройки SMTP на сервере '
+        'или повторите попытку позже.'
+    )
+
+
 def send_verification_email(user: CustomUser) -> None:
     """Отправляет письмо с ссылкой для подтверждения email."""
     verification_url = build_verification_url(user)
@@ -56,10 +77,7 @@ def send_verification_email(user: CustomUser) -> None:
             settings.EMAIL_HOST,
             settings.EMAIL_PORT,
         )
-        raise EmailSendError(
-            'Не удалось отправить письмо. Проверьте настройки почты на сервере '
-            '(SMTP, пароль приложения Yandex) или повторите попытку позже.'
-        ) from exc
+        raise EmailSendError(_format_email_error(exc)) from exc
 
     if sent != 1:
         logger.error('send_mail returned %s for %s', sent, user.email)

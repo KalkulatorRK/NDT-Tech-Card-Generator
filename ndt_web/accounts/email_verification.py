@@ -66,6 +66,13 @@ def _format_email_error(exc: Exception) -> str:
             'EMAIL_BACKEND и EMAIL_HOST* (должен остаться только RESEND_API_KEY).'
         )
     if 'resend' in message.lower() or 'anymail' in message.lower():
+        if 'only send testing emails' in message.lower() or 'verify a domain' in message.lower():
+            return (
+                'Resend в тестовом режиме: с onboarding@resend.dev письма уходят только '
+                'на адрес владельца аккаунта Resend. Для torf1@yandex.ru и других '
+                'пользователей верифицируйте домен на resend.com/domains и задайте на Render '
+                'DEFAULT_FROM_EMAIL=noreply@ваш-домен.ru (например utbniti.ru).'
+            )
         return f'Ошибка Resend API: {message}'
     return (
         'Не удалось отправить письмо. Выполните на Render: '

@@ -36,10 +36,26 @@ def forum_index(request):
         is_active=True,
     ).order_by('-is_pinned', 'name')
 
-    # Личный чат с администратором (создаётся при первом обращении)
-    private_room = _get_or_create_private_room(user)
+    # Личный чат пользователя с администратором
+    private_room = None if user.is_admin else _get_or_create_private_room(user)
 
-    # Добавляем счётчики непрочитанных
+    # Для администратора — список ВСЕХ личных чатов пользователей
+    admin_private_rooms = []
+    if user.is_admin:
+        admin_private_rooms_qs = ChatRoom.objects.filter(
+            room_type=ChatRoom.TYPE_PRIVATE,
+            is_active=True,
+        ).order_by('-messages__created_at').distinct()
+        for room in admin_private_rooms_qs:
+            last_msg = room.last_message
+            unread = room.unread_count(user)
+            admin_private_rooms.append({
+                'room': room,
+                'last_message': last_msg,
+                'unread': unread,
+                'user': room.private_user,
+            })
+
     public_rooms_data = []
     for room in public_rooms:
         last_msg = room.last_message
@@ -52,15 +68,12 @@ def forum_index(request):
 
     private_unread = private_room.unread_count(user) if private_room else 0
 
-    # Если есть last_room в сессии — открываем его
-    last_room_id = request.session.get('last_chat_room_id')
-
     context = {
         'public_rooms': public_rooms_data,
         'private_room': private_room,
         'private_unread': private_unread,
+        'admin_private_rooms': admin_private_rooms,
         'active_room': None,
-        'last_room_id': last_room_id,
     }
     return render(request, 'forum/index.html', context)
 
@@ -97,7 +110,15 @@ def chat_room_view(request, room_id):
         room_type=ChatRoom.TYPE_PUBLIC, is_active=True,
     ).order_by('-is_pinned', 'name')
 
-    private_room = _get_or_create_private_room(user)
+    private_room = None if user.is_admin else _get_or_create_private_room(user)
+
+    admin_private_rooms = []
+    if user.is_admin:
+        for r in ChatRoom.objects.filter(room_type=ChatRoom.TYPE_PRIVATE, is_active=True).order_by('-id'):
+            admin_private_rooms.append({
+                'room': r, 'last_message': r.last_message,
+                'unread': r.unread_count(user), 'user': r.private_user,
+            })
 
     public_rooms_data = [
         {'room': r, 'last_message': r.last_message, 'unread': r.unread_count(user)}
@@ -110,6 +131,7 @@ def chat_room_view(request, room_id):
         'public_rooms': public_rooms_data,
         'private_room': private_room,
         'private_unread': private_room.unread_count(user) if private_room else 0,
+        'admin_private_rooms': admin_private_rooms,
         'active_room': room,
         'last_message_id': last_message_id,
     }

@@ -73,10 +73,34 @@ def cabinet_view(request):
             'can_create': can_create,
         })
 
+    # Счётчик непрочитанных в личном чате с администратором
+    private_unread_count = 0
+    try:
+        from forum.models import ChatRoom
+        private_room = ChatRoom.objects.filter(
+            room_type=ChatRoom.TYPE_PRIVATE, private_user=user,
+        ).first()
+        if private_room:
+            private_unread_count = private_room.unread_count(user)
+    except Exception:
+        pass
+
+    # Для администратора: общее количество непрочитанных от пользователей
+    admin_unread_total = 0
+    if user.is_admin:
+        try:
+            from forum.models import ChatRoom as CR
+            for room in CR.objects.filter(room_type=CR.TYPE_PRIVATE):
+                admin_unread_total += room.unread_count(user)
+        except Exception:
+            pass
+
     context = {
         'balance': balance,
         'techcards': techcards,
         'docs_status': docs_status,
+        'private_unread_count': private_unread_count,
+        'admin_unread_total': admin_unread_total,
     }
     return render(request, 'accounts/cabinet.html', context)
 
@@ -164,7 +188,13 @@ def create_step2_view(request, doc_code):
     if request.method == 'POST':
         form = TechCardStep2Form(request.POST)
         if form.is_valid():
-            _save_session_data(request, form.cleaned_data)
+            data = form.cleaned_data
+            # Применяем ручной ввод если выбран пункт "другое"
+            if not data.get('material') and data.get('material_custom'):
+                data['material'] = data['material_custom']
+            if not data.get('welding_process') and data.get('welding_process_custom'):
+                data['welding_process'] = data['welding_process_custom']
+            _save_session_data(request, data)
             return redirect('create_step3', doc_code=doc_code)
     else:
         form = TechCardStep2Form()
@@ -204,7 +234,11 @@ def create_step3_view(request, doc_code):
     if request.method == 'POST':
         form = TechCardStep3Form(request.POST)
         if form.is_valid():
-            _save_session_data(request, form.cleaned_data)
+            data = form.cleaned_data
+            # Применяем ручной ввод плёнки
+            if not data.get('film_name') and data.get('film_name_custom'):
+                data['film_name'] = data['film_name_custom']
+            _save_session_data(request, data)
             return redirect('create_step4', doc_code=doc_code)
     else:
         form = TechCardStep3Form()

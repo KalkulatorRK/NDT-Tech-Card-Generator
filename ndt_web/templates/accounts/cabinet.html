@@ -33,10 +33,29 @@
           <div class="counter-label">операций доступно</div>
         </div>
 
+        <!-- Счётчик непрочитанных в личном чате -->
+        {% if private_unread_count > 0 %}
+        <a href="{% url 'private_chat' %}" class="btn btn-danger w-100 mb-2">
+          <i class="bi bi-chat-dots me-1"></i>
+          Новых сообщений от администратора: <strong>{{ private_unread_count }}</strong>
+        </a>
+        {% else %}
+        <a href="{% url 'private_chat' %}" class="btn btn-outline-secondary w-100 mb-2" style="font-size:0.85rem;">
+          <i class="bi bi-chat-dots me-1"></i>Написать администратору
+        </a>
+        {% endif %}
+
         <div class="text-muted mb-3" style="font-size:0.82rem;">
           <i class="bi bi-info-circle me-1"></i>
-          Первая техкарта по каждому документу — бесплатно
+          Ознакомительная техкарта: первая по каждому документу в ознакомительный период
         </div>
+
+        {% if user.is_admin and admin_unread_total > 0 %}
+        <a href="{% url 'forum_index' %}" class="btn btn-danger w-100 mb-2">
+          <i class="bi bi-chat-dots me-1"></i>
+          Новых сообщений от пользователей: <strong>{{ admin_unread_total }}</strong>
+        </a>
+        {% endif %}
 
         <a href="{% url 'tariffs' %}" class="btn btn-primary w-100 mb-2">
           <i class="bi bi-plus-circle me-1"></i>Пополнить баланс
@@ -87,7 +106,7 @@
               <tr>
                 <th>Нормативный документ</th>
                 <th>Метод</th>
-                <th>Бесплатная карта</th>
+                <th>Ознакомительная карта</th>
                 <th>Действие</th>
               </tr>
             </thead>
@@ -157,7 +176,7 @@
               &nbsp;·&nbsp;
               <span class="badge bg-{{ tc.get_status_badge }}">{{ tc.get_status_display }}</span>
               {% if tc.was_free %}
-                <span class="badge bg-info text-dark ms-1">Бесплатная</span>
+                <span class="badge bg-info text-dark ms-1">Ознакомительная</span>
               {% endif %}
             </div>
           </div>

@@ -69,7 +69,18 @@ class TechCardStep2Form(forms.Form):
     material = forms.ChoiceField(
         choices=[('', '— Выберите марку стали —')] + get_material_choices(),
         label='Марка стали *',
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_material'}),
+    )
+
+    # Подсказка: можно вписать свою марку если нет в списке
+    material_custom = forms.CharField(
+        required=False,
+        label='Или введите марку вручную (если нет в списке)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Например: 09ХН10Т или другая марка',
+            'id': 'id_material_custom',
+        }),
     )
     wall_thickness = forms.FloatField(
         min_value=0.5, max_value=500,
@@ -108,7 +119,7 @@ class TechCardStep2Form(forms.Form):
         ),
     )
     welding_process = forms.ChoiceField(
-        choices=[('', '— Выберите вид сварки —')] + get_welding_process_choices(),
+        choices=[('', '— Выберите способ сварки —')] + get_welding_process_choices(),
         required=False,
         label='Способ сварки (код по ГОСТ Р 59023.2-2020) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_welding_process'}),
@@ -116,6 +127,14 @@ class TechCardStep2Form(forms.Form):
             '10 — АДФ под флюсом; 30 — РДС; 40 — комбинированная; '
             '51/52 — аргонодуговая; 60 — ЭЛС'
         ),
+    )
+    welding_process_custom = forms.CharField(
+        required=False,
+        label='Или введите код/вид сварки вручную',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Например: 70 — плазменная, или собственное обозначение',
+        }),
     )
     weld_category = forms.ChoiceField(
         choices=get_category_choices(),
@@ -148,14 +167,14 @@ class TechCardStep2Form(forms.Form):
 
 SCHEME_CHOICES = [
     ('',     '— Выберите схему просвечивания —'),
-    ('4_6',  'Чертёж 2 — плоские детали, листы, обечайки (источник с одной стороны)'),
-    ('5a',   'Чертёж 3а — трубопровод, источник снаружи, просвечивание через 2 стенки'),
-    ('5b',   'Чертёж 3б — трубопровод, источник снаружи, через 1 стенку (эллипс)'),
-    ('5v',   'Чертёж 3в — трубопровод малого Ø (≤100 мм), источник снаружи по диаметру'),
-    ('5g',   'Чертёж 3г — трубопровод Ø>50 мм, источник внутри со смещением от оси'),
-    ('5d',   'Чертёж 3д — трубопровод Ø>50 мм, источник внутри (другой вариант)'),
-    ('5zh',  'Чертёж 3ж — панорамный, источник на оси внутри трубы (Ø ≤ 2 м)'),
-    ('5z',   'Чертёж 3и — источник внутри, трубопровод большого Ø (> 2 м)'),
+    ('4_6',  'Чертёж 2 — Плоские детали, листы, обечайки (без ограничений по диаметру, 1 стенка)'),
+    ('5a',   'Чертёж 3а — Трубопровод Dн > 50 мм; плёнка внутри трубы; 1 стенка'),
+    ('5b',   'Чертёж 3б — Трубопровод Dн > 50 мм; плёнка внутри трубы; 1 стенка (метод эллипса)'),
+    ('5v',   'Чертёж 3в — Трубопровод Dн ≤ 100 мм; плёнка снаружи (напротив); 2 стенки'),
+    ('5g',   'Чертёж 3г — Трубопровод Dн > 50 мм; плёнка снаружи (напротив); 2 стенки'),
+    ('5d',   'Чертёж 3д — Трубопровод Dн > 50 мм; плёнка снаружи (напротив); 2 стенки'),
+    ('5zh',  'Чертёж 3ж — Трубопровод Dн ≤ 2000 мм; панорамное; плёнка снаружи; 1 стенка'),
+    ('5z',   'Чертёж 3и — Трубопровод Dн > 2000 мм; плёнка снаружи; 1 стенка'),
 ]
 
 SCHEME_IMAGES = {
@@ -244,6 +263,14 @@ class TechCardStep3Form(forms.Form):
         label='Тип радиографической плёнки',
         widget=forms.Select(attrs={'class': 'form-select'}),
         help_text='Тип плёнки определяется классом контроля. Можно не выбирать — подберётся автоматически.',
+    )
+    film_name_custom = forms.CharField(
+        required=False,
+        label='Или введите тип плёнки вручную',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Например: РТ-4МС или другая плёнка',
+        }),
     )
 
 

@@ -234,9 +234,30 @@
   .msg-wrapper { max-width: 85%; }
 }
 @media (max-width: 576px) {
-  .chat-layout { height: calc(100vh - 110px); }
-  .chat-sidebar { display: none; }
-  .chat-sidebar.show { display: flex; position: absolute; z-index: 100; height: 100%; }
+  .chat-layout { height: calc(100vh - 110px); flex-direction: column; }
+  /* На мобильном: сайдбар сворачивается в горизонтальную полосу иконок */
+  .chat-sidebar {
+    width: 100%; min-width: unset;
+    height: auto; max-height: 180px;
+    border-right: none; border-bottom: 1px solid var(--border);
+    flex-direction: row; overflow-x: auto; overflow-y: hidden;
+  }
+  .chat-sidebar-header { display: none; }
+  .chat-list { display: flex; flex-direction: row; }
+  .chat-list-item {
+    flex-direction: column; align-items: center;
+    min-width: 64px; padding: 8px 6px; gap: 4px;
+    border-bottom: none; border-right: 1px solid #eef1f5;
+  }
+  .chat-avatar { width: 36px; height: 36px; font-size: 0.9rem; }
+  .chat-item-info .chat-item-preview, .chat-item-meta { display: none; }
+  .chat-item-name { font-size: 0.65rem; text-align: center; max-width: 60px; }
+  .unread-badge {
+    position: absolute; top: 4px; right: 4px;
+    font-size: 0.6rem; padding: 0 4px;
+  }
+  .chat-list-item { position: relative; }
+  .msg-wrapper { max-width: 90%; }
 }
 </style>
 {% endblock %}
@@ -258,7 +279,7 @@
 
       <div class="chat-list">
 
-        <!-- Личный чат с администратором -->
+        <!-- Личный чат с администратором (для обычных пользователей) -->
         {% if private_room %}
         <a href="{% url 'chat_room' private_room.pk %}"
            class="chat-list-item {% if active_room.pk == private_room.pk %}active{% endif %}"
@@ -285,6 +306,40 @@
             {% endif %}
           </div>
         </a>
+        {% endif %}
+
+        <!-- Для администратора: список личных чатов всех пользователей -->
+        {% if user.is_admin and admin_private_rooms %}
+        <div class="px-3 py-2" style="font-size:0.73rem;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;background:#eef2f7;">
+          ЛИЧНЫЕ ЧАТЫ ПОЛЬЗОВАТЕЛЕЙ
+        </div>
+        {% for item in admin_private_rooms %}
+        <a href="{% url 'chat_room' item.room.pk %}"
+           class="chat-list-item {% if active_room.pk == item.room.pk %}active{% endif %}"
+           id="room-item-{{ item.room.pk }}">
+          <div class="chat-avatar avatar-private">
+            <i class="{{ item.room.icon }}"></i>
+          </div>
+          <div class="chat-item-info">
+            <div class="chat-item-name">
+              {{ item.user.get_full_name|default:item.user.username }}
+            </div>
+            <div class="chat-item-preview">
+              {% if item.last_message %}{{ item.last_message.text|truncatechars:28 }}{% else %}Нет сообщений{% endif %}
+            </div>
+          </div>
+          <div class="chat-item-meta">
+            {% if item.last_message %}
+            <span class="chat-item-time">{{ item.last_message.created_at|date:"H:i" }}</span>
+            {% endif %}
+            {% if item.unread > 0 %}
+            <span class="unread-badge" id="unread-{{ item.room.pk }}">{{ item.unread }}</span>
+            {% else %}
+            <span class="unread-badge d-none" id="unread-{{ item.room.pk }}"></span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
         {% endif %}
 
         <!-- Разделитель -->

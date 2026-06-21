@@ -36,7 +36,7 @@
             <td>{{ tc.created_at|date:"d.m.Y" }}</td>
             <td>
               <span class="badge bg-{{ tc.get_status_badge }}">{{ tc.get_status_display }}</span>
-              {% if tc.was_free %}<span class="badge bg-info text-dark ms-1">Бесплатная</span>{% endif %}
+              {% if tc.was_free %}<span class="badge bg-info text-dark ms-1">Ознакомительная</span>{% endif %}
             </td>
             <td>
               <div class="d-flex gap-1">

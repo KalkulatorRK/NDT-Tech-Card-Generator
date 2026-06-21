@@ -55,86 +55,53 @@
   </h2>
 
   <div class="row g-4 mb-5">
-    <div class="col-md-4">
-      <div class="feature-card">
-        <div class="feature-icon">
-          <i class="bi bi-file-earmark-text" style="color:var(--primary);"></i>
+    <div class="col-md-3">
+      <a href="{% url 'method_select' %}" class="text-decoration-none">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-file-earmark-text" style="color:var(--primary);"></i>
+          </div>
+          <h4>Генерация техкарт</h4>
+          <p>Автоматический расчёт всех параметров контроля по ГОСТ Р 50.05.07-2018. Готовая техкарта в DOCX и PDF.</p>
         </div>
-        <h4>Генерация техкарт</h4>
-        <p>
-          Автоматический расчёт всех параметров контроля по ГОСТ Р 50.05.07-2018.
-          Получите готовую техкарту в форматах DOCX и PDF.
-        </p>
-      </div>
+      </a>
     </div>
-    <div class="col-md-4">
-      <div class="feature-card">
-        <div class="feature-icon">
-          <i class="bi bi-check2-circle" style="color:var(--success);"></i>
+    <div class="col-md-3">
+      <a href="{% url 'quality_form' %}" class="text-decoration-none">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-check2-circle" style="color:var(--success);"></i>
+          </div>
+          <h4>Оценка качества</h4>
+          <p>Проверьте допустимость дефектов по НП-105-18. Заключение «ГОДЕН/БРАК» с обоснованием и скачиванием PDF.</p>
         </div>
-        <h4>Оценка качества</h4>
-        <p>
-          Проверьте допустимость обнаруженных дефектов по НП-105-18.
-          Получите мгновенное заключение с обоснованием.
-        </p>
-      </div>
+      </a>
     </div>
-    <div class="col-md-4">
-      <div class="feature-card">
-        <div class="feature-icon">
-          <i class="bi bi-folder2-open" style="color:var(--warning);"></i>
+    <div class="col-md-3">
+      <a href="{% url 'cabinet' %}" class="text-decoration-none">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-folder2-open" style="color:var(--warning);"></i>
+          </div>
+          <h4>Личный кабинет</h4>
+          <p>Все созданные карты в одном месте. Управление, история операций и скачивание в любое время.</p>
         </div>
-        <h4>Личный кабинет</h4>
-        <p>
-          Все созданные карты в одном месте. Удобное управление,
-          история операций и возможность скачивания в любое время.
-        </p>
-      </div>
+      </a>
+    </div>
+    <div class="col-md-3">
+      <a href="{% url 'forum_index' %}" class="text-decoration-none">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-chat-dots" style="color:var(--secondary);"></i>
+          </div>
+          <h4>Форум</h4>
+          <p>Общайтесь с коллегами, задавайте вопросы администратору. Тематические чаты по методам НК.</p>
+        </div>
+      </a>
     </div>
   </div>
 
-  <!-- ===== Доступные нормативные документы ===== -->
-  <div class="card">
-    <div class="card-header-section">
-      <i class="bi bi-journal-bookmark me-2"></i>Доступные нормативные документы
-    </div>
-    {% if normative_docs %}
-    <div class="row g-3">
-      {% for doc in normative_docs %}
-      <div class="col-md-6">
-        <div class="d-flex align-items-start p-3 rounded border"
-             style="background:#fafcff;">
-          <div class="me-3 mt-1">
-            {% if doc.is_implemented %}
-              <i class="bi bi-check-circle-fill text-success fs-5"></i>
-            {% else %}
-              <i class="bi bi-hourglass-split text-warning fs-5"></i>
-            {% endif %}
-          </div>
-          <div>
-            <div class="fw-semibold">{{ doc.code }}</div>
-            <div class="text-muted" style="font-size:0.82rem;">{{ doc.full_name|truncatechars:80 }}</div>
-            <div class="mt-1">
-              {% if doc.is_implemented %}
-                <a href="{% url 'create_step1' doc.code %}" class="btn btn-sm btn-outline-primary">
-                  <i class="bi bi-plus me-1"></i>Создать техкарту
-                </a>
-              {% else %}
-                <span class="badge bg-warning text-dark">
-                  <i class="bi bi-tools me-1"></i>В разработке
-                </span>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-muted">Нормативные документы загружаются...</p>
-    {% endif %}
-  </div>
-
+  <!-- ===== Оценка качества + Форум ===== -->
   <div class="row g-4 mb-4">
     <!-- ===== Оценка качества ===== -->
     <div class="col-md-6">
@@ -192,10 +159,10 @@
   <div class="card" style="background:linear-gradient(135deg,#f0f7ff,#e8f4fd);">
     <div class="row align-items-center">
       <div class="col-md-8">
-        <h4><i class="bi bi-gift me-2" style="color:var(--primary);"></i>Начните бесплатно</h4>
+        <h4><i class="bi bi-gift me-2" style="color:var(--primary);"></i>Начните в ознакомительный период</h4>
         <p class="text-muted mb-0" style="font-size:0.9rem;">
-          Первая технологическая карта по каждому нормативному документу — бесплатно.
-          Оценка качества — бесплатно для зарегистрированных пользователей.
+          Первая технологическая карта по каждому нормативному документу — в ознакомительный период.
+          Оценка качества — в ознакомительный период для зарегистрированных пользователей.
         </p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">

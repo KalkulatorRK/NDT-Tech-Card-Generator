@@ -30,6 +30,11 @@
               {{ form.material }}
               {% if form.material.errors %}<div class="text-danger small">{{ form.material.errors.0 }}</div>{% endif %}
             </div>
+            <!-- Ввод своей марки если нет в списке -->
+            <div class="col-md-6" id="material-custom-group" style="display:none;">
+              <label class="form-label">{{ form.material_custom.label }}</label>
+              {{ form.material_custom }}
+            </div>
 
             <!-- Толщина стенки -->
             <div class="col-md-6">
@@ -107,6 +112,10 @@
               <label class="form-label fw-semibold">{{ form.welding_process.label }}</label>
               {{ form.welding_process }}
               {% if form.welding_process.help_text %}<div class="form-text">{{ form.welding_process.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6" id="welding-custom-group" style="display:none;">
+              <label class="form-label">{{ form.welding_process_custom.label }}</label>
+              {{ form.welding_process_custom }}
             </div>
 
             <!-- Категория сварного шва -->
@@ -231,5 +240,15 @@ if (processSelect) {
     if (jointSelect) calculateZones(jointSelect.value);
   });
 }
+
+// Поля ручного ввода (если нужной марки/способа нет в списке)
+var materialSel = document.getElementById('id_material');
+var weldingCustomSel = document.getElementById('id_welding_process');
+function toggleCustom(sel, groupId) {
+  var g = document.getElementById(groupId);
+  if (g) g.style.display = (!sel.value) ? '' : 'none';
+}
+if (materialSel) { materialSel.addEventListener('change', function(){ toggleCustom(this,'material-custom-group'); }); }
+if (weldingCustomSel) { weldingCustomSel.addEventListener('change', function(){ toggleCustom(this,'welding-custom-group'); }); }
 </script>
 {% endblock %}

@@ -67,27 +67,27 @@ TABLE_DATA_5G = {
     0.90: {3: ("≤", 1.0), 4: (">", 1.0)},
 }
 
-# Описание схем просвечивания
+# Описание схем просвечивания (пользовательские названия по чертежам ГОСТ)
 SCHEME_INFO = {
     '4_6': {
-        'name': 'Чертёж 2 (схема 4.6)',
-        'description': 'Плоские детали, листы. Источник с одной стороны, детектор с другой.',
+        'name': 'Чертёж 2',
+        'description': 'Плоские детали, листы, обечайки.',
         'image': 'img/scheme_4_6.png',
         'requires_diameters': False,
         'requires_thickness': True,
         'for_pipes': False,
     },
     '5a': {
-        'name': 'Чертёж 3а (схема 5а)',
-        'description': 'Трубопровод, источник снаружи, просвечивание через 2 стенки. D > 50 мм.',
+        'name': 'Чертёж 3а',
+        'description': 'Трубопровод Dн > 50 мм. Плёнка внутри трубы.',
         'image': 'img/scheme_5a.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5b': {
-        'name': 'Чертёж 3б (схема 5б)',
-        'description': 'Трубопровод, источник снаружи, просвечивание через 1 стенку (эллипс).',
+        'name': 'Чертёж 3б',
+        'description': 'Трубопровод Dн > 50 мм. Плёнка внутри трубы. Метод эллипса.',
         'image': 'img/scheme_5b.png',
         'requires_diameters': True,
         'requires_thickness': False,
@@ -95,48 +95,48 @@ SCHEME_INFO = {
         'for_pipes': True,
     },
     '5v': {
-        'name': 'Чертёж 3в (схема 5в)',
-        'description': 'Трубопровод малого диаметра (D ≤ 100 мм), источник снаружи по диаметру.',
+        'name': 'Чертёж 3в',
+        'description': 'Трубопровод Dн ≤ 100 мм. Плёнка снаружи.',
         'image': 'img/scheme_5v.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5g': {
-        'name': 'Чертёж 3г (схема 5г)',
-        'description': 'Трубопровод D > 50 мм, источник внутри, смещён от оси.',
+        'name': 'Чертёж 3г',
+        'description': 'Трубопровод Dн > 50 мм. Плёнка снаружи.',
         'image': 'img/scheme_5g.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5d': {
-        'name': 'Чертёж 3д (схема 5д)',
-        'description': 'Трубопровод D > 50 мм, источник внутри, другой вариант.',
+        'name': 'Чертёж 3д',
+        'description': 'Трубопровод Dн > 50 мм. Плёнка снаружи.',
         'image': 'img/scheme_5d.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5zh': {
-        'name': 'Чертёж 3ж (схема 5ж)',
-        'description': 'Трубопровод, D не более 2 м, источник на оси (панорамный). Разметка с одной стороны.',
+        'name': 'Чертёж 3ж',
+        'description': 'Трубопровод Dн ≤ 2000 мм. Панорамное просвечивание.',
         'image': 'img/scheme_5zh.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5z': {
-        'name': 'Чертёж 3и (схема 5и)',
-        'description': 'Трубопровод D более 2 м, источник внутри.',
+        'name': 'Чертёж 3и',
+        'description': 'Трубопровод Dн > 2000 мм. Плёнка снаружи.',
         'image': 'img/scheme_5z.png',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,
     },
     '5e': {
-        'name': 'Чертёж 3е (схема 5е)',
-        'description': 'Специальная схема.',
+        'name': 'Чертёж 3е',
+        'description': 'Специальная схема просвечивания.',
         'image': 'img/scheme_5e.png',
         'requires_diameters': True,
         'requires_thickness': False,
@@ -168,6 +168,18 @@ for _code, _walls in SCHEME_WALL_COUNT.items():
         SCHEME_INFO[_code]['wall_count'] = _walls
 
 
+def clamp_f_mm(value) -> Optional[float]:
+    """
+    Нормализует расстояние f для техкарты: отрицательные значения → 0 мм.
+    """
+    if value is None or value == '':
+        return None
+    try:
+        return max(0.0, round(float(value), 1))
+    except (TypeError, ValueError):
+        return None
+
+
 def calc_radiation_thickness(
     wall_thickness_mm: float,
     g_min_mm: float,
@@ -177,10 +189,11 @@ def calc_radiation_thickness(
     """
     Рассчитывает радиационную толщину для заданной схемы просвечивания.
 
-    По ГОСТ Р 50.05.07-2018 (раздел 6.3.5):
-    - Для расчёта чувствительности K применяется НАИМЕНЬШАЯ высота валика (g_min):
-        S_рад(K) = S + g_min (1 стенка) или 2S + 2g_min (2 стенки)
-    - Для расчёта минимального расстояния f применяется НАИБОЛЬШАЯ высота (g_max):
+    По НП-105-18, Табл. 4.8, для определения K используется только:
+        S_K = S + g_min  (номинальная толщина + минимальное усиление шва)
+
+    По ГОСТ Р 50.05.07-2018 (раздел 6.3.5) для расчёта f применяется g_max
+    с учётом числа просвечиваемых стенок:
         S_рад(f) = S + g_max (1 стенка) или 2S + 2g_max (2 стенки)
 
     :param wall_thickness_mm: толщина стенки S, мм
@@ -191,23 +204,23 @@ def calc_radiation_thickness(
     """
     walls = SCHEME_WALL_COUNT.get(scheme_code, 1)
 
+    # K — всегда по S + g_min (одна стенка + минимальное усиление)
+    s_rad_k = wall_thickness_mm + g_min_mm
+    formula_k = f'{wall_thickness_mm} + {g_min_mm:.1f} = {s_rad_k:.1f} мм'
+
     if walls == 2:
-        s_rad_k = 2 * wall_thickness_mm + 2 * g_min_mm
         s_rad_f = 2 * wall_thickness_mm + 2 * g_max_mm
-        formula_k = f'2×{wall_thickness_mm} + 2×{g_min_mm:.1f} = {s_rad_k:.1f} мм'
         formula_f = f'2×{wall_thickness_mm} + 2×{g_max_mm:.1f} = {s_rad_f:.1f} мм'
-        wall_desc = 'Две стенки (пленка снаружи)'
+        wall_desc = 'Две стенки'
     else:
-        s_rad_k = wall_thickness_mm + g_min_mm
         s_rad_f = wall_thickness_mm + g_max_mm
-        formula_k = f'{wall_thickness_mm} + {g_min_mm:.1f} = {s_rad_k:.1f} мм'
         formula_f = f'{wall_thickness_mm} + {g_max_mm:.1f} = {s_rad_f:.1f} мм'
         wall_desc = 'Одна стенка'
 
     return {
         'wall_count': walls,
         'wall_desc': wall_desc,
-        's_rad_k_mm': round(s_rad_k, 1),  # Для расчёта K (чувствительность)
+        's_rad_k_mm': round(s_rad_k, 1),  # S + g_min для K (НП-105-18)
         's_rad_f_mm': round(s_rad_f, 1),  # Для расчёта f (расстояние)
         'g_min_mm': g_min_mm,
         'g_max_mm': g_max_mm,
@@ -610,25 +623,47 @@ def calc_exposure_parameters(
     :return: словарь с результатами расчёта
     """
     if scheme == '4_6':
-        return calc_scheme_4_6(focal_spot_mm, thickness_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_4_6(focal_spot_mm, thickness_mm, sensitivity_mm)
+        )
     elif scheme == '5a':
-        return calc_scheme_5a(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5a(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        )
     elif scheme == '5b':
-        return calc_scheme_5b_iterative(focal_spot_mm, d_outer_mm, d_inner_mm,
-                                         film_length_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5b_iterative(
+                focal_spot_mm, d_outer_mm, d_inner_mm, film_length_mm, sensitivity_mm,
+            )
+        )
     elif scheme == '5v':
-        return calc_scheme_5v(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5v(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        )
     elif scheme == '5g':
-        return calc_scheme_5g(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5g(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        )
     elif scheme == '5d':
-        return calc_scheme_5d(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5d(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        )
     elif scheme == '5zh':
-        return calc_scheme_5zh(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        return _normalize_exposure_result(
+            calc_scheme_5zh(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+        )
     else:
         return {
             'scheme': scheme,
             'error': f'Схема {scheme} пока не реализована.',
         }
+
+
+def _normalize_exposure_result(result: dict) -> dict:
+    """Приводит f к неотрицательному значению для отображения в техкарте."""
+    if result.get('f_min_mm') is not None:
+        result['f_min_mm'] = clamp_f_mm(result['f_min_mm'])
+    return result
 
 
 def recommend_scheme(d_outer_mm: float, d_inner_mm: float,

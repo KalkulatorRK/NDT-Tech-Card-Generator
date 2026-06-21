@@ -15,6 +15,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Mm, Pt, RGBColor
 
+from techcards.scheme_display import get_scheme_user_label
 from normative.gost_50_05_07 import DOCUMENT_CODE, DOCUMENT_FULL_NAME
 from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
 
@@ -88,7 +89,7 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
             f'Источник излучения: {src.get("name", input_data.get("source_code", "—"))}',
             f'Фокусное пятно Φ = {params.get("source_focal_spot_mm", "—")} мм',
             f'Расстояние b (OFD) = {params.get("ofd_mm", "—")} мм',
-            f'Схема просвечивания: {params.get("scheme_type", input_data.get("scheme_type", "—"))}',
+            f'Схема просвечивания: {get_scheme_user_label(params.get("scheme_type", input_data.get("scheme_type", "")))}',
         ],
         'result': 'Исходные данные приняты для расчёта.',
         'notes': '',
@@ -172,25 +173,25 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'title': '5. Радиационная толщина',
         'normative_ref': f'{DOCUMENT_CODE}, п. 6.3.5',
         'logic': (
-            'Для расчёта чувствительности K используется наименьшее усиление g_min; '
-            'для расчёта минимального расстояния f — наибольшее g_max. '
-            'Число просвечиваемых стенок зависит от схемы просвечивания: '
-            '1 стенка — S_рад = S + g; 2 стенки — S_рад = 2S + 2g.'
+            'По НП-105-18, Табл. 4.8, для определения K используется только '
+            'номинальная толщина в месте сварки: S + g_min, независимо от схемы '
+            'просвечивания и числа стенок. Для расчёта f применяется S_рад(f) '
+            'с наибольшим усилением g_max и учётом числа просвечиваемых стенок.'
         ),
-        'variables': ['S', 'g_min', 'g_max', 'S_рад(K)', 'S_рад(f)'],
+        'variables': ['S', 'g_min', 'g_max', 'S_K', 'S_рад(f)'],
         'formula': (
-            '1 стенка: S_рад = S + g; '
-            '2 стенки: S_рад = 2S + 2g'
+            'S_K = S + g_min (для K); '
+            'S_рад(f) = S + g_max или 2S + 2g_max (для f)'
         ),
         'steps': [
-            f'Схема: {params.get("scheme_type", "—")} — {rad.get("wall_desc", "")}',
-            f'Число стенок: {rad.get("wall_count", "—")}',
-            f'S_рад(K) = {rad.get("formula_k", "—")}',
+            f'Схема: {get_scheme_user_label(params.get("scheme_type", ""))} — {rad.get("wall_desc", "")}',
+            f'Число стенок (для f): {rad.get("wall_count", "—")}',
+            f'S_K = S + g_min = {rad.get("formula_k", "—")}',
             f'S_рад(f) = {rad.get("formula_f", "—")}',
         ],
         'result': (
-            f'S_рад(K) = {rad.get("s_rad_k_mm", "—")} мм; '
-            f'S_рад(f) = {rad.get("s_rad_f_mm", "—")} мм'
+            f'S_K = {rad.get("s_rad_k_mm", "—")} мм (для K); '
+            f'S_рад(f) = {rad.get("s_rad_f_mm", "—")} мм (для f)'
         ),
         'notes': '',
     })
@@ -219,7 +220,7 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'notes': '',
     })
 
-    scheme_title = scheme_info.get('name') or scheme.get('scheme', params.get('scheme_type', ''))
+    scheme_title = get_scheme_user_label(params.get('scheme_type', ''))
     scheme_steps = [
         f'Схема: {scheme_title}',
         f'Описание: {scheme_info.get("description", "—")}',
@@ -249,14 +250,15 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
     sections.append({
         'title': '7. Параметры схемы просвечивания',
         'normative_ref': (
-            f'{DOCUMENT_CODE}, раздел 6; ГОСТ 7512-82 (Приложение 4 для схемы 5б)'
+            f'{DOCUMENT_CODE}, раздел 6; ГОСТ 7512-82 (Приложение 4 для чертежа 3б)'
         ),
         'logic': (
             'По выбранной схеме просвечивания рассчитываются минимальное расстояние '
             'источник–детектор f, число экспозиций N и длина участка L. '
-            'Коэффициент C = max(2Φ/K, 4). Для схемы 5б применяется итерационный '
-            'алгоритм по ГОСТ 7512-82. Для схемы 3ж (5zh) по п. Г.5 ГОСТ Р 50.05.07-2018 '
-            'f и N определяются опытным путём — расчётные значения справочные.'
+            'Коэффициент C = max(2Φ/K, 4). Для чертежа 3б применяется итерационный '
+            'алгоритм по ГОСТ 7512-82. Для чертежа 3ж по п. Г.5 ГОСТ Р 50.05.07-2018 '
+            'f и N определяются опытным путём — расчётные значения справочные. '
+            'Отрицательное расчётное f в техкарте указывается как 0 мм.'
         ),
         'variables': ['Φ (d)', 'K', 'C', 'f (SFD)', 'N', 'L', 'm', 'D', 'd', 'l'],
         'formula': params.get('scheme_formula') or scheme.get('formula') or 'Зависит от схемы',

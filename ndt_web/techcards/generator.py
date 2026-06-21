@@ -40,7 +40,7 @@ from normative.np_104_18 import get_rt_sensitivity_class, WELD_CATEGORIES
 from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
 from normative.calculations import (
     calc_exposure_parameters, recommend_scheme,
-    calc_geometric_unsharpness_full, SCHEME_INFO,
+    calc_geometric_unsharpness_full, SCHEME_INFO, clamp_f_mm,
 )
 
 
@@ -363,11 +363,11 @@ class RadiographicTechCardCalculator:
 
         if is_empirical:
             # Расчётные значения для справки (или None)
-            self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
+            self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
             self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
         else:
-            self.params['f_calculated_mm'] = calc_result.get('f_min_mm', '')
+            self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
             self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
 
@@ -493,13 +493,13 @@ def _build_value_map(params: dict) -> dict:
         f_field = EMPIRICAL_TEXT
         N_str = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
         l_field = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
-        if f_val:
+        if f_val is not None and f_val != '':
             f_field += f'\n(справочно: f_расч ≥ {f_val} мм)'
         if N_val:
             N_str += f'\n(справочно: N_расч ≥ {N_val})'
     else:
         # Обычные схемы: показываем рассчитанные значения
-        if f_val:
+        if f_val is not None and f_val != '':
             f_field = (
                 f'f = {f_val} мм '
                 f'(расчёт: {params.get("scheme_formula", "")})'
@@ -518,7 +518,8 @@ def _build_value_map(params: dict) -> dict:
             l_field = '350 × (длина шва / N) мм'
 
     # Поле 6.9: схема просвечивания
-    scheme_name = scheme_info.get('name', params.get('scheme_type', ''))
+    scheme_code = params.get('scheme_type', '')
+    scheme_name = scheme_info.get('name') or scheme_code
     scheme_desc = scheme_info.get('description', '')
     scheme_notes = params.get('scheme_notes', '')
     if is_empirical and empirical_reason:
@@ -614,7 +615,7 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
         '6.2': (
-            f'Sном+g_min = {S}+{params.get("g_min_mm",0.5)} = {params.get("s_k_mm", S+0.5):.1f} мм → '
+            f'Sном + g_min = {S}+{params.get("g_min_mm",0.5)} = {params.get("s_k_mm", S+0.5):.1f} мм → '
             f'K ≤ {params.get("required_sensitivity_mm","—"):.3f} мм '
             f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category","")});  '
             f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
@@ -787,11 +788,11 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
                     # Добавляем информацию о радиационной толщине
                     if rad_note:
                         rad_para = target_cell.add_paragraph()
-                        s_rad_k = params.get('s_rad_k_mm', '')
                         s_rad_f = params.get('s_rad_f_mm', '')
                         rad_run = rad_para.add_run(
                             f'{rad_note}. '
-                            f'Sрад(К) = {s_rad_k} мм; Sрад(f) = {s_rad_f} мм'
+                            f'Sном+g_min = {params.get("s_k_mm", "")} мм (для K); '
+                            f'Sрад(f) = {s_rad_f} мм'
                         )
                         rad_run.font.size = Pt(8)
 

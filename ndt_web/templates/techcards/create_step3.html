@@ -166,17 +166,7 @@
 
 {% block extra_js %}
 <script>
-// Данные о схемах (изображения и описания)
-var SCHEME_DATA = {
-  '4_6':  { img: '{% static "img/scheme_4_6.png" %}',  desc: 'Плоские детали, листы. Источник с одной стороны, детектор с другой.' },
-  '5a':   { img: '{% static "img/scheme_5a.png" %}',   desc: 'Трубопровод. Источник снаружи, просвечивание через 2 стенки. D > 50 мм.' },
-  '5b':   { img: '{% static "img/scheme_5b.png" %}',   desc: 'Трубопровод. Источник снаружи, просвечивание через 1 стенку (метод эллипса).' },
-  '5v':   { img: '{% static "img/scheme_5v.png" %}',   desc: 'Трубопровод малого Ø (≤ 100 мм). Источник снаружи по диаметру.' },
-  '5g':   { img: '{% static "img/scheme_5g.png" %}',   desc: 'Трубопровод. Источник внутри, смещён от оси. D > 50 мм.' },
-  '5d':   { img: '{% static "img/scheme_5d.png" %}',   desc: 'Трубопровод. Источник внутри. D > 50 мм.' },
-  '5zh':  { img: '{% static "img/scheme_5zh.png" %}',  desc: 'Панорамный. Источник на оси трубы. Ø ≤ 2 м. 1 экспозиция охватывает весь периметр.' },
-  '5z':   { img: '{% static "img/scheme_5z.png" %}',   desc: 'Источник внутри трубопровода большого диаметра (> 2 м).' }
-};
+var SCHEME_DATA = {{ scheme_ui_json|safe }};
 
 var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
@@ -192,7 +182,7 @@ function updateSchemeUI(val) {
   } else {
     schemeImageBlock.style.display = 'none';
   }
-  // Показываем поле длины снимка только для схемы 5б
+  // Показываем поле длины снимка только для схемы 3б
   filmLengthBlock.style.display = (val === '5b') ? '' : 'none';
 }
 

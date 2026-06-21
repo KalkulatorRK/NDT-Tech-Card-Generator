@@ -274,6 +274,41 @@ class TechCardCalculatorTests(TestCase):
         self.assertTrue(len(calc.warnings) > 0)
 
 
+class SchemeDisplayTests(TestCase):
+    """Тесты пользовательских названий схем и расчётных правил."""
+
+    def test_scheme_info_has_no_internal_codes(self):
+        """В пользовательских названиях схем нет внутренних кодов 5a, 5б и т.д."""
+        from normative.calculations import SCHEME_INFO
+        for info in SCHEME_INFO.values():
+            name = info.get('name', '')
+            desc = info.get('description', '')
+            self.assertNotIn('схема 5', name.lower())
+            self.assertNotIn('источник снаружи', desc.lower())
+            self.assertNotIn('источник внутри', desc.lower())
+
+    def test_k_uses_s_plus_g_min_for_two_walls(self):
+        """K определяется только по S + g_min, даже для двух стенок."""
+        from normative.calculations import calc_radiation_thickness
+        rad = calc_radiation_thickness(10, 0.5, 3.5, '5v')
+        self.assertEqual(rad['s_rad_k_mm'], 10.5)
+        self.assertEqual(rad['formula_k'], '10 + 0.5 = 10.5 мм')
+        self.assertEqual(rad['s_rad_f_mm'], 27.0)
+
+    def test_negative_f_clamped_to_zero(self):
+        """Отрицательное f в техкарте приводится к 0 мм."""
+        from normative.calculations import clamp_f_mm, calc_exposure_parameters
+        self.assertEqual(clamp_f_mm(-12.3), 0.0)
+        result = calc_exposure_parameters(
+            scheme='5g',
+            focal_spot_mm=2.0,
+            sensitivity_mm=0.5,
+            d_outer_mm=50,
+            d_inner_mm=30,
+        )
+        self.assertGreaterEqual(result.get('f_min_mm', 0), 0)
+
+
 class NormativeDocumentModelTests(TestCase):
     """Тесты модели NormativeDocument."""
 

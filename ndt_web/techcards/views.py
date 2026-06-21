@@ -20,6 +20,7 @@ from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
 from .generator import generate_tech_card
 from .calculation_reference import generate_calculation_reference_docx
+from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
 from normative.gost_50_05_07 import get_suitable_sources
 
@@ -253,6 +254,7 @@ def create_step3_view(request, doc_code):
         'step_labels': STEP_LABELS,
         'suitable_sources': suitable_sources,
         'wall_thickness': wall_thickness,
+        'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
     })
 
 
@@ -308,17 +310,9 @@ def _build_human_readable_summary(data: dict) -> list:
         'III': 'III — прочее оборудование',
         'IV': 'IV — строительные конструкции',
     }
-    # Схемы: переводим коды вида '5zh' → 'Чертёж 3ж'
     SCHEME_LABELS = {
-        '4_6': 'Чертёж 2 (плоские детали)',
-        '5a':  'Чертёж 3а (трубопровод, источник снаружи, 1 стенка)',
-        '5b':  'Чертёж 3б (трубопровод, источник снаружи, 1 стенка, эллипс)',
-        '5v':  'Чертёж 3в (малый диаметр, источник снаружи, 2 стенки)',
-        '5g':  'Чертёж 3г (источник снаружи, 2 стенки)',
-        '5d':  'Чертёж 3д (источник снаружи, 2 стенки)',
-        '5zh': 'Чертёж 3ж (панорамный, источник на оси)',
-        '5z':  'Чертёж 3и (большой диаметр, источник внутри)',
-        '5e':  'Чертёж 3е (специальная)',
+        code: info.get('name', get_scheme_user_label(code))
+        for code, info in SCHEME_INFO.items()
     }
 
     # Метки для отдельных полей

@@ -7,6 +7,7 @@
 
 from django import forms
 from normative.gost_50_05_07 import get_source_choices, get_film_choices, get_iqi_choices
+from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
 from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices, get_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
@@ -165,30 +166,6 @@ class TechCardStep2Form(forms.Form):
         return designation
 
 
-SCHEME_CHOICES = [
-    ('',     '— Выберите схему просвечивания —'),
-    ('4_6',  'Чертёж 2 — Плоские детали, листы, обечайки (без ограничений по диаметру, 1 стенка)'),
-    ('5a',   'Чертёж 3а — Трубопровод Dн > 50 мм; плёнка внутри трубы; 1 стенка'),
-    ('5b',   'Чертёж 3б — Трубопровод Dн > 50 мм; плёнка внутри трубы; 1 стенка (метод эллипса)'),
-    ('5v',   'Чертёж 3в — Трубопровод Dн ≤ 100 мм; плёнка снаружи (напротив); 2 стенки'),
-    ('5g',   'Чертёж 3г — Трубопровод Dн > 50 мм; плёнка снаружи (напротив); 2 стенки'),
-    ('5d',   'Чертёж 3д — Трубопровод Dн > 50 мм; плёнка снаружи (напротив); 2 стенки'),
-    ('5zh',  'Чертёж 3ж — Трубопровод Dн ≤ 2000 мм; панорамное; плёнка снаружи; 1 стенка'),
-    ('5z',   'Чертёж 3и — Трубопровод Dн > 2000 мм; плёнка снаружи; 1 стенка'),
-]
-
-SCHEME_IMAGES = {
-    '4_6':  'img/scheme_4_6.png',
-    '5a':   'img/scheme_5a.png',
-    '5b':   'img/scheme_5b.png',
-    '5v':   'img/scheme_5v.png',
-    '5g':   'img/scheme_5g.png',
-    '5d':   'img/scheme_5d.png',
-    '5zh':  'img/scheme_5zh.png',
-    '5z':   'img/scheme_5z.png',
-}
-
-
 class TechCardStep3Form(forms.Form):
     """Шаг 3: Источник излучения, схема и геометрия просвечивания."""
 
@@ -196,11 +173,7 @@ class TechCardStep3Form(forms.Form):
         choices=SCHEME_CHOICES,
         label='Схема просвечивания *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_scheme_type'}),
-        help_text=(
-            'Выберите схему по типу объекта. '
-            'Для трубопроводов — схемы 3а/3б/3в (источник снаружи) или 3г/3д/3ж (источник внутри). '
-            'Для плоских деталей — Чертёж 2.'
-        ),
+        help_text=SCHEME_HELP_TEXT,
     )
     source_code = forms.ChoiceField(
         choices=[('', '— Выберите источник —')] + get_source_choices(),

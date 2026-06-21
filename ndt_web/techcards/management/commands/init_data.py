@@ -218,6 +218,8 @@ class Command(BaseCommand):
                 last_name='НК-Карта',
                 role='admin',
             )
+            admin.email_verified = True
+            admin.save(update_fields=['email_verified'])
             UserBalance.objects.create(user=admin, techcard_credits=100)
             self.stdout.write(f'  Создан суперпользователь: admin / {password}')
         else:

@@ -106,7 +106,7 @@ class Command(BaseCommand):
     def _create_tariffs(self):
         """Создаёт тарифные планы."""
         tariffs = [
-            {'cards_count': 1, 'price': 300, 'description': 'Разовая операция', 'is_popular': False},
+            {'cards_count': 1, 'price': 300, 'description': '1 кредит', 'is_popular': False},
             {'cards_count': 2, 'price': 500, 'description': 'Экономия 100 руб.', 'is_popular': False},
             {'cards_count': 3, 'price': 600, 'description': 'Экономия 300 руб.', 'is_popular': False},
             {'cards_count': 5, 'price': 800, 'description': 'Экономия 700 руб.', 'is_popular': True},
@@ -118,7 +118,7 @@ class Command(BaseCommand):
                 cards_count=t['cards_count'],
                 defaults=t,
             )
-            self.stdout.write(f"  Тариф: {t['cards_count']} опер. — {t['price']} руб.")
+            self.stdout.write(f"  Тариф: {t['cards_count']} кред. — {t['price']} руб.")
 
     def _create_forum_rooms(self):
         """Создаёт начальные публичные темы форума."""

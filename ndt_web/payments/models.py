@@ -9,9 +9,9 @@ from accounts.models import CustomUser
 
 
 class TariffPlan(models.Model):
-    """Тарифный план для покупки операций создания техкарт."""
+    """Тарифный план для покупки кредитов на создание техкарт."""
 
-    cards_count = models.IntegerField(verbose_name='Количество операций')
+    cards_count = models.IntegerField(verbose_name='Количество кредитов')
     price = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name='Цена, руб.',
     )
@@ -25,11 +25,11 @@ class TariffPlan(models.Model):
         ordering = ['cards_count']
 
     def __str__(self):
-        return f'{self.cards_count} операций — {self.price} руб.'
+        return f'{self.cards_count} кред. — {self.price} руб.'
 
     @property
     def price_per_card(self):
-        """Цена за одну операцию."""
+        """Цена за один кредит."""
         if self.cards_count:
             return round(self.price / self.cards_count, 2)
         return self.price

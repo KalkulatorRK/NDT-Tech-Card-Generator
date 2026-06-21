@@ -264,6 +264,17 @@
 
 {% block content %}
 <div class="container-fluid py-3">
+  {% if forum_blocked %}
+  <div class="alert alert-warning mb-3 py-2" style="font-size:0.9rem;">
+    <i class="bi bi-slash-circle me-1"></i>
+    Вы заблокированы в форуме и не можете отправлять сообщения.
+    {% if forum_blocked_reason %}
+    Причина: {{ forum_blocked_reason }}
+    {% else %}
+    Обратитесь к администратору.
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="chat-layout">
 
     <!-- ===== БОКОВАЯ ПАНЕЛЬ ===== -->

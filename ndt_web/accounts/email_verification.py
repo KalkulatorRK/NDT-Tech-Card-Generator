@@ -33,10 +33,9 @@ def _format_email_error(exc: Exception) -> str:
     message = str(exc)
     if '535' in message and 'access rights' in message.lower():
         return (
-            'Яндекс отклонил вход: у ящика moohobor@yandex.ru не включена отправка '
-            'через почтовые программы (SMTP). Откройте mail.yandex.ru → Настройки → '
-            '«Почтовые программы» → разрешите доступ с IMAP/SMTP, затем используйте '
-            '«Пароль приложения» из id.yandex.ru в переменной EMAIL_HOST_PASSWORD на Render.'
+            'Яндекс заблокировал SMTP для этого ящика (нет прав на «Почтовые программы»). '
+            'Рекомендуем перейти на Brevo SMTP или Resend API — инструкция в .env.example. '
+            'Быстрый вариант Brevo: smtp-relay.brevo.com, порт 587, пароль — SMTP-ключ из brevo.com.'
         )
     if '535' in message or 'authentication failed' in message.lower():
         return (

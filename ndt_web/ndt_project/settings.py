@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'django_recaptcha',
+    'anymail',
 
     # Приложения проекта
     'accounts.apps.AccountsConfig',
@@ -223,8 +224,9 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=10, cast=int)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='').strip()
+RESEND_API_KEY = config('RESEND_API_KEY', default='').strip()
 
 # Нельзя одновременно SSL (465) и STARTTLS (587)
 if EMAIL_PORT == 465:
@@ -234,15 +236,19 @@ elif EMAIL_PORT == 587:
     EMAIL_USE_TLS = True
     EMAIL_USE_SSL = False
 
-# Адрес «От кого» в письмах пользователям (должен совпадать с EMAIL_HOST_USER для Yandex)
 DEFAULT_FROM_EMAIL = config(
     'DEFAULT_FROM_EMAIL',
-    default=EMAIL_HOST_USER or 'noreply@nk-karta.ru',
-)
+    default=EMAIL_HOST_USER or 'onboarding@resend.dev',
+).strip()
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# Если заданы SMTP-учётные данные — отправляем реальные письма, иначе — в консоль (dev)
-if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+# Приоритет: Resend API (надёжно на Render) → SMTP (Brevo и др.) → консоль (dev)
+if RESEND_API_KEY:
+    EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
+    ANYMAIL = {
+        'RESEND_API_KEY': RESEND_API_KEY,
+    }
+elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = config(
         'EMAIL_BACKEND',
         default='django.core.mail.backends.smtp.EmailBackend',

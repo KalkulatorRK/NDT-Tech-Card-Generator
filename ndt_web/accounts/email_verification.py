@@ -11,6 +11,7 @@ from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 
+from .email_backend import YANDEX_SMTP_BLOCKED_MSG, is_yandex_smtp_host
 from .models import CustomUser
 
 logger = logging.getLogger(__name__)
@@ -28,19 +29,26 @@ def build_verification_url(user: CustomUser) -> str:
     return f'{site_url}/accounts/verify/{uid}/{token}/'
 
 
+def _assert_email_can_send() -> None:
+    """Проверка конфигурации до попытки SMTP (Яндекс с облака не работает)."""
+    backend = getattr(settings, 'EMAIL_BACKEND', '')
+    if 'console' in backend or 'locmem' in backend or 'resend' in backend.lower():
+        return
+    if is_yandex_smtp_host():
+        raise EmailSendError(YANDEX_SMTP_BLOCKED_MSG)
+
+
 def _format_email_error(exc: Exception) -> str:
     """Переводит типичные ошибки SMTP в понятные подсказки."""
     message = str(exc)
-    if '535' in message and 'access rights' in message.lower():
-        return (
-            'Яндекс заблокировал SMTP для этого ящика (нет прав на «Почтовые программы»). '
-            'Рекомендуем перейти на Brevo SMTP или Resend API — инструкция в .env.example. '
-            'Быстрый вариант Brevo: smtp-relay.brevo.com, порт 587, пароль — SMTP-ключ из brevo.com.'
-        )
+    if YANDEX_SMTP_BLOCKED_MSG in message or (
+        '535' in message and 'access rights' in message.lower()
+    ):
+        return YANDEX_SMTP_BLOCKED_MSG
     if '535' in message or 'authentication failed' in message.lower():
         return (
-            'Ошибка авторизации SMTP. Проверьте EMAIL_HOST_USER и EMAIL_HOST_PASSWORD '
-            'на Render: нужен пароль приложения Яндекса (не обычный пароль от аккаунта).'
+            'Ошибка авторизации SMTP. Для Render используйте BREVO_SMTP_KEY '
+            '(smtp-relay.brevo.com) или RESEND_API_KEY — не пароль Яндекса.'
         )
     return (
         'Не удалось отправить письмо. Проверьте настройки SMTP на сервере '
@@ -59,6 +67,8 @@ def send_verification_email(user: CustomUser) -> None:
     subject = 'Подтверждение регистрации на НК-Карта'
     message = render_to_string('accounts/email/verification_email.txt', context)
     html_message = render_to_string('accounts/email/verification_email.html', context)
+
+    _assert_email_can_send()
 
     try:
         sent = send_mail(

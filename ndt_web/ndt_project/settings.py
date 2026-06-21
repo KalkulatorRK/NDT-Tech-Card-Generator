@@ -219,22 +219,29 @@ CSRF_TRUSTED_ORIGINS = config(
 # ------------------------------------------------------------------
 # Email (подтверждение регистрации, уведомления)
 # ------------------------------------------------------------------
-EMAIL_HOST = config('EMAIL_HOST', default='smtp.yandex.ru')
-EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=10, cast=int)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='').strip()
-RESEND_API_KEY = config('RESEND_API_KEY', default='').strip()
+from accounts.email_config import resolve_smtp_settings
 
-# Нельзя одновременно SSL (465) и STARTTLS (587)
-if EMAIL_PORT == 465:
-    EMAIL_USE_SSL = True
-    EMAIL_USE_TLS = False
-elif EMAIL_PORT == 587:
-    EMAIL_USE_TLS = True
-    EMAIL_USE_SSL = False
+RESEND_API_KEY = config('RESEND_API_KEY', default='').strip()
+BREVO_SMTP_KEY = config('BREVO_SMTP_KEY', default='').strip()
+BREVO_LOGIN = config('BREVO_LOGIN', default='').strip()
+
+_smtp = resolve_smtp_settings(
+    brevo_smtp_key=BREVO_SMTP_KEY,
+    brevo_login=BREVO_LOGIN,
+    email_host=config('EMAIL_HOST', default=''),
+    email_port=config('EMAIL_PORT', default=587, cast=int),
+    email_use_tls=config('EMAIL_USE_TLS', default=True, cast=bool),
+    email_use_ssl=config('EMAIL_USE_SSL', default=False, cast=bool),
+    email_host_user=config('EMAIL_HOST_USER', default=''),
+    email_host_password=config('EMAIL_HOST_PASSWORD', default=''),
+)
+EMAIL_HOST = _smtp['EMAIL_HOST']
+EMAIL_PORT = _smtp['EMAIL_PORT']
+EMAIL_USE_TLS = _smtp['EMAIL_USE_TLS']
+EMAIL_USE_SSL = _smtp['EMAIL_USE_SSL']
+EMAIL_HOST_USER = _smtp['EMAIL_HOST_USER']
+EMAIL_HOST_PASSWORD = _smtp['EMAIL_HOST_PASSWORD']
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=10, cast=int)
 
 DEFAULT_FROM_EMAIL = config(
     'DEFAULT_FROM_EMAIL',
@@ -242,16 +249,16 @@ DEFAULT_FROM_EMAIL = config(
 ).strip()
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# Приоритет: Resend API (надёжно на Render) → SMTP (Brevo и др.) → консоль (dev)
+# Приоритет: Resend API → Brevo/SMTP → консоль (dev)
 if RESEND_API_KEY:
     EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
     ANYMAIL = {
         'RESEND_API_KEY': RESEND_API_KEY,
     }
-elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD and EMAIL_HOST:
     EMAIL_BACKEND = config(
         'EMAIL_BACKEND',
-        default='django.core.mail.backends.smtp.EmailBackend',
+        default='accounts.email_backend.SafeSMTPBackend',
     )
 else:
     EMAIL_BACKEND = config(

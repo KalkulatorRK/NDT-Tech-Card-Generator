@@ -237,3 +237,47 @@ class AuthViewTests(TestCase):
                 })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'SMTP недоступен')
+
+
+class EmailConfigTests(TestCase):
+    """Проверка настроек почты (Brevo, блокировка Яндекс SMTP)."""
+
+    def test_yandex_smtp_blocked_before_send(self):
+        from accounts.email_verification import EmailSendError, send_verification_email
+
+        user = User.objects.create_user(
+            username='yandex', email='y@test.com', password='TestPass!123',
+            email_verified=False,
+        )
+        with override_settings(
+            EMAIL_BACKEND='accounts.email_backend.SafeSMTPBackend',
+            EMAIL_HOST='smtp.yandex.ru',
+            EMAIL_HOST_USER='user@yandex.ru',
+            EMAIL_HOST_PASSWORD='secret',
+        ):
+            with self.assertRaises(EmailSendError) as ctx:
+                send_verification_email(user)
+        self.assertIn('535', str(ctx.exception))
+
+    def test_brevo_key_overrides_yandex_host(self):
+        from accounts.email_config import resolve_smtp_settings
+
+        resolved = resolve_smtp_settings(
+            brevo_smtp_key='xsmtpsib-test',
+            brevo_login='sender@example.com',
+            email_host='smtp.yandex.ru',
+            email_host_password='old-yandex-password',
+            email_host_user='sender@example.com',
+        )
+        self.assertEqual(resolved['EMAIL_HOST'], 'smtp-relay.brevo.com')
+        self.assertEqual(resolved['EMAIL_HOST_PASSWORD'], 'xsmtpsib-test')
+        self.assertEqual(resolved['EMAIL_PORT'], 587)
+
+    def test_safe_smtp_backend_rejects_yandex(self):
+        from accounts.email_backend import SafeSMTPBackend, YANDEX_SMTP_BLOCKED_MSG
+
+        backend = SafeSMTPBackend(host='smtp.yandex.ru')
+        with self.assertRaises(OSError) as ctx:
+            backend.open()
+        self.assertEqual(str(ctx.exception), YANDEX_SMTP_BLOCKED_MSG)
+

@@ -220,6 +220,7 @@ CSRF_TRUSTED_ORIGINS = config(
 # Email (подтверждение регистрации, уведомления)
 # ------------------------------------------------------------------
 from accounts.email_config import resolve_smtp_settings
+from accounts.email_settings import resolve_email_backend
 
 RESEND_API_KEY = config('RESEND_API_KEY', default='').strip()
 BREVO_SMTP_KEY = config('BREVO_SMTP_KEY', default='').strip()
@@ -249,22 +250,23 @@ DEFAULT_FROM_EMAIL = config(
 ).strip()
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
+_email_backend, _email_backend_warning = resolve_email_backend(
+    resend_api_key=RESEND_API_KEY,
+    email_host=EMAIL_HOST,
+    email_host_user=EMAIL_HOST_USER,
+    email_host_password=EMAIL_HOST_PASSWORD,
+    explicit_backend=config('EMAIL_BACKEND', default=''),
+)
+EMAIL_BACKEND = _email_backend
+if _email_backend_warning:
+    import logging
+    logging.getLogger('ndt_project.settings').warning(_email_backend_warning)
+
 # Приоритет: Resend API → Brevo/SMTP → консоль (dev)
 if RESEND_API_KEY:
-    EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
     ANYMAIL = {
         'RESEND_API_KEY': RESEND_API_KEY,
     }
-elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD and EMAIL_HOST:
-    EMAIL_BACKEND = config(
-        'EMAIL_BACKEND',
-        default='accounts.email_backend.SafeSMTPBackend',
-    )
-else:
-    EMAIL_BACKEND = config(
-        'EMAIL_BACKEND',
-        default='django.core.mail.backends.console.EmailBackend',
-    )
 
 # ------------------------------------------------------------------
 # ЮKassa (платёжная система)

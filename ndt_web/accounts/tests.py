@@ -273,6 +273,32 @@ class EmailConfigTests(TestCase):
         self.assertEqual(resolved['EMAIL_HOST_PASSWORD'], 'xsmtpsib-test')
         self.assertEqual(resolved['EMAIL_PORT'], 587)
 
+    def test_explicit_smtp_backend_ignored_without_host(self):
+        from accounts.email_settings import resolve_email_backend
+
+        backend, warning = resolve_email_backend(
+            resend_api_key='',
+            email_host='',
+            email_host_user='user@yandex.ru',
+            email_host_password='secret',
+            explicit_backend='django.core.mail.backends.smtp.EmailBackend',
+        )
+        self.assertIn('console', backend)
+        self.assertIn('RESEND_API_KEY', warning)
+
+    def test_resend_backend_when_key_set(self):
+        from accounts.email_settings import resolve_email_backend
+
+        backend, warning = resolve_email_backend(
+            resend_api_key='re_test123',
+            email_host='smtp.yandex.ru',
+            email_host_user='u',
+            email_host_password='p',
+            explicit_backend='django.core.mail.backends.smtp.EmailBackend',
+        )
+        self.assertEqual(backend, 'anymail.backends.resend.EmailBackend')
+        self.assertIsNone(warning)
+
     def test_safe_smtp_backend_rejects_yandex(self):
         from accounts.email_backend import SafeSMTPBackend, YANDEX_SMTP_BLOCKED_MSG
 

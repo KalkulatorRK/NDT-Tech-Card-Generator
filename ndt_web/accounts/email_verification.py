@@ -30,10 +30,25 @@ def build_verification_url(user: CustomUser) -> str:
 
 
 def _assert_email_can_send() -> None:
-    """Проверка конфигурации до попытки SMTP (Яндекс с облака не работает)."""
+    """Проверка конфигурации до отправки."""
     backend = getattr(settings, 'EMAIL_BACKEND', '')
-    if 'console' in backend or 'locmem' in backend or 'resend' in backend.lower():
+    if 'console' in backend or 'locmem' in backend:
+        raise EmailSendError(
+            'Почта на сервере не настроена. На Render задайте RESEND_API_KEY '
+            '(и DEFAULT_FROM_EMAIL, SITE_URL). Удалите старые EMAIL_HOST* и EMAIL_BACKEND.'
+        )
+    if 'resend' in backend.lower():
+        if not getattr(settings, 'RESEND_API_KEY', '').strip():
+            raise EmailSendError(
+                'RESEND_API_KEY не задан. Добавьте ключ в Environment на Render и пересоберите сервис.'
+            )
         return
+    if 'smtp' in backend.lower() and not getattr(settings, 'EMAIL_HOST', '').strip():
+        raise EmailSendError(
+            'Ошибка конфигурации: SMTP без EMAIL_HOST (в логах «via :587»). '
+            'Задайте RESEND_API_KEY на Render и удалите переменные EMAIL_BACKEND, '
+            'EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD.'
+        )
     if is_yandex_smtp_host():
         raise EmailSendError(YANDEX_SMTP_BLOCKED_MSG)
 
@@ -47,12 +62,14 @@ def _format_email_error(exc: Exception) -> str:
         return YANDEX_SMTP_BLOCKED_MSG
     if '535' in message or 'authentication failed' in message.lower():
         return (
-            'Ошибка авторизации SMTP. Для Render используйте BREVO_SMTP_KEY '
-            '(smtp-relay.brevo.com) или RESEND_API_KEY — не пароль Яндекса.'
+            'Ошибка авторизации SMTP. Если настроен Resend — удалите на Render '
+            'EMAIL_BACKEND и EMAIL_HOST* (должен остаться только RESEND_API_KEY).'
         )
+    if 'resend' in message.lower() or 'anymail' in message.lower():
+        return f'Ошибка Resend API: {message}'
     return (
-        'Не удалось отправить письмо. Проверьте настройки SMTP на сервере '
-        'или повторите попытку позже.'
+        'Не удалось отправить письмо. Выполните на Render: '
+        'python manage.py check_email_config'
     )
 
 
@@ -81,10 +98,10 @@ def send_verification_email(user: CustomUser) -> None:
         )
     except Exception as exc:
         logger.exception(
-            'SMTP error sending verification email to %s via %s:%s',
+            'Email error sending verification to %s (backend=%s, from=%s)',
             user.email,
-            settings.EMAIL_HOST,
-            settings.EMAIL_PORT,
+            settings.EMAIL_BACKEND,
+            settings.DEFAULT_FROM_EMAIL,
         )
         raise EmailSendError(_format_email_error(exc)) from exc
 

@@ -25,8 +25,11 @@ class Command(BaseCommand):
         recipient = options['recipient'].strip()
         backend = settings.EMAIL_BACKEND
         self.stdout.write(f'Backend: {backend}')
-        self.stdout.write(f'Host: {getattr(settings, "EMAIL_HOST", "—") or "—"}:{getattr(settings, "EMAIL_PORT", "—")}')
-        self.stdout.write(f'User: {getattr(settings, "EMAIL_HOST_USER", "—") or "—"}')
+        if 'resend' in backend.lower():
+            self.stdout.write(f'Resend API key: {"задан" if getattr(settings, "RESEND_API_KEY", "") else "НЕ ЗАДАН"}')
+        else:
+            self.stdout.write(f'Host: {getattr(settings, "EMAIL_HOST", "—") or "—"}:{getattr(settings, "EMAIL_PORT", "—")}')
+            self.stdout.write(f'User: {getattr(settings, "EMAIL_HOST_USER", "—") or "—"}')
         self.stdout.write(f'From: {settings.DEFAULT_FROM_EMAIL}')
         self.stdout.write(f'To: {recipient}')
 
@@ -39,10 +42,10 @@ class Command(BaseCommand):
             raise CommandError(YANDEX_SMTP_BLOCKED_MSG)
 
         if 'console' in backend:
-            self.stdout.write(self.style.WARNING(
-                'Почта не настроена: письмо уйдёт в консоль, не на email. '
-                'Задайте BREVO_SMTP_KEY или RESEND_API_KEY.'
-            ))
+            raise CommandError(
+                'Почта не настроена. Задайте RESEND_API_KEY на Render. '
+                'Диагностика: python manage.py check_email_config'
+            )
 
         try:
             sent = send_mail(

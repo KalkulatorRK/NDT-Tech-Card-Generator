@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from .models import TariffPlan, Payment
 from accounts.models import UserBalance
+from accounts.credits import format_credits
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def checkout_view(request, tariff_id):
             messages.success(
                 request,
                 f'Тестовый платёж выполнен успешно! '
-                f'На ваш счёт зачислено {tariff.cards_count} операций.'
+                f'На ваш счёт зачислено {format_credits(tariff.cards_count)}.'
             )
             return redirect('cabinet')
 
@@ -112,7 +113,7 @@ def payment_success_view(request, payment_id):
             balance.add_credits(payment.tariff.cards_count)
             messages.success(
                 request,
-                f'Оплата подтверждена! Начислено {payment.tariff.cards_count} операций.'
+                f'Оплата подтверждена! Начислено {format_credits(payment.tariff.cards_count)}.'
             )
         else:
             messages.warning(request, 'Платёж ещё обрабатывается. Попробуйте позже.')
@@ -144,7 +145,7 @@ def yookassa_webhook_view(request):
                     # Начисляем кредиты
                     balance, _ = UserBalance.objects.get_or_create(user=payment.user)
                     balance.add_credits(payment.tariff.cards_count)
-                    logger.info(f'Начислено {payment.tariff.cards_count} операций для {payment.user}')
+                    logger.info(f'Начислено {format_credits(payment.tariff.cards_count)} для {payment.user}')
 
             except Payment.DoesNotExist:
                 logger.warning(f'Платёж ЮKassa {yookassa_id} не найден в базе.')
@@ -198,7 +199,7 @@ def _create_yookassa_payment(payment: Payment, tariff: TariffPlan, return_url: s
                 'return_url': return_url,
             },
             'capture': True,
-            'description': f'НК-Карта: {tariff.cards_count} операций ({tariff.price} руб.)',
+            'description': f'НК-Карта: {format_credits(tariff.cards_count)} ({tariff.price} руб.)',
             'metadata': {
                 'payment_db_id': str(payment.pk),
                 'user_id': str(payment.user.pk),

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load credit_words %}
 {% block title %}Личный кабинет{% endblock %}
 
 {% block content %}
@@ -27,10 +28,10 @@
         </p>
         {% endif %}
 
-        <!-- Счётчик операций -->
+        <!-- Счётчик кредитов -->
         <div class="counter-box mb-3">
           <div class="counter-number">{{ balance.techcard_credits }}</div>
-          <div class="counter-label">операций доступно</div>
+          <div class="counter-label">{{ balance.techcard_credits|credit_word_filter }} доступно</div>
         </div>
 
         <!-- Счётчик непрочитанных в личном чате -->
@@ -47,7 +48,7 @@
 
         <div class="text-muted mb-3" style="font-size:0.82rem;">
           <i class="bi bi-info-circle me-1"></i>
-          Ознакомительная техкарта: первая по каждому документу в ознакомительный период
+          Ознакомительный кредит: первая техкарта по каждому нормативному документу
         </div>
 
         {% if user.is_admin and admin_unread_total > 0 %}

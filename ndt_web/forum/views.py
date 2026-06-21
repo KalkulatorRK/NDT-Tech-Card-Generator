@@ -15,6 +15,18 @@ import uuid
 from .models import ChatRoom, Message, ChatMembership
 from accounts.models import CustomUser
 
+FORUM_BLOCKED_MESSAGE = (
+    'Вы заблокированы в форуме за нарушение правил. '
+    'Для разблокировки обратитесь к администратору.'
+)
+
+
+def _check_forum_post_permission(user) -> str | None:
+    """Возвращает текст ошибки, если пользователь не может писать в форуме."""
+    if user.can_post_in_forum:
+        return None
+    return FORUM_BLOCKED_MESSAGE
+
 
 def _get_or_create_membership(user, room) -> ChatMembership:
     """Возвращает или создаёт участие пользователя в комнате."""
@@ -74,6 +86,8 @@ def forum_index(request):
         'private_unread': private_unread,
         'admin_private_rooms': admin_private_rooms,
         'active_room': None,
+        'forum_blocked': not user.can_post_in_forum,
+        'forum_blocked_reason': user.forum_blocked_reason,
     }
     return render(request, 'forum/index.html', context)
 
@@ -134,6 +148,8 @@ def chat_room_view(request, room_id):
         'admin_private_rooms': admin_private_rooms,
         'active_room': room,
         'last_message_id': last_message_id,
+        'forum_blocked': not user.can_post_in_forum,
+        'forum_blocked_reason': user.forum_blocked_reason,
     }
     return render(request, 'forum/room.html', context)
 
@@ -146,6 +162,10 @@ def send_message_view(request, room_id):
 
     room = get_object_or_404(ChatRoom, pk=room_id, is_active=True)
     user = request.user
+
+    blocked_msg = _check_forum_post_permission(user)
+    if blocked_msg:
+        return JsonResponse({'error': blocked_msg}, status=403)
 
     # Проверка доступа к личному чату
     if room.room_type == ChatRoom.TYPE_PRIVATE:

@@ -2,7 +2,7 @@
 Модели приложения «Аккаунты».
 
 Содержит расширенную модель пользователя и связанные модели:
-баланс операций, история платежей и настройки профиля.
+баланс кредитов, история платежей и настройки профиля.
 """
 
 from django.contrib.auth.models import AbstractUser
@@ -60,6 +60,19 @@ class CustomUser(AbstractUser):
         verbose_name='Email подтверждён',
         help_text='Пользователь перешёл по ссылке из письма после регистрации',
     )
+    forum_blocked = models.BooleanField(
+        default=False,
+        verbose_name='Заблокирован в форуме',
+        help_text='Пользователь не может писать сообщения в форуме',
+    )
+    forum_blocked_reason = models.TextField(
+        blank=True,
+        verbose_name='Причина блокировки в форуме',
+    )
+    forum_blocked_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Дата блокировки в форуме',
+    )
 
     class Meta:
         verbose_name = 'Пользователь'
@@ -82,13 +95,19 @@ class CustomUser(AbstractUser):
             return False
         return self.certificate_expiry >= timezone.now().date()
 
+    @property
+    def can_post_in_forum(self) -> bool:
+        """Может ли пользователь отправлять сообщения в форуме."""
+        return self.is_admin or not self.forum_blocked
+
 
 class UserBalance(models.Model):
     """
-    Баланс операций пользователя.
+    Баланс кредитов пользователя.
 
-    Хранит количество оставшихся платных операций и информацию
-    о бесплатно использованных операциях по каждому нормативному документу.
+    Хранит количество оставшихся платных кредитов и информацию
+    о бесплатно использованных ознакомительных картах по каждому нормативному документу.
+    Один кредит = одна операция разработки технологической карты НК.
     """
 
     user = models.OneToOneField(
@@ -96,7 +115,7 @@ class UserBalance(models.Model):
         verbose_name='Пользователь',
     )
     techcard_credits = models.IntegerField(
-        default=0, verbose_name='Оплаченных операций (остаток)',
+        default=0, verbose_name='Оплаченных кредитов (остаток)',
     )
     # Словарь: {код_нормативного_документа: True/False}
     # True — бесплатная карта уже использована
@@ -115,7 +134,7 @@ class UserBalance(models.Model):
         verbose_name_plural = 'Балансы пользователей'
 
     def __str__(self):
-        return f'Баланс: {self.user} ({self.techcard_credits} опер.)'
+        return f'Баланс: {self.user} ({self.techcard_credits} кред.)'
 
     def can_create_techcard(self, normative_doc_code: str) -> tuple[bool, str]:
         """
@@ -134,10 +153,10 @@ class UserBalance(models.Model):
 
     def use_credit(self, normative_doc_code: str, was_free: bool = False) -> None:
         """
-        Расходует одну операцию создания техкарты.
+        Расходует один кредит на создание техкарты.
 
         :param normative_doc_code: код нормативного документа
-        :param was_free: была ли операция бесплатной
+        :param was_free: использован ли ознакомительный кредит
         """
         if normative_doc_code not in self.free_cards_used:
             # Используем бесплатную
@@ -151,9 +170,9 @@ class UserBalance(models.Model):
 
     def add_credits(self, count: int) -> None:
         """
-        Пополняет счётчик платных операций.
+        Пополняет счётчик платных кредитов.
 
-        :param count: количество добавляемых операций
+        :param count: количество добавляемых кредитов
         """
         self.techcard_credits += count
         self.save()

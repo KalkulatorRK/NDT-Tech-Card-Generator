@@ -44,7 +44,7 @@ def home_view(request):
         },
     ]
 
-    # Счётчик доступных операций для текущего пользователя
+    # Счётчик доступных кредитов для текущего пользователя
     user_balance = None
     if request.user.is_authenticated:
         balance, _ = UserBalance.objects.get_or_create(user=request.user)
@@ -157,7 +157,7 @@ def create_step1_view(request, doc_code):
     if not can_create:
         messages.error(
             request,
-            'Недостаточно операций для создания технологической карты. '
+            'Недостаточно кредитов для создания технологической карты. '
             'Пожалуйста, пополните баланс в разделе «Оплата».'
         )
         return redirect('tariffs')
@@ -398,7 +398,7 @@ def generate_card_view(request, doc_code):
 
     can_create, reason = balance.can_create_techcard(doc.code)
     if not can_create:
-        messages.error(request, 'Недостаточно операций.')
+        messages.error(request, 'Недостаточно кредитов.')
         return redirect('tariffs')
 
     input_data = _get_session_data(request)

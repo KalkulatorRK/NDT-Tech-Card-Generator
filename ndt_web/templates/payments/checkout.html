@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load credit_words %}
 {% block title %}Оплата{% endblock %}
 
 {% block content %}
@@ -14,7 +15,7 @@
         <div class="border rounded p-3 mb-4" style="background:#f8fafd;">
           <div class="row">
             <div class="col-6 text-muted">Тарифный план:</div>
-            <div class="col-6 fw-semibold text-end">{{ tariff.cards_count }} операций</div>
+            <div class="col-6 fw-semibold text-end">{{ tariff.cards_count }} {{ tariff.cards_count|credit_word_filter }}</div>
           </div>
           <hr>
           <div class="row">
@@ -22,7 +23,7 @@
             <div class="col-6 fw-bold fs-5 text-end text-primary">{{ tariff.price|floatformat:0 }} руб.</div>
           </div>
           <div class="row mt-1">
-            <div class="col-6 text-muted" style="font-size:0.85rem;">Цена за операцию:</div>
+            <div class="col-6 text-muted" style="font-size:0.85rem;">Цена за кредит:</div>
             <div class="col-6 text-end text-muted" style="font-size:0.85rem;">{{ tariff.price_per_card|floatformat:0 }} руб.</div>
           </div>
         </div>

@@ -219,11 +219,20 @@ CSRF_TRUSTED_ORIGINS = config(
 # Email (подтверждение регистрации, уведомления)
 # ------------------------------------------------------------------
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.yandex.ru')
-EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
-EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=10, cast=int)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# Нельзя одновременно SSL (465) и STARTTLS (587)
+if EMAIL_PORT == 465:
+    EMAIL_USE_SSL = True
+    EMAIL_USE_TLS = False
+elif EMAIL_PORT == 587:
+    EMAIL_USE_TLS = True
+    EMAIL_USE_SSL = False
 
 # Адрес «От кого» в письмах пользователям (должен совпадать с EMAIL_HOST_USER для Yandex)
 DEFAULT_FROM_EMAIL = config(

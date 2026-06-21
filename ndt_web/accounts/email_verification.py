@@ -2,6 +2,8 @@
 Подтверждение адреса электронной почты при регистрации.
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -10,6 +12,12 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 
 from .models import CustomUser
+
+logger = logging.getLogger(__name__)
+
+
+class EmailSendError(Exception):
+    """Ошибка отправки письма подтверждения."""
 
 
 def build_verification_url(user: CustomUser) -> str:
@@ -31,14 +39,31 @@ def send_verification_email(user: CustomUser) -> None:
     subject = 'Подтверждение регистрации на НК-Карта'
     message = render_to_string('accounts/email/verification_email.txt', context)
     html_message = render_to_string('accounts/email/verification_email.html', context)
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        html_message=html_message,
-        fail_silently=False,
-    )
+
+    try:
+        sent = send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+    except Exception as exc:
+        logger.exception(
+            'SMTP error sending verification email to %s via %s:%s',
+            user.email,
+            settings.EMAIL_HOST,
+            settings.EMAIL_PORT,
+        )
+        raise EmailSendError(
+            'Не удалось отправить письмо. Проверьте настройки почты на сервере '
+            '(SMTP, пароль приложения Yandex) или повторите попытку позже.'
+        ) from exc
+
+    if sent != 1:
+        logger.error('send_mail returned %s for %s', sent, user.email)
+        raise EmailSendError('Письмо не было отправлено. Повторите попытку позже.')
 
 
 def verify_email_token(uidb64: str, token: str) -> tuple[bool, CustomUser | None, str]:

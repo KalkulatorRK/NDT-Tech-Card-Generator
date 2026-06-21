@@ -218,3 +218,22 @@ class AuthViewTests(TestCase):
         self.assertRedirects(response, reverse('login'))
         user.refresh_from_db()
         self.assertTrue(user.email_verified)
+
+    def test_resend_shows_error_when_email_fails(self):
+        """При ошибке SMTP страница не зависает — показывается сообщение."""
+        User.objects.create_user(
+            username='smtpuser', email='smtp@test.com', password='TestPass!123',
+            email_verified=False,
+        )
+        with override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            from unittest.mock import patch
+            from accounts.email_verification import EmailSendError
+            with patch(
+                'accounts.views.send_verification_email',
+                side_effect=EmailSendError('SMTP недоступен'),
+            ):
+                response = self.client.post(reverse('resend_verification'), {
+                    'email': 'smtp@test.com',
+                })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'SMTP недоступен')

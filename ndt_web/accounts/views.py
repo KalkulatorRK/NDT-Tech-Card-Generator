@@ -13,7 +13,7 @@ from django_ratelimit.decorators import ratelimit
 
 from .forms import RegistrationForm, LoginForm, ProfileEditForm, ResendVerificationForm
 from .models import CustomUser, UserBalance
-from .email_verification import send_verification_email, verify_email_token
+from .email_verification import send_verification_email, verify_email_token, EmailSendError
 from techcards.models import TechCard, NormativeDocument
 
 
@@ -36,7 +36,15 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             UserBalance.objects.create(user=user)
-            send_verification_email(user)
+            try:
+                send_verification_email(user)
+            except EmailSendError as exc:
+                messages.warning(
+                    request,
+                    f'Аккаунт создан, но письмо не удалось отправить: {exc} '
+                    'Запросите повторную отправку на странице входа.'
+                )
+                return redirect('resend_verification')
             messages.success(
                 request,
                 'Аккаунт создан. Мы отправили письмо с ссылкой для подтверждения '
@@ -76,7 +84,7 @@ def resend_verification_view(request):
         if form.is_valid():
             email = form.cleaned_data['email'].strip().lower()
             try:
-                user = CustomUser.objects.get(email=email)
+                user = CustomUser.objects.get(email__iexact=email)
                 if user.email_verified:
                     messages.info(request, 'Этот адрес уже подтверждён. Вы можете войти.')
                     return redirect('login')
@@ -92,6 +100,8 @@ def resend_verification_view(request):
                     'Если указанный адрес зарегистрирован, письмо будет отправлено.'
                 )
                 return redirect('registration_complete')
+            except EmailSendError as exc:
+                messages.error(request, str(exc))
     else:
         form = ResendVerificationForm()
 

@@ -216,15 +216,33 @@ CSRF_TRUSTED_ORIGINS = config(
 )
 
 # ------------------------------------------------------------------
-# Email (для восстановления пароля)
+# Email (подтверждение регистрации, уведомления)
 # ------------------------------------------------------------------
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.yandex.ru')
 EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
 EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@nk-karta.ru')
+
+# Адрес «От кого» в письмах пользователям (должен совпадать с EMAIL_HOST_USER для Yandex)
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default=EMAIL_HOST_USER or 'noreply@nk-karta.ru',
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Если заданы SMTP-учётные данные — отправляем реальные письма, иначе — в консоль (dev)
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = config(
+        'EMAIL_BACKEND',
+        default='django.core.mail.backends.smtp.EmailBackend',
+    )
+else:
+    EMAIL_BACKEND = config(
+        'EMAIL_BACKEND',
+        default='django.core.mail.backends.console.EmailBackend',
+    )
 
 # ------------------------------------------------------------------
 # ЮKassa (платёжная система)

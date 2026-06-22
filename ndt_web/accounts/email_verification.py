@@ -34,14 +34,14 @@ def _assert_email_can_send() -> None:
     backend = getattr(settings, 'EMAIL_BACKEND', '')
     if 'console' in backend or 'locmem' in backend:
         raise EmailSendError(
-            'Почта на сервере не настроена. На Render задайте RESEND_API_KEY '
-            '(и DEFAULT_FROM_EMAIL, SITE_URL). Удалите старые EMAIL_HOST* и EMAIL_BACKEND.'
+            'Почта на сервере не настроена. На Render задайте UNISENDER_GO_API_KEY '
+            '(РФ) или RESEND_API_KEY. Удалите старые EMAIL_HOST* и EMAIL_BACKEND.'
         )
-    if 'resend' in backend.lower():
-        if not getattr(settings, 'RESEND_API_KEY', '').strip():
-            raise EmailSendError(
-                'RESEND_API_KEY не задан. Добавьте ключ в Environment на Render и пересоберите сервис.'
-            )
+    if 'unisender' in backend.lower() or 'resend' in backend.lower():
+        if 'unisender' in backend.lower() and not getattr(settings, 'UNISENDER_GO_API_KEY', '').strip():
+            raise EmailSendError('UNISENDER_GO_API_KEY не задан на сервере.')
+        if 'resend' in backend.lower() and not getattr(settings, 'RESEND_API_KEY', '').strip():
+            raise EmailSendError('RESEND_API_KEY не задан на сервере.')
         return
     if 'smtp' in backend.lower() and not getattr(settings, 'EMAIL_HOST', '').strip():
         raise EmailSendError(

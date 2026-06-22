@@ -223,6 +223,11 @@ from accounts.email_config import resolve_smtp_settings
 from accounts.email_settings import resolve_email_backend
 
 RESEND_API_KEY = config('RESEND_API_KEY', default='').strip()
+UNISENDER_GO_API_KEY = config('UNISENDER_GO_API_KEY', default='').strip()
+UNISENDER_GO_API_URL = config(
+    'UNISENDER_GO_API_URL',
+    default='https://go1.unisender.ru/ru/transactional/api/v1/',
+).strip()
 BREVO_SMTP_KEY = config('BREVO_SMTP_KEY', default='').strip()
 BREVO_LOGIN = config('BREVO_LOGIN', default='').strip()
 
@@ -251,6 +256,7 @@ DEFAULT_FROM_EMAIL = config(
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 _email_backend, _email_backend_warning = resolve_email_backend(
+    unisender_go_api_key=UNISENDER_GO_API_KEY,
     resend_api_key=RESEND_API_KEY,
     email_host=EMAIL_HOST,
     email_host_user=EMAIL_HOST_USER,
@@ -262,8 +268,13 @@ if _email_backend_warning:
     import logging
     logging.getLogger('ndt_project.settings').warning(_email_backend_warning)
 
-# Приоритет: Resend API → Brevo/SMTP → консоль (dev)
-if RESEND_API_KEY:
+# Приоритет: Unisender Go (РФ) → Resend → Brevo/SMTP → консоль (dev)
+if UNISENDER_GO_API_KEY:
+    ANYMAIL = {
+        'UNISENDER_GO_API_KEY': UNISENDER_GO_API_KEY,
+        'UNISENDER_GO_API_URL': UNISENDER_GO_API_URL,
+    }
+elif RESEND_API_KEY:
     ANYMAIL = {
         'RESEND_API_KEY': RESEND_API_KEY,
     }

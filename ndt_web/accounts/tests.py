@@ -299,6 +299,16 @@ class EmailConfigTests(TestCase):
         self.assertEqual(backend, 'anymail.backends.resend.EmailBackend')
         self.assertIsNone(warning)
 
+    def test_unisender_go_has_priority_over_resend(self):
+        from accounts.email_settings import resolve_email_backend
+
+        backend, warning = resolve_email_backend(
+            unisender_go_api_key='ug_test',
+            resend_api_key='re_test',
+        )
+        self.assertEqual(backend, 'anymail.backends.unisender_go.EmailBackend')
+        self.assertIsNone(warning)
+
     def test_safe_smtp_backend_rejects_yandex(self):
         from accounts.email_backend import SafeSMTPBackend, YANDEX_SMTP_BLOCKED_MSG
 

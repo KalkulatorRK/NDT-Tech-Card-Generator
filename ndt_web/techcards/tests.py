@@ -4,6 +4,8 @@
 Проверяет модели, генератор карт и нормативные данные.
 """
 
+import os
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -398,3 +400,20 @@ class CalculationReferenceTests(TestCase):
             'wordprocessingml',
             response['Content-Type'],
         )
+
+    def test_download_docx_regenerates_missing_file(self):
+        """DOCX восстанавливается из JSON, если файл пропал с диска (Render)."""
+        from django.conf import settings
+        docx_rel = 'techcards/docx/2026/06/TC_regen_test.docx'
+        self.techcard.docx_file = docx_rel
+        self.techcard.save(update_fields=['docx_file'])
+        docx_abs = os.path.join(settings.MEDIA_ROOT, docx_rel)
+        if os.path.exists(docx_abs):
+            os.remove(docx_abs)
+
+        self.client.login(username='refuser', password='pass123')
+        url = reverse('download_file', args=[self.techcard.pk, 'docx'])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(os.path.exists(docx_abs))
+        self.assertGreater(os.path.getsize(docx_abs), 1000)

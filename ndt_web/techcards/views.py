@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
-from .generator import generate_tech_card
+from .generator import generate_tech_card, regenerate_techcard_files, get_default_template_path
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
@@ -408,13 +408,10 @@ def generate_card_view(request, doc_code):
 
     try:
         # Путь к шаблону DOCX (если загружен в card_templates/)
-        template_filename = 'Пример технологической карты радиографического контроля.docx'
-        template_path = os.path.join(
-            settings.BASE_DIR, 'card_templates', template_filename
-        )
+        template_path = get_default_template_path()
         result = generate_tech_card(
             input_data, settings.MEDIA_ROOT,
-            template_path=template_path if os.path.exists(template_path) else None,
+            template_path=template_path,
         )
         was_free = (reason == 'free')
 
@@ -479,13 +476,7 @@ def download_file_view(request, pk, file_type):
     """Скачивание файла техкарты (DOCX или PDF)."""
     techcard = get_object_or_404(TechCard, pk=pk, user=request.user)
 
-    if file_type == 'docx' and techcard.docx_file:
-        file_path = os.path.join(settings.MEDIA_ROOT, str(techcard.docx_file))
-        filename = f'TC_{techcard.card_number or pk}.docx'
-    elif file_type == 'pdf' and techcard.pdf_file:
-        file_path = os.path.join(settings.MEDIA_ROOT, str(techcard.pdf_file))
-        filename = f'TC_{techcard.card_number or pk}.pdf'
-    elif file_type == 'reference':
+    if file_type == 'reference':
         buffer = generate_calculation_reference_docx(
             techcard.input_data,
             techcard.generated_data,
@@ -493,7 +484,7 @@ def download_file_view(request, pk, file_type):
             normative_doc_code=techcard.normative_doc.code,
         )
         filename = f'TS_{techcard.card_number or pk}_расчёты.docx'
-        response = FileResponse(
+        return FileResponse(
             buffer,
             as_attachment=True,
             filename=filename,
@@ -502,16 +493,51 @@ def download_file_view(request, pk, file_type):
                 '.wordprocessingml.document'
             ),
         )
-        return response
+
+    if file_type == 'docx' and (techcard.docx_file or techcard.generated_data):
+        filename = f'TC_{techcard.card_number or pk}.docx'
+        content_type = (
+            'application/vnd.openxmlformats-officedocument'
+            '.wordprocessingml.document'
+        )
+        need_docx = True
+        need_pdf = False
+        file_rel = str(techcard.docx_file) if techcard.docx_file else ''
+    elif file_type == 'pdf' and (techcard.pdf_file or techcard.generated_data):
+        filename = f'TC_{techcard.card_number or pk}.pdf'
+        content_type = 'application/pdf'
+        need_docx = False
+        need_pdf = True
+        file_rel = str(techcard.pdf_file) if techcard.pdf_file else ''
     else:
         raise Http404('Файл не найден.')
 
-    if not os.path.exists(file_path):
-        raise Http404('Файл не найден на сервере.')
+    file_path = os.path.join(settings.MEDIA_ROOT, file_rel) if file_rel else ''
 
-    response = FileResponse(open(file_path, 'rb'))
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
+    if not file_path or not os.path.exists(file_path):
+        if not techcard.generated_data:
+            raise Http404('Файл не найден на сервере.')
+        try:
+            regenerate_techcard_files(
+                techcard,
+                str(settings.MEDIA_ROOT),
+                get_default_template_path(),
+                docx=need_docx,
+                pdf=need_pdf,
+            )
+        except Exception as exc:
+            raise Http404(f'Не удалось восстановить файл: {exc}') from exc
+        file_rel = str(techcard.docx_file if file_type == 'docx' else techcard.pdf_file)
+        file_path = os.path.join(settings.MEDIA_ROOT, file_rel)
+        if not os.path.exists(file_path):
+            raise Http404('Файл не найден на сервере.')
+
+    return FileResponse(
+        open(file_path, 'rb'),
+        as_attachment=True,
+        filename=filename,
+        content_type=content_type,
+    )
 
 
 @login_required

@@ -1326,6 +1326,82 @@ def generate_tech_card(input_data: dict, media_root: str,
     }
 
 
+def get_default_template_path() -> str | None:
+    """Путь к шаблону DOCX, если файл загружен в card_templates/."""
+    from django.conf import settings as django_settings
+    template_filename = 'Пример технологической карты радиографического контроля.docx'
+    template_path = os.path.join(django_settings.BASE_DIR, 'card_templates', template_filename)
+    return template_path if os.path.exists(template_path) else None
+
+
+def regenerate_techcard_files(
+    techcard,
+    media_root: str,
+    template_path: str | None = None,
+    *,
+    docx: bool = True,
+    pdf: bool = True,
+) -> None:
+    """
+    Восстанавливает файлы техкарты из JSON в БД.
+
+    На Render и других PaaS локальный media/ очищается при деплое — файлы
+    нужно пересоздавать по запросу скачивания.
+    """
+    params = techcard.generated_data
+    if not params:
+        raise ValueError('Нет сохранённых параметров техкарты для восстановления файла.')
+
+    if template_path is None:
+        template_path = get_default_template_path()
+
+    from django.conf import settings as django_settings
+    static_root = ''
+    if getattr(django_settings, 'STATICFILES_DIRS', []):
+        static_root = str(django_settings.STATICFILES_DIRS[0])
+
+    if docx:
+        docx_rel = str(techcard.docx_file) if techcard.docx_file else ''
+        if not docx_rel:
+            uid = uuid.uuid4().hex[:10]
+            card_num = (techcard.card_number or str(techcard.pk)).replace('/', '-').replace(' ', '_')
+            date_dir = (
+                techcard.created_at.strftime('%Y/%m')
+                if getattr(techcard, 'created_at', None) else datetime.now().strftime('%Y/%m')
+            )
+            docx_rel = f'techcards/docx/{date_dir}/TC_{card_num}_{uid}.docx'
+            techcard.docx_file = docx_rel
+        docx_abs = os.path.join(media_root, docx_rel)
+        os.makedirs(os.path.dirname(docx_abs), exist_ok=True)
+        if template_path and os.path.exists(template_path):
+            generate_from_template(params, template_path, docx_abs, static_root=static_root)
+        else:
+            _generate_docx_fallback(params, docx_abs)
+
+    if pdf:
+        pdf_rel = str(techcard.pdf_file) if techcard.pdf_file else ''
+        if not pdf_rel:
+            uid = uuid.uuid4().hex[:10]
+            card_num = (techcard.card_number or str(techcard.pk)).replace('/', '-').replace(' ', '_')
+            date_dir = (
+                techcard.created_at.strftime('%Y/%m')
+                if getattr(techcard, 'created_at', None) else datetime.now().strftime('%Y/%m')
+            )
+            pdf_rel = f'techcards/pdf/{date_dir}/TC_{card_num}_{uid}.pdf'
+            techcard.pdf_file = pdf_rel
+        pdf_abs = os.path.join(media_root, pdf_rel)
+        os.makedirs(os.path.dirname(pdf_abs), exist_ok=True)
+        generate_radiographic_pdf(params, pdf_abs)
+
+    update_fields = []
+    if docx and techcard.docx_file:
+        update_fields.append('docx_file')
+    if pdf and techcard.pdf_file:
+        update_fields.append('pdf_file')
+    if update_fields:
+        techcard.save(update_fields=update_fields)
+
+
 def _generate_docx_fallback(params: dict, output_path: str) -> str:
     """
     Резервная генерация DOCX без шаблона.

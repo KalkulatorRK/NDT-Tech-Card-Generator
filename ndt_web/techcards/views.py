@@ -23,6 +23,7 @@ from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
 from normative.gost_50_05_07 import get_suitable_sources
+from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 
 
 def home_view(request):
@@ -231,7 +232,8 @@ def create_step3_view(request, doc_code):
 
     session_data = _get_session_data(request)
     wall_thickness = float(session_data.get('wall_thickness', 10))
-    suitable_sources = get_suitable_sources(wall_thickness)
+    material_type = resolve_material_type(session_data.get('material', ''))
+    suitable_sources = get_suitable_sources(wall_thickness, material_type)
 
     if request.method == 'POST':
         form = TechCardStep3Form(request.POST)
@@ -254,6 +256,7 @@ def create_step3_view(request, doc_code):
         'step_labels': STEP_LABELS,
         'suitable_sources': suitable_sources,
         'wall_thickness': wall_thickness,
+        'material_display': get_material_display_name(session_data.get('material', '')),
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
     })
 
@@ -308,7 +311,6 @@ def _build_human_readable_summary(data: dict) -> list:
         'I': 'I — первый контур АЭУ',
         'II': 'II — вспомогательные системы',
         'III': 'III — прочее оборудование',
-        'IV': 'IV — строительные конструкции',
     }
     SCHEME_LABELS = {
         code: info.get('name', get_scheme_user_label(code))
@@ -324,7 +326,7 @@ def _build_human_readable_summary(data: dict) -> list:
         'card_number':        'Номер технологической карты',
         'inspector_name':     'Специалист НК (ФИО)',
         'object_type':        'Тип объекта',
-        'material':           'Марка стали',
+        'material':           'Материал контролируемого объекта',
         'wall_thickness':     'Толщина стенки, мм',
         'outer_diameter':     'Наружный диаметр, мм',
         'joint_designation':  'Условное обозначение шва (ГОСТ Р 59023.2-2020)',
@@ -334,7 +336,7 @@ def _build_human_readable_summary(data: dict) -> list:
         'focal_spot_mm':      'Размер фокусного пятна (Φ), мм',
         'source_activity':    'Активность источника',
         'scheme_type':        'Схема просвечивания',
-        'film_length_mm':     'Длина плёнки (для схемы 3б), мм',
+        'film_size':          'Размер плёнки, мм',
         'ofd_mm':             'Расстояние объект–детектор (b), мм',
         'film_name':          'Тип радиографической плёнки',
     }
@@ -352,7 +354,7 @@ def _build_human_readable_summary(data: dict) -> list:
         ]),
         ('3. Параметры просвечивания', [
             'source_code', 'focal_spot_mm', 'source_activity',
-            'scheme_type', 'film_length_mm', 'ofd_mm', 'film_name',
+            'scheme_type', 'film_size', 'ofd_mm', 'film_name',
         ]),
     ]
 
@@ -360,6 +362,11 @@ def _build_human_readable_summary(data: dict) -> list:
         """Переводит значение поля в читаемый вид."""
         if not val:
             return '—'
+        if key == 'material':
+            return get_material_display_name(val)
+        if key == 'film_size':
+            from normative.gost_50_05_07 import parse_film_size
+            return parse_film_size(val).get('label', val)
         if key == 'object_type':
             return OBJECT_TYPES.get(val, val)
         if key == 'weld_category':
@@ -559,14 +566,16 @@ def delete_techcard_view(request, pk):
 
 
 def get_sources_ajax(request):
-    """AJAX: возвращает подходящие источники для заданной толщины."""
+    """AJAX: возвращает подходящие источники для заданной толщины и материала."""
     thickness = request.GET.get('thickness', 10)
+    material = request.GET.get('material', '')
     try:
         thickness = float(thickness)
     except (ValueError, TypeError):
         thickness = 10
 
-    sources = get_suitable_sources(thickness)
+    material_type = resolve_material_type(material)
+    sources = get_suitable_sources(thickness, material_type)
     return JsonResponse({'sources': sources})
 
 

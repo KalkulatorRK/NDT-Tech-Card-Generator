@@ -39,17 +39,20 @@ class NormativeDataTests(TestCase):
         """Категория I, S=8 мм → K=0,20 мм (Табл. 4.8 строка 7,5–10,0 мм)."""
         self.assertEqual(get_sensitivity(8.0, 'I'), 0.20)
 
-    def test_sensitivity_class_a_backward_compat(self):
-        """Класс А = Категория I: get_sensitivity(8.0, 'A') == get_sensitivity(8.0, 'I')."""
-        self.assertEqual(get_sensitivity(8.0, 'A'), get_sensitivity(8.0, 'I'))
+    def test_suitable_sources_aluminum_differs_from_steel(self):
+        """Для алюминия диапазоны источников отличаются от стали."""
+        steel = {s['code'] for s in get_suitable_sources(25, 'steel')}
+        aluminum = {s['code'] for s in get_suitable_sources(25, 'aluminum')}
+        self.assertNotEqual(steel, aluminum)
+
+    def test_suitable_sources_titanium_includes_ir192(self):
+        """Для титана Ir-192 применим в диапазоне 10–40 мм."""
+        sources = get_suitable_sources(20, 'titanium')
+        self.assertIn('Ir-192', [s['code'] for s in sources])
 
     def test_sensitivity_cat_ii_medium(self):
         """Категория II, S=40 мм → K=0,60 мм (Табл. 4.8 строка 38,0–44,0 мм)."""
         self.assertEqual(get_sensitivity(40.0, 'II'), 0.60)
-
-    def test_sensitivity_class_b_backward_compat(self):
-        """Класс В = Категория II: get_sensitivity(40.0, 'B') == 0,60 мм."""
-        self.assertEqual(get_sensitivity(40.0, 'B'), 0.60)
 
     def test_sensitivity_cat_iii_thick(self):
         """Категория III, S=150 мм → K=2,50 мм (Табл. 4.8 строка 130–165 мм)."""
@@ -70,29 +73,34 @@ class NormativeDataTests(TestCase):
         with self.assertRaises(ValueError):
             calc_geometric_unsharpness(2.0, 100, 200)
 
-    def test_min_sfd_class_a(self):
-        """Минимальное SFD рассчитывается правильно для класса А."""
+    def test_min_sfd_category_i(self):
+        """Минимальное SFD рассчитывается правильно для категории I."""
         # Ug_max = 0.3, OFD=5, d=2
-        # SFD_min = 5*(2+0.3)/0.3 = 5*2.3/0.3 = 38.33...
-        min_sfd = calc_min_sfd(2.0, 5.0, 'A')
+        min_sfd = calc_min_sfd(2.0, 5.0, 'I')
         expected = 5 * (2.0 + 0.3) / 0.3
         self.assertAlmostEqual(min_sfd, round(expected, 1), places=1)
 
+    def test_suitable_sources_iridium_steel_from_5mm(self):
+        """Иридий-192 по табл. Б.1 (сталь) применим с 5 мм."""
+        sources = get_suitable_sources(10, 'steel')
+        codes = [s['code'] for s in sources]
+        self.assertIn('Ir-192', codes)
+
     def test_suitable_sources_iridium_range(self):
-        """Иридий-192 появляется в диапазоне 20–100 мм."""
-        sources = get_suitable_sources(30)
+        """Иридий-192 появляется в диапазоне 20–100 мм (сталь)."""
+        sources = get_suitable_sources(30, 'steel')
         codes = [s['code'] for s in sources]
         self.assertIn('Ir-192', codes)
 
     def test_suitable_sources_tm170_thin(self):
-        """Тулий-170 появляется для тонких изделий."""
-        sources = get_suitable_sources(5)
+        """Тулий-170 появляется для тонких изделий (сталь)."""
+        sources = get_suitable_sources(5, 'steel')
         codes = [s['code'] for s in sources]
         self.assertIn('Tm-170', codes)
 
     def test_suitable_sources_cobalt_thick(self):
-        """Кобальт-60 для толстых изделий."""
-        sources = get_suitable_sources(100)
+        """Кобальт-60 для толстых изделий (сталь)."""
+        sources = get_suitable_sources(100, 'steel')
         codes = [s['code'] for s in sources]
         self.assertIn('Co-60', codes)
 
@@ -220,18 +228,26 @@ class TechCardCalculatorTests(TestCase):
             'inspector_name': '',
         }
 
-    def test_sensitivity_class_for_cat_i(self):
-        """Категория I → Класс А."""
+    def test_weld_category_preserved(self):
+        """Категория сварного соединения сохраняется в параметрах."""
         calc = RadiographicTechCardCalculator(self.base_input)
         params = calc.calculate()
-        self.assertEqual(params['control_class'], 'A')
+        self.assertEqual(params['weld_category'], 'I')
 
-    def test_sensitivity_class_for_cat_ii(self):
-        """Категория II → Класс В."""
-        data = dict(self.base_input, weld_category='II')
+    def test_film_size_standard(self):
+        """Типовой размер плёнки записывается в параметры."""
+        data = dict(self.base_input, film_size='480x100')
         calc = RadiographicTechCardCalculator(data)
         params = calc.calculate()
-        self.assertEqual(params['control_class'], 'B')
+        self.assertEqual(params['film_length_mm'], 480)
+        self.assertEqual(params['film_width_mm'], 100)
+
+    def test_material_type_resolved(self):
+        """Тип материала определяется для выбора источника."""
+        data = dict(self.base_input, material='__titanium__')
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['material_type'], 'titanium')
 
     def test_sensitivity_value_filled(self):
         """Значение чувствительности в % рассчитывается."""

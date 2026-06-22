@@ -35,8 +35,10 @@ from normative.gost_50_05_07 import (
     SCREEN_REQUIREMENTS, FILM_CLASSES, MAX_GEOMETRIC_UNSHARPNESS,
     OPTICAL_DENSITY, PERSONNEL_REQUIREMENTS, SAFETY_REQUIREMENTS,
     FILM_PROCESSING, IQI_TYPES, DOCUMENT_CODE, DOCUMENT_FULL_NAME,
+    parse_film_size,
 )
-from normative.np_104_18 import get_rt_sensitivity_class, WELD_CATEGORIES
+from normative.gost_59023_2 import resolve_material_type, get_material_display_name
+from normative.np_104_18 import WELD_CATEGORIES
 from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
 from normative.calculations import (
     calc_exposure_parameters, recommend_scheme,
@@ -122,7 +124,6 @@ class RadiographicTechCardCalculator:
     def calculate(self) -> dict:
         """Выполняет все расчёты и возвращает словарь параметров."""
         self._extract_inputs()
-        self._calc_sensitivity_class()
         # Сначала получаем g_min/g_max из таблиц сварных соединений
         self._calc_inspection_zones()
         # Затем рассчитываем K с правильной радиационной толщиной S_рад
@@ -150,6 +151,8 @@ class RadiographicTechCardCalculator:
             'card_number': d.get('card_number', ''),
             'object_type': d.get('object_type', 'pipe'),
             'material': d.get('material', ''),
+            'material_display': get_material_display_name(d.get('material', '')),
+            'material_type': resolve_material_type(d.get('material', '')),
             'wall_thickness': float(d.get('wall_thickness', 10)),
             'outer_diameter': float(d.get('outer_diameter', 0) or 0),
             # Условное обозначение (ГОСТ Р 59023.2-2020)
@@ -195,14 +198,6 @@ class RadiographicTechCardCalculator:
         self.params['joint_name'] = joint_info.get('name', joint_code)
         self.params['joint_sketch'] = joint_info.get('sketch', '')
 
-    def _calc_sensitivity_class(self):
-        weld_cat = self.params['weld_category']
-        cls = get_rt_sensitivity_class(weld_cat)
-        self.params['control_class'] = cls
-        self.params['control_class_name'] = {
-            'A': 'А (высокий)', 'B': 'В (стандартный)', 'C': 'С (основной)'
-        }.get(cls, cls)
-
     def _calc_sensitivity_value(self):
         """
         Рассчитывает требуемое значение чувствительности K по НП-105-18.
@@ -224,7 +219,7 @@ class RadiographicTechCardCalculator:
         from normative.calculations import calc_radiation_thickness
 
         S = self.params['wall_thickness']
-        cls = self.params['control_class']
+        weld_cat = self.params['weld_category']
         scheme = self.data.get('scheme_type', '4_6')
         g_min = self.params.get('g_min_mm', 0.5)
         g_max = self.params.get('g_max_mm', 3.5)
@@ -236,8 +231,8 @@ class RadiographicTechCardCalculator:
         # K ищем по S + g_min — «номинальная толщина в месте сварки»
         # (одна стенка + минимальное усиление, независимо от числа стенок)
         s_k = round(S + g_min, 1)
-        K = get_sensitivity(s_k, cls)
-        mm_val = get_sensitivity_mm(s_k, cls)
+        K = get_sensitivity(s_k, weld_cat)
+        mm_val = get_sensitivity_mm(s_k, weld_cat)
 
         self.params['required_sensitivity_pct'] = K
         self.params['required_sensitivity_mm'] = mm_val
@@ -251,7 +246,8 @@ class RadiographicTechCardCalculator:
 
     def _select_sources(self):
         S = self.params['wall_thickness']
-        suitable = get_suitable_sources(S)
+        material_type = self.params.get('material_type', 'steel')
+        suitable = get_suitable_sources(S, material_type)
         self.params['suitable_sources'] = suitable
         chosen_code = self.params['source_code']
         if chosen_code:
@@ -277,7 +273,7 @@ class RadiographicTechCardCalculator:
         """
         focal = self.params['source_focal_spot_mm']
         ofd = self.params['ofd_mm']
-        cls = self.params['control_class']
+        weld_cat = self.params['weld_category']
         sensitivity_mm = self.params.get('required_sensitivity_mm', 0)
 
         # Если SFD не задан вручную — используем рассчитанное f_min
@@ -306,7 +302,7 @@ class RadiographicTechCardCalculator:
                     f'превышает допустимую {max_allowed} мм для K = {sensitivity_mm:.3f} мм.'
                 )
 
-        max_ug = MAX_GEOMETRIC_UNSHARPNESS.get(cls, 0.5)
+        max_ug = ug_result.get('max_allowed_mm') or MAX_GEOMETRIC_UNSHARPNESS.get(weld_cat, 0.5)
         self.params['geometric_unsharpness_mm'] = ug
         self.params['max_geometric_unsharpness_mm'] = max_ug
         self.params['geometric_unsharpness_ok'] = ug <= max_ug
@@ -325,7 +321,9 @@ class RadiographicTechCardCalculator:
 
         focal = self.params['source_focal_spot_mm']
         sensitivity_mm = self.params.get('required_sensitivity_mm', 0.5)
-        film_length = float(self.data.get('film_length_mm', 350) or 350)
+        film_size = parse_film_size(self.data.get('film_size', '240x100') or '240x100')
+        film_length = float(film_size['length_mm'])
+        film_width = float(film_size['width_mm'])
 
         # Схема просвечивания — выбор пользователя или авторекомендация
         scheme = self.data.get('scheme_type', '').strip()
@@ -375,14 +373,17 @@ class RadiographicTechCardCalculator:
         self.params['scheme_notes'] = calc_result.get('notes', '')
         self.params['scheme_image'] = scheme_info.get('image', '')
         self.params['C_coeff'] = calc_result.get('C', '')
+        self.params['film_size_code'] = film_size['code']
         self.params['film_length_mm'] = film_length
+        self.params['film_width_mm'] = film_width
+        self.params['film_size_label'] = film_size['label']
 
     def _select_film(self):
-        cls = self.params['control_class']
-        recommended = [f for f in FILM_CLASSES if cls in f['allowed_for']]
+        weld_cat = self.params['weld_category']
+        recommended = [f for f in FILM_CLASSES if weld_cat in f['allowed_for']]
         self.params['recommended_film_classes'] = recommended
         self.params['film_class_info'] = recommended[0] if recommended else {}
-        od = OPTICAL_DENSITY[cls]
+        od = OPTICAL_DENSITY.get(weld_cat, OPTICAL_DENSITY['III'])
         self.params['optical_density_min'] = od['min']
         self.params['optical_density_max'] = od['max']
 
@@ -395,8 +396,8 @@ class RadiographicTechCardCalculator:
         self.params['screens'] = screens
 
     def _calc_iqi(self):
-        cls = self.params['control_class']
-        preferred = [iqi for iqi in IQI_TYPES if cls in iqi['preferred_for']]
+        weld_cat = self.params['weld_category']
+        preferred = [iqi for iqi in IQI_TYPES if weld_cat in iqi['preferred_for']]
         self.params['recommended_iqi'] = preferred[0] if preferred else IQI_TYPES[0]
         mm_val = self.params.get('required_sensitivity_mm', 0)
         wire_diameters = [
@@ -410,9 +411,9 @@ class RadiographicTechCardCalculator:
         self.params['film_processing'] = FILM_PROCESSING
 
     def _fill_personnel(self):
-        cls = self.params['control_class']
+        weld_cat = self.params['weld_category']
         self.params['personnel_requirements'] = PERSONNEL_REQUIREMENTS.get(
-            cls, PERSONNEL_REQUIREMENTS['C']
+            weld_cat, PERSONNEL_REQUIREMENTS['III']
         )
 
     def _fill_safety(self):
@@ -600,7 +601,7 @@ def _build_value_map(params: dict) -> dict:
         '5.4': params.get('film_name', film_info.get('examples', '')),
         '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
         '5.6': 'свинцовые буквы и цифры по ГОСТ',
-        '5.7': f'{params.get("film_length_mm", 350):.0f} × 100 мм',
+        '5.7': f'{params.get("film_length_mm", 240):.0f} × {params.get("film_width_mm", 100):.0f} мм',
         '5.9': 'негатоскоп с яркостью ≥ 10 000 кд/м², ГОСТ Р 8.763',
         '5.11': 'денситометр фотометрический',
         '5.12': 'лупа 10× измерительная',
@@ -1213,7 +1214,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('1.4 Контролируемый элемент', params.get('weld_number')),
         ('1.6 Тип сварного соединения', _WELD_TYPE_NAMES.get(params.get('weld_type', ''), '')),
         ('1.8 Способ сварки', params.get('welding_process')),
-        ('1.9 Основной металл', params.get('material')),
+        ('1.9 Основной металл', params.get('material_display') or params.get('material')),
         ('2.1 Методическая документация', DOCUMENT_CODE),
         ('2.2 Нормативная документация', NP105_CODE),
         ('3.1 Категория сварного соединения', params.get('weld_category')),
@@ -1224,7 +1225,6 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('4.1 Тип контролируемого элемента', _OBJECT_TYPE_NAMES.get(params.get('object_type', ''), '')),
         ('4.2.1 Наружный диаметр, мм', params.get('outer_diameter') or '—'),
         ('Толщина стенки (S), мм', params.get('wall_thickness')),
-        ('Класс контроля', params.get('control_class_name')),
         ('Требуемая чувствительность (К)', params.get('sensitivity_desc')),
     ])
 

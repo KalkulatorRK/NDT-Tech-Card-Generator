@@ -17,7 +17,8 @@
         <!-- Доступные источники для введённой толщины -->
         {% if suitable_sources %}
         <div class="mb-4">
-          <strong>Рекомендуемые источники для толщины {{ wall_thickness }} мм:</strong>
+          <strong>Рекомендуемые источники для толщины {{ wall_thickness }} мм
+            {% if material_display %}({{ material_display }}){% endif %}:</strong>
           <div class="row g-2 mt-1">
             {% for src in suitable_sources %}
             <div class="col-md-6">
@@ -114,12 +115,12 @@
               {% endif %}
             </div>
 
-            <!-- Длина снимка (только для схемы 3б) -->
-            <div class="col-md-6" id="film-length-block" style="display:none;">
-              <label class="form-label">{{ form.film_length_mm.label }}</label>
-              {{ form.film_length_mm }}
-              {% if form.film_length_mm.help_text %}
-              <div class="form-text">{{ form.film_length_mm.help_text }}</div>
+            <!-- Размер плёнки -->
+            <div class="col-md-6" id="film-size-block">
+              <label class="form-label">{{ form.film_size.label }}</label>
+              {{ form.film_size }}
+              {% if form.film_size.help_text %}
+              <div class="form-text">{{ form.film_size.help_text }}</div>
               {% endif %}
             </div>
 
@@ -172,7 +173,7 @@ var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
 var schemeImage = document.getElementById('scheme-image');
 var schemeDesc = document.getElementById('scheme-description');
-var filmLengthBlock = document.getElementById('film-length-block');
+var filmSizeBlock = document.getElementById('film-size-block');
 
 function updateSchemeUI(val) {
   if (val && SCHEME_DATA[val]) {
@@ -182,8 +183,10 @@ function updateSchemeUI(val) {
   } else {
     schemeImageBlock.style.display = 'none';
   }
-  // Показываем поле длины снимка только для схемы 3б
-  filmLengthBlock.style.display = (val === '5b') ? '' : 'none';
+  // Размер плёнки актуален для схемы 3б (5б)
+  if (filmSizeBlock) {
+    filmSizeBlock.style.display = (val === '5b') ? '' : 'none';
+  }
 }
 
 if (schemeSelect) {

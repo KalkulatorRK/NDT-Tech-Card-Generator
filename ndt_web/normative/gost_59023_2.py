@@ -724,6 +724,40 @@ ALL_STEEL_GRADES = [
 ]
 
 
+MATERIAL_TITANIUM = '__titanium__'
+MATERIAL_ALUMINUM = '__aluminum__'
+
+
+def get_controlled_object_material_choices():
+    """Список материалов контролируемого объекта для выпадающего списка."""
+    choices = [(g, g) for g in sorted(ALL_STEEL_GRADES)]
+    choices.append((MATERIAL_TITANIUM, 'Сплавы на основе титана'))
+    choices.append((MATERIAL_ALUMINUM, 'Сплавы на основе алюминия'))
+    return choices
+
+
+def resolve_material_type(material: str) -> str:
+    """
+    Определяет тип материала для выбора источника излучения (табл. Б.1–Б.3).
+
+    :return: 'steel', 'aluminum' или 'titanium'
+    """
+    if material == MATERIAL_TITANIUM:
+        return 'titanium'
+    if material == MATERIAL_ALUMINUM:
+        return 'aluminum'
+    return 'steel'
+
+
+def get_material_display_name(material: str) -> str:
+    """Возвращает отображаемое название материала."""
+    if material == MATERIAL_TITANIUM:
+        return 'Сплавы на основе титана'
+    if material == MATERIAL_ALUMINUM:
+        return 'Сплавы на основе алюминия'
+    return material
+
+
 def get_material_choices():
     """Список марок сталей для выпадающего списка."""
     return [(g, g) for g in sorted(ALL_STEEL_GRADES)]

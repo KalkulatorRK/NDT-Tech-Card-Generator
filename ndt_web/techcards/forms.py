@@ -6,10 +6,11 @@
 """
 
 from django import forms
-from normative.gost_50_05_07 import get_source_choices, get_film_choices, get_iqi_choices
+from normative.gost_50_05_07 import get_source_choices, get_film_choices, get_iqi_choices, get_film_size_choices
 from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
 from normative.gost_59023_2 import (
-    get_joint_type_choices, get_welding_process_choices, get_material_choices,
+    get_joint_type_choices, get_welding_process_choices,
+    get_controlled_object_material_choices, get_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
 )
 from normative.np_104_18 import get_choices as get_category_choices
@@ -68,15 +69,15 @@ class TechCardStep2Form(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_object_type'}),
     )
     material = forms.ChoiceField(
-        choices=[('', '— Выберите марку стали —')] + get_material_choices(),
-        label='Марка стали *',
+        choices=[('', '— Выберите материал —')] + get_controlled_object_material_choices(),
+        label='Материал контролируемого объекта *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_material'}),
     )
 
-    # Подсказка: можно вписать свою марку если нет в списке
+    # Подсказка: можно вписать свою марку стали если нет в списке
     material_custom = forms.CharField(
         required=False,
-        label='Или введите марку вручную (если нет в списке)',
+        label='Или введите марку стали вручную (если нет в списке)',
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Например: 09ХН10Т или другая марка',
@@ -144,7 +145,7 @@ class TechCardStep2Form(forms.Form):
         help_text=(
             'Категория I — первый контур АЭУ. '
             'Категория II — вспомогательные системы. '
-            'Категория III/IV — прочее.'
+            'Категория III — прочее оборудование.'
         ),
     )
 
@@ -202,18 +203,16 @@ class TechCardStep3Form(forms.Form):
         }),
         help_text='Укажите из паспорта источника. Используется для расчёта времени экспозиции.',
     )
-    film_length_mm = forms.FloatField(
+    film_size = forms.ChoiceField(
+        choices=[('', '— Выберите размер —')] + get_film_size_choices(),
         required=False,
-        min_value=50, max_value=1000,
-        label='Длина снимка (l), мм',
-        initial=350,
-        widget=forms.NumberInput(attrs={
-            'class': 'form-control',
-            'step': '10',
-            'placeholder': '350',
-            'id': 'id_film_length_mm',
+        label='Размер плёнки (длина × ширина), мм',
+        initial='240x100',
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'id_film_size',
         }),
-        help_text='Только для схемы 3б (чертёж 3б). Длина кассеты с плёнкой в мм.',
+        help_text='Типовые размеры плёнки. Используется для схемы 3б и поля 5.7 техкарты.',
     )
     ofd_mm = forms.FloatField(
         min_value=0, max_value=200,
@@ -235,7 +234,7 @@ class TechCardStep3Form(forms.Form):
         required=False,
         label='Тип радиографической плёнки',
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Тип плёнки определяется классом контроля. Можно не выбирать — подберётся автоматически.',
+        help_text='Тип плёнки подбирается по категории сварного соединения. Можно не выбирать — подберётся автоматически.',
     )
     film_name_custom = forms.CharField(
         required=False,

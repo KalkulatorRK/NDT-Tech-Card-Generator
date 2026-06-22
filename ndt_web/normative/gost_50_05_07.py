@@ -31,30 +31,6 @@ DOCUMENT_FULL_NAME = (
 )
 
 # ------------------------------------------------------------------
-# Классы радиографического контроля
-# ------------------------------------------------------------------
-CONTROL_CLASSES = {
-    'A': {
-        'code': 'A',
-        'name': 'Класс А (высокий)',
-        'description': 'Применяется для сварных соединений категории I',
-        'weld_categories': ['I'],
-    },
-    'B': {
-        'code': 'B',
-        'name': 'Класс В (стандартный)',
-        'description': 'Применяется для сварных соединений категории II',
-        'weld_categories': ['II'],
-    },
-    'C': {
-        'code': 'C',
-        'name': 'Класс С (основной)',
-        'description': 'Применяется для сварных соединений категорий III и IV',
-        'weld_categories': ['III', 'IV'],
-    },
-}
-
-# ------------------------------------------------------------------
 # Чувствительность контроля K
 #
 # ВНИМАНИЕ: Требуемая чувствительность K определяется по НП-105-18,
@@ -69,19 +45,15 @@ def get_sensitivity(thickness_mm: float, category_or_class: str) -> float:
     Возвращает требуемую чувствительность контроля K (мм) по
     НП-105-18, Таблица N 4.8/4.9.
 
-    Принимает как категорию сварного шва (I/II/III/Iн/IIн),
-    так и класс контроля (A/B/C) для обратной совместимости.
-    Классы отображаются в категории: A → I, B → II, C → III.
+    Принимает категорию сварного шва (I/II/III/Iн/IIн).
 
     :param thickness_mm: номинальная толщина свариваемых деталей, мм
-    :param category_or_class: категория ('I','II','III') или класс ('A','B','C')
+    :param category_or_class: категория ('I','II','III','Iн','IIн')
     :return: требуемая чувствительность K, мм
     """
     from normative.np_105_18 import get_required_sensitivity
 
-    # Отображение классов контроля на категории (для совместимости)
-    class_to_category = {'A': 'I', 'B': 'II', 'C': 'III'}
-    category = class_to_category.get(category_or_class, category_or_class)
+    category = category_or_class
 
     K = get_required_sensitivity(category, thickness_mm)
     return K if K else 0.20   # Значение по умолчанию
@@ -98,7 +70,22 @@ def get_sensitivity_mm(thickness_mm: float, category_or_class: str) -> float:
 # ------------------------------------------------------------------
 # Источники ионизирующего излучения
 # ------------------------------------------------------------------
+XRAY_SOURCE_CODES = ['X-100kV', 'X-200kV', 'X-300kV', 'X-400kV']
+
 RADIATION_SOURCES = [
+    {
+        'code': 'Yb-169',
+        'name': 'Иттербий-169 (Yb-169)',
+        'type': 'isotope',
+        'energy_kev': '50–300',
+        'energy_display': '0,05–0,30 МэВ',
+        'half_life': '32,0 сут',
+        'thickness_min': 0,
+        'thickness_max': 15,
+        'optimal_min': 1,
+        'optimal_max': 5,
+        'notes': 'Малые толщины, высокая чувствительность',
+    },
     {
         'code': 'Tm-170',
         'name': 'Тулий-170 (Tm-170)',
@@ -132,9 +119,9 @@ RADIATION_SOURCES = [
         'energy_kev': '310–604',
         'energy_display': '0,31–0,60 МэВ',
         'half_life': '73,8 сут',
-        'thickness_min': 20,
-        'thickness_max': 100,
-        'optimal_min': 25,
+        'thickness_min': 5,
+        'thickness_max': 120,
+        'optimal_min': 15,
         'optimal_max': 60,
         'notes': 'Наиболее применяемый изотоп для промышленного РГК',
     },
@@ -206,22 +193,81 @@ RADIATION_SOURCES = [
 ]
 
 
-def get_suitable_sources(thickness_mm: float) -> list:
-    """
-    Возвращает список источников излучения, применимых для заданной толщины.
+# ------------------------------------------------------------------
+# Применимость источников по материалу и толщине
+# (ГОСТ Р 50.05.07-2018, Приложение Б, таблицы Б.1–Б.3)
+# ------------------------------------------------------------------
+TABLE_B_SOURCE_RANGES = {
+    'steel': [
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
+        (5, 20, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
+        (20, 30, XRAY_SOURCE_CODES + ['Se-75', 'Ir-192']),
+        (30, 80, XRAY_SOURCE_CODES + ['Ir-192', 'Co-60']),
+        (80, 100, XRAY_SOURCE_CODES + ['Co-60', 'Ir-192']),
+        (100, 150, ['Co-60']),
+    ],
+    'aluminum': [
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169']),
+        (5, 15, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
+        (15, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75']),
+        (40, 60, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
+        (60, 90, XRAY_SOURCE_CODES + ['Ir-192']),
+        (90, 150, XRAY_SOURCE_CODES + ['Ir-192']),
+    ],
+    'titanium': [
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169']),
+        (5, 10, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
+        (10, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
+        (40, 60, XRAY_SOURCE_CODES + ['Ir-192']),
+        (60, 100, XRAY_SOURCE_CODES + ['Ir-192', 'Co-60']),
+        (100, 120, ['Ir-192', 'Co-60']),
+    ],
+}
 
-    :param thickness_mm: толщина контролируемого металла, мм
+MATERIAL_TYPES = ('steel', 'aluminum', 'titanium')
+
+
+def _thickness_in_table_range(thickness_mm: float, t_min: float, t_max: float) -> bool:
+    """Проверяет попадание толщины в диапазон строки таблицы Б."""
+    if t_min == 0:
+        return thickness_mm <= t_max
+    if t_max >= 9999:
+        return thickness_mm > t_min
+    return t_min < thickness_mm <= t_max
+
+
+def _source_codes_for_material_thickness(material_type: str, thickness_mm: float) -> set:
+    """Возвращает коды источников по таблице Б для материала и толщины."""
+    ranges = TABLE_B_SOURCE_RANGES.get(material_type, TABLE_B_SOURCE_RANGES['steel'])
+    codes: set = set()
+    for t_min, t_max, row_codes in ranges:
+        if _thickness_in_table_range(thickness_mm, t_min, t_max):
+            codes.update(row_codes)
+    return codes
+
+
+def get_suitable_sources(thickness_mm: float, material_type: str = 'steel') -> list:
+    """
+    Возвращает список источников излучения, применимых для заданной толщины
+    и материала контролируемого объекта (таблицы Б.1–Б.3 ГОСТ Р 50.05.07-2018).
+
+    :param thickness_mm: радиационная / номинальная толщина, мм
+    :param material_type: 'steel', 'aluminum' или 'titanium'
     :return: список словарей с описанием источников
     """
+    if material_type not in MATERIAL_TYPES:
+        material_type = 'steel'
+
+    applicable_codes = _source_codes_for_material_thickness(material_type, thickness_mm)
     suitable = []
     for source in RADIATION_SOURCES:
-        if source['thickness_min'] <= thickness_mm <= source['thickness_max']:
-            source_copy = dict(source)
-            # Отметка об оптимальности
-            source_copy['is_optimal'] = (
-                source['optimal_min'] <= thickness_mm <= source['optimal_max']
-            )
-            suitable.append(source_copy)
+        if source['code'] not in applicable_codes:
+            continue
+        source_copy = dict(source)
+        source_copy['is_optimal'] = (
+            source['optimal_min'] <= thickness_mm <= source['optimal_max']
+        )
+        suitable.append(source_copy)
     return suitable
 
 
@@ -253,6 +299,12 @@ def get_source_choices():
 #   Ускоритель электронов                  : не менее 1,5 мм
 # ------------------------------------------------------------------
 SCREEN_REQUIREMENTS = {
+    'Yb-169': {
+        'front_mm': 'без экранов',
+        'back_mm': '0,5',
+        'material': 'Свинцовые (Pb)',
+        'note': '',
+    },
     'Tm-170': {
         'front_mm': '0,02–0,09',   # Таблица 2: тулий-170
         'back_mm': '0,5',           # Таблица 3: ≤200 кВ группа
@@ -314,42 +366,42 @@ FILM_CLASSES = [
         'class': 'C1',
         'description': 'Сверхвысококонтрастные, ультрамелкозернистые',
         'examples': 'Kodak AA400, AGFA D2',
-        'allowed_for': ['A'],
+        'allowed_for': ['I'],
         'optical_density_min': 2.0,
     },
     {
         'class': 'C2',
         'description': 'Высококонтрастные, мелкозернистые',
         'examples': 'Kodak T200, AGFA D3',
-        'allowed_for': ['A', 'B'],
+        'allowed_for': ['I', 'II'],
         'optical_density_min': 2.0,
     },
     {
         'class': 'C3',
         'description': 'Высококонтрастные, среднезернистые',
         'examples': 'Kodak T100, AGFA D4',
-        'allowed_for': ['A', 'B', 'C'],
+        'allowed_for': ['I', 'II', 'III'],
         'optical_density_min': 2.0,
     },
     {
         'class': 'C4',
         'description': 'Контрастные, среднезернистые',
         'examples': 'AGFA D5, Fuji IX100',
-        'allowed_for': ['B', 'C'],
+        'allowed_for': ['II', 'III'],
         'optical_density_min': 1.5,
     },
     {
         'class': 'C5',
         'description': 'Высокочувствительные, крупнозернистые',
         'examples': 'AGFA D7, Fuji IX200',
-        'allowed_for': ['C'],
+        'allowed_for': ['III'],
         'optical_density_min': 1.5,
     },
     {
         'class': 'C6',
         'description': 'Очень высокочувствительные',
         'examples': 'AGFA D8',
-        'allowed_for': ['C'],
+        'allowed_for': ['III'],
         'optical_density_min': 1.5,
     },
 ]
@@ -426,9 +478,38 @@ FILM_NAMES = [
 ]
 
 
+def get_film_for_category(weld_category: str) -> list:
+    """Возвращает рекомендуемые плёнки для категории сварного соединения."""
+    return [f for f in FILM_CLASSES if weld_category in f['allowed_for']]
+
+
 def get_film_for_class(control_class: str) -> list:
-    """Возвращает рекомендуемые плёнки для заданного класса контроля."""
-    return [f for f in FILM_CLASSES if control_class in f['allowed_for']]
+    """Синоним get_film_for_category() для обратной совместимости."""
+    return get_film_for_category(control_class)
+
+
+# ------------------------------------------------------------------
+# Типовые размеры радиографической плёнки, мм (длина × ширина)
+# ------------------------------------------------------------------
+STANDARD_FILM_SIZES = [
+    {'code': '120x100', 'length_mm': 120, 'width_mm': 100, 'label': '120 × 100'},
+    {'code': '240x100', 'length_mm': 240, 'width_mm': 100, 'label': '240 × 100'},
+    {'code': '480x100', 'length_mm': 480, 'width_mm': 100, 'label': '480 × 100'},
+]
+
+
+def get_film_size_choices():
+    """Список типовых размеров плёнки для выпадающего списка."""
+    return [(s['code'], s['label']) for s in STANDARD_FILM_SIZES]
+
+
+def parse_film_size(film_size_code: str) -> dict:
+    """Возвращает длину и ширину плёнки по коду типового размера."""
+    for size in STANDARD_FILM_SIZES:
+        if size['code'] == film_size_code:
+            return size
+    # Значение по умолчанию — 240×100
+    return STANDARD_FILM_SIZES[1]
 
 
 def get_film_choices():
@@ -440,18 +521,18 @@ def get_film_choices():
 # Максимальная геометрическая нерезкость (мм)
 # ------------------------------------------------------------------
 MAX_GEOMETRIC_UNSHARPNESS = {
-    'A': 0.3,
-    'B': 0.4,
-    'C': 0.5,
+    'I': 0.3,
+    'II': 0.4,
+    'III': 0.5,
 }
 
 # ------------------------------------------------------------------
 # Оптическая плотность плёнки
 # ------------------------------------------------------------------
 OPTICAL_DENSITY = {
-    'A': {'min': 2.0, 'max': 4.5},
-    'B': {'min': 1.5, 'max': 4.5},
-    'C': {'min': 1.5, 'max': 4.5},
+    'I': {'min': 2.0, 'max': 4.5},
+    'II': {'min': 1.5, 'max': 4.5},
+    'III': {'min': 1.5, 'max': 4.5},
 }
 
 # ------------------------------------------------------------------
@@ -462,25 +543,25 @@ IQI_TYPES = [
         'code': 'wire',
         'name': 'Проволочный эталон',
         'standard': 'ГОСТ 7512 / ISO 19232-1',
-        'preferred_for': ['A', 'B'],
+        'preferred_for': ['I', 'II'],
     },
     {
         'code': 'duplex',
         'name': 'Дуплекс-эталон',
         'standard': 'ISO 19232-5',
-        'preferred_for': ['A'],
+        'preferred_for': ['I'],
     },
     {
         'code': 'groove',
         'name': 'Канавочный эталон',
         'standard': 'ГОСТ 7512 / ISO 19232-2',
-        'preferred_for': ['B', 'C'],
+        'preferred_for': ['II', 'III'],
     },
     {
         'code': 'step_hole',
         'name': 'Пластинчатый (ступенчато-дырчатый) эталон',
         'standard': 'ГОСТ 7512 / ISO 19232-3',
-        'preferred_for': ['B', 'C'],
+        'preferred_for': ['II', 'III'],
     },
 ]
 
@@ -519,7 +600,7 @@ def calc_geometric_unsharpness(focal_spot_mm: float, sfd_mm: float, ofd_mm: floa
     return round(unsharpness, 3)
 
 
-def calc_min_sfd(focal_spot_mm: float, ofd_mm: float, control_class: str) -> float:
+def calc_min_sfd(focal_spot_mm: float, ofd_mm: float, weld_category: str) -> float:
     """
     Расчёт минимального расстояния источник–детектор (SFD) из условия
     ограничения геометрической нерезкости.
@@ -529,10 +610,10 @@ def calc_min_sfd(focal_spot_mm: float, ofd_mm: float, control_class: str) -> flo
 
     :param focal_spot_mm: размер фокусного пятна, мм
     :param ofd_mm: расстояние объект–детектор, мм
-    :param control_class: класс контроля
+    :param weld_category: категория сварного соединения (I/II/III)
     :return: минимальное SFD, мм
     """
-    ug_max = MAX_GEOMETRIC_UNSHARPNESS[control_class]
+    ug_max = MAX_GEOMETRIC_UNSHARPNESS.get(weld_category, 0.5)
     min_sfd = ofd_mm * (focal_spot_mm + ug_max) / ug_max
     return round(min_sfd, 1)
 
@@ -652,7 +733,7 @@ FILM_PROCESSING = {
 # Требования к персоналу
 # ------------------------------------------------------------------
 PERSONNEL_REQUIREMENTS = {
-    'A': {
+    'I': {
         'level': 'II или III уровень',
         'standard': 'ГОСТ Р ИСО 9712 (EN 473)',
         'method': 'РК (RT)',
@@ -661,13 +742,13 @@ PERSONNEL_REQUIREMENTS = {
             'Специалист III уровня вправе разрабатывать процедуры контроля.'
         ),
     },
-    'B': {
+    'II': {
         'level': 'II или III уровень',
         'standard': 'ГОСТ Р ИСО 9712 (EN 473)',
         'method': 'РК (RT)',
         'additional': 'Специалист II уровня вправе проводить контроль и интерпретировать результаты.',
     },
-    'C': {
+    'III': {
         'level': 'II уровень',
         'standard': 'ГОСТ Р ИСО 9712 (EN 473)',
         'method': 'РК (RT)',

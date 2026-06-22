@@ -76,10 +76,9 @@ function toggleDiameterField(objectType) {
  * Показывает информацию о категории сварного шва.
  */
 var categoryDescriptions = {
-  'I':   'Категория I — первый контур реакторной установки. Класс чувствительности А.',
-  'II':  'Категория II — вспомогательные системы. Класс чувствительности В.',
-  'III': 'Категория III — прочее оборудование. Класс чувствительности С.',
-  'IV':  'Категория IV — строительные конструкции. Класс чувствительности С.',
+  'I':   'Категория I — первый контур реакторной установки.',
+  'II':  'Категория II — вспомогательные системы.',
+  'III': 'Категория III — прочее оборудование.',
 };
 
 function updateCategoryInfo(category) {
@@ -97,6 +96,7 @@ function updateCategoryInfo(category) {
  */
 function initSourceSelector() {
   var thicknessInput = document.getElementById('id_wall_thickness');
+  var materialInput = document.getElementById('id_material');
   var sourceSelect = document.getElementById('id_source_code');
   var sourcesInfo = document.getElementById('sources-info');
 
@@ -107,7 +107,12 @@ function initSourceSelector() {
     var thickness = parseFloat(thicknessInput.value);
     if (!thickness || isNaN(thickness)) return;
 
-    fetch('/ajax/sources/?thickness=' + thickness)
+    var url = '/ajax/sources/?thickness=' + thickness;
+    if (materialInput && materialInput.value) {
+      url += '&material=' + encodeURIComponent(materialInput.value);
+    }
+
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.sources) return;
@@ -145,6 +150,9 @@ function initSourceSelector() {
 
   thicknessInput.addEventListener('change', updateSources);
   thicknessInput.addEventListener('blur', updateSources);
+  if (materialInput) {
+    materialInput.addEventListener('change', updateSources);
+  }
 }
 
 

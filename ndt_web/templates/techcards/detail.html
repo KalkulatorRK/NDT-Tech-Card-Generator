@@ -75,8 +75,8 @@
           {% if params.outer_diameter %}<tr><td class="text-muted">Наружный диаметр, мм</td><td>{{ params.outer_diameter }}</td></tr>{% endif %}
           <tr><td class="text-muted">Категория шва</td><td>{{ params.weld_category }}</td></tr>
           <tr><th class="text-primary pt-3" colspan="2">Параметры контроля</th></tr>
-          <tr><td class="text-muted">Класс контроля</td><td class="fw-semibold">{{ params.control_class_name }}</td></tr>
-          <tr><td class="text-muted">Требуемая чувствительность</td><td>{{ params.sensitivity_desc }}</td></tr>
+          <tr><td class="text-muted">Категория сварного соединения</td><td class="fw-semibold">{{ params.weld_category }}</td></tr>
+          <tr><td class="text-muted">Требуемая чувствительность K</td><td>{{ params.sensitivity_desc }}</td></tr>
           {% with src=params.selected_source %}
           <tr><td class="text-muted">Источник излучения</td><td>{{ src.name|default:"—" }}</td></tr>
           <tr><td class="text-muted">Энергия</td><td>{{ src.energy_display|default:"—" }}</td></tr>

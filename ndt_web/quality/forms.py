@@ -27,7 +27,7 @@ class QualityAssessmentForm(forms.Form):
         choices=WELD_CATEGORY_CHOICES,
         label='Категория сварного соединения (по НП-104-18) *',
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Категория I — первый контур АЭУ; IV — вспомогательные конструкции.',
+        help_text='Категория I — первый контур АЭУ; II — вспомогательные системы; III — прочее оборудование.',
     )
     wall_thickness = forms.FloatField(
         min_value=0.5, max_value=500,

@@ -128,22 +128,20 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
     })
 
     sections.append({
-        'title': '3. Класс чувствительности контроля',
-        'normative_ref': 'НП-104-18 (категории сварных соединений I–IV)',
+        'title': '3. Категория сварного соединения',
+        'normative_ref': 'НП-104-18; НП-105-18, Таблица N 4.8',
         'logic': (
-            'Категория сварного соединения по НП-104-18 однозначно определяет '
-            'класс чувствительности радиографического контроля: A (высокий), '
-            'B (стандартный) или C (основной). Класс влияет на допустимую '
-            'геометрическую нерезкость, класс плёнки и требования к персоналу.'
+            'Категория сварного соединения по НП-104-18 определяет объём контроля '
+            'и нормы оценки качества по НП-105-18 (табл. 4.8). '
+            'Для оценки качества применяются категории I, II и III.'
         ),
         'variables': [],
-        'formula': 'Категория шва → класс контроля (таблица НП-104-18)',
+        'formula': 'Категория шва → нормы табл. 4.8 НП-105-18',
         'steps': [
             f'Категория сварного соединения: {params.get("weld_category", "—")}',
-            f'Определён класс контроля: {params.get("control_class", "—")} '
-            f'({params.get("control_class_name", "")})',
+            f'Объём контроля: {params.get("control_volume_pct", "—")} %',
         ],
-        'result': f'Класс контроля: {params.get("control_class_name", "—")}',
+        'result': f'Категория: {params.get("weld_category", "—")}',
         'notes': '',
     })
 
@@ -157,11 +155,11 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
             'от числа просвечиваемых стенок. Значение K — диаметр проволоки ИКИ в мм.'
         ),
         'variables': ['S', 'g_min', 'S_K', 'K'],
-        'formula': 'S_K = S + g_min; K = f(S_K, класс контроля) по Табл. 4.8 НП-105-18',
+        'formula': 'S_K = S + g_min; K = f(S_K, категория) по Табл. 4.8 НП-105-18',
         'steps': [
             f'S = {S} мм, g_min = {g_min} мм',
             f'S_K = S + g_min = {S} + {g_min} = {params.get("s_k_mm", "—")} мм',
-            f'Класс контроля: {params.get("control_class", "—")}',
+            f'Категория сварного соединения: {params.get("weld_category", "—")}',
             f'По Табл. 4.8 НП-105-18: K ≤ {params.get("required_sensitivity_mm", "—")} мм '
             f'({params.get("required_sensitivity_pct", "—")} %)',
         ],
@@ -200,15 +198,16 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'title': '6. Выбор источника излучения',
         'normative_ref': f'{DOCUMENT_CODE}, раздел 5.1',
         'logic': (
-            'По толщине стенки S подбираются применимые источники излучения. '
-            'Оптимальный источник обеспечивает требуемую чувствительность '
-            'при минимальной экспозиции. Пользователь может выбрать источник вручную; '
-            'система проверяет применимость для заданной толщины.'
+            'По толщине и материалу контролируемого объекта подбираются применимые '
+            'источники излучения (ГОСТ Р 50.05.07-2018, табл. Б.1–Б.3). '
+            'Оптимальный источник обеспечивает требуемую чувствительность K '
+            'при минимальной экспозиции.'
         ),
-        'variables': ['S'],
-        'formula': 'Диапазон толщин источника: S_min ≤ S ≤ S_max (таблица ГОСТ)',
+        'variables': ['S', 'материал'],
+        'formula': 'Источники по табл. Б.1–Б.3 для стали / алюминия / титана',
         'steps': [
             f'Толщина S = {S} мм',
+            f'Материал: {params.get("material_display", params.get("material", "—"))}',
             f'Применимые источники: {len(params.get("suitable_sources", []))} шт.',
             f'Выбран: {src.get("name", "—")} ({src.get("code", "—")})',
             f'Энергия: {src.get("energy_display", "—")}',
@@ -275,13 +274,13 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
     sfd_used = params.get('sfd_used_mm', '')
     sections.append({
         'title': '8. Геометрическая нерезкость Ug',
-        'normative_ref': f'{DOCUMENT_CODE}, п. 6.5; допустимые значения по классу контроля',
+        'normative_ref': f'{DOCUMENT_CODE}, п. 6.5; ГОСТ Р 50.05.07-2018',
         'logic': (
             'Геометрическая нерезкость зависит от размера фокусного пятна, '
             'расстояния объект–детектор b и расстояния источник–детектор f. '
             'Если пользователь не задал SFD, используется рассчитанное f_min. '
             'Итоговое SFD = max(SFD_ввод, f_min). Результат сравнивается '
-            'с допустимым Ug для класса контроля.'
+            'с допустимым Ug по требуемой чувствительности K.'
         ),
         'variables': ['Φ (d)', 'b (OFD)', 'f (SFD)', 'Ug'],
         'formula': 'Ug = Φ × b / (f − b)',
@@ -292,8 +291,7 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
             f'f_min из схемы = {scheme.get("f_min_mm", params.get("f_calculated_mm", "—"))} мм',
             f'SFD использованное = max(ввод, f_min) = {sfd_used} мм',
             params.get('ug_calculation', ''),
-            f'Допустимый Ug_max для класса {params.get("control_class", "")}: '
-            f'{params.get("max_geometric_unsharpness_mm", "—")} мм',
+            f'Допустимый Ug_max: {params.get("max_geometric_unsharpness_mm", "—")} мм',
             f'Проверка: {"соответствует" if params.get("geometric_unsharpness_ok") else "ПРЕВЫШЕНО"}',
         ],
         'result': (
@@ -307,8 +305,9 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'title': '9. Плёнка, экраны и ИКИ',
         'normative_ref': f'{DOCUMENT_CODE}, разделы 5.3–5.4; ГОСТ ИСО 11699-1',
         'logic': (
-            'Класс плёнки выбирается по классу контроля. Толщина свинцовых экранов '
-            'зависит от типа источника. Диаметр проволоки ИКИ не менее требуемого K.'
+            'Класс плёнки (ГОСТ ИСО 11699-1) подбирается по категории сварного соединения. '
+            'Толщина свинцовых экранов зависит от типа источника. '
+            'Диаметр проволоки ИКИ не менее требуемого K.'
         ),
         'variables': ['K'],
         'formula': 'Диаметр проволоки ИКИ ≥ K (ближайший стандартный размер)',

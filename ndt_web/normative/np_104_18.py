@@ -34,7 +34,6 @@ WELD_CATEGORIES = {
             'Парогенераторы (сварные швы корпуса)',
         ],
         'control_volume': 100,  # % объёма контроля
-        'rt_sensitivity_class': 'A',   # класс чувствительности по ГОСТ Р 50.05.07-2018
     },
     'II': {
         'code': 'II',
@@ -51,7 +50,6 @@ WELD_CATEGORIES = {
             'Оборудование спецводоочистки',
         ],
         'control_volume': 100,
-        'rt_sensitivity_class': 'B',
     },
     'III': {
         'code': 'III',
@@ -65,7 +63,6 @@ WELD_CATEGORIES = {
             'Технологическое оборудование вне зоны реактора',
         ],
         'control_volume': 25,
-        'rt_sensitivity_class': 'C',
     },
     'IV': {
         'code': 'IV',
@@ -80,7 +77,6 @@ WELD_CATEGORIES = {
             'Элементы систем вентиляции (вне зоны реактора)',
         ],
         'control_volume': 10,
-        'rt_sensitivity_class': 'C',
     },
 }
 
@@ -120,17 +116,18 @@ def get_category_info(category_code: str) -> dict:
     return WELD_CATEGORIES.get(category_code, {})
 
 
-def get_rt_sensitivity_class(category_code: str) -> str:
+def get_quality_category_choices():
     """
-    Возвращает класс чувствительности радиографического контроля
-    для заданной категории сварного соединения.
+    Категории сварных соединений для оценки качества по НП-105-18 (табл. 4.8).
+    Допускаются только категории I, II и III.
     """
-    category = WELD_CATEGORIES.get(category_code)
-    if category:
-        return category['rt_sensitivity_class']
-    return 'C'   # По умолчанию — наименее жёсткий класс
+    return [
+        (code, f"{code} — {info['name']}")
+        for code, info in WELD_CATEGORIES.items()
+        if code in ('I', 'II', 'III')
+    ]
 
 
 def get_choices():
-    """Возвращает список кортежей для использования в полях выбора Django."""
-    return [(code, f"{code} — {info['name']}") for code, info in WELD_CATEGORIES.items()]
+    """Список кортежей для полей выбора (категории I–III для РГК и оценки качества)."""
+    return get_quality_category_choices()

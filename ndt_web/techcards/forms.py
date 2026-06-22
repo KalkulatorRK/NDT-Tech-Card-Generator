@@ -7,7 +7,7 @@
 
 from django import forms
 from normative.gost_50_05_07 import (
-    get_source_choices,     get_film_choices, get_iqi_choices, get_film_size_choices,
+    get_source_choices,     get_film_choices, get_iqi_choices,
     get_suitable_films,
 )
 from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
@@ -241,17 +241,6 @@ class TechCardStep3Form(forms.Form):
         }),
         help_text='Укажите из паспорта источника. Используется для расчёта времени экспозиции.',
     )
-    film_size = forms.ChoiceField(
-        choices=[('', '— Выберите размер —')] + get_film_size_choices(),
-        required=False,
-        label='Размер плёнки (длина × ширина), мм',
-        initial='240x100',
-        widget=forms.Select(attrs={
-            'class': 'form-select',
-            'id': 'id_film_size',
-        }),
-        help_text='Типовые размеры плёнки. Используется для схемы 3б и поля 5.7 техкарты.',
-    )
     ofd_mm = forms.FloatField(
         min_value=0, max_value=200,
         label='Расстояние объект–детектор (b), мм',
@@ -274,27 +263,14 @@ class TechCardStep3Form(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_film_name'}),
         help_text='Список формируется по табл. Б после выбора источника излучения.',
     )
-    film_name_custom = forms.CharField(
-        required=False,
-        label='Или введите тип плёнки вручную',
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Например: РТ-4МС или другая плёнка',
-            'id': 'id_film_name_custom',
-        }),
-    )
 
     def clean(self):
         cleaned = super().clean()
         film = cleaned.get('film_name')
-        custom = (cleaned.get('film_name_custom') or '').strip()
-        cleaned['film_name_custom'] = custom
-        if custom and not film:
-            cleaned['film_name'] = custom
-        elif film and self._allowed_films and film not in self._allowed_films:
+        if film and self._allowed_films and film not in self._allowed_films:
             self.add_error(
                 'film_name',
-                'Выберите плёнку из списка табл. Б или укажите свой вариант вручную.',
+                'Выберите плёнку из списка, сформированного по табл. Б.',
             )
         return cleaned
 

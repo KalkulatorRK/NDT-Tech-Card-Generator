@@ -100,10 +100,6 @@
               <div class="form-text">{{ form.film_name.help_text }}</div>
               {% endif %}
             </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.film_name_custom.label }}</label>
-              {{ form.film_name_custom }}
-            </div>
 
             <!-- OFD -->
             <div class="col-md-6">
@@ -111,15 +107,6 @@
               {{ form.ofd_mm }}
               {% if form.ofd_mm.help_text %}
               <div class="form-text">{{ form.ofd_mm.help_text }}</div>
-              {% endif %}
-            </div>
-
-            <!-- Размер плёнки -->
-            <div class="col-md-6" id="film-size-block">
-              <label class="form-label">{{ form.film_size.label }}</label>
-              {{ form.film_size }}
-              {% if form.film_size.help_text %}
-              <div class="form-text">{{ form.film_size.help_text }}</div>
               {% endif %}
             </div>
 
@@ -133,6 +120,7 @@
               <li><strong>f</strong> — минимальное расстояние от источника до объекта (мм)</li>
               <li><strong>N</strong> — минимальное число экспозиций (шт.)</li>
               <li><strong>L</strong> — длина контролируемого участка за 1 экспозицию (мм)</li>
+              <li><strong>Размер плёнки</strong> — подбирается автоматически по L (120×100, 240×100 или 480×100 мм)</li>
               <li><strong>Ug</strong> — геометрическая нерезкость (мм)</li>
               <li><strong>K</strong> — требуемая чувствительность контроля (мм)</li>
             </ul>
@@ -174,7 +162,6 @@ var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
 var schemeImage = document.getElementById('scheme-image');
 var schemeDesc = document.getElementById('scheme-description');
-var filmSizeBlock = document.getElementById('film-size-block');
 var sourceSelect = document.getElementById('id_source_code');
 var filmSelect = document.getElementById('id_film_name');
 
@@ -185,9 +172,6 @@ function updateSchemeUI(val) {
     schemeImageBlock.style.display = '';
   } else {
     schemeImageBlock.style.display = 'none';
-  }
-  if (filmSizeBlock) {
-    filmSizeBlock.style.display = (val === '5b') ? '' : 'none';
   }
 }
 

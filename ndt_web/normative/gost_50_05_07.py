@@ -548,6 +548,22 @@ def parse_film_size(film_size_code: str) -> dict:
     return STANDARD_FILM_SIZES[1]
 
 
+def select_film_size_for_length(L_mm) -> dict:
+    """
+    Подбирает типовой размер плёнки по длине контролируемого участка L, мм.
+
+    Выбирается наименьший типовой размер, длина которого не меньше L.
+    Если L не задана — 240×100; если L больше 480 мм — 480×100.
+    """
+    if L_mm is None or L_mm <= 0:
+        return STANDARD_FILM_SIZES[1]  # 240×100 по умолчанию
+    L = float(L_mm)
+    for size in STANDARD_FILM_SIZES:
+        if size['length_mm'] >= L:
+            return size
+    return STANDARD_FILM_SIZES[-1]
+
+
 def get_film_choices():
     """Полный список плёнок (для обратной совместимости)."""
     return [(f, f) for f in FILM_NAMES]

@@ -247,8 +247,6 @@ def create_step3_view(request, doc_code):
         )
         if form.is_valid():
             data = form.cleaned_data
-            if not data.get('film_name') and data.get('film_name_custom'):
-                data['film_name'] = data['film_name_custom']
             _save_session_data(request, data)
             return redirect('create_step4', doc_code=doc_code)
     else:
@@ -352,7 +350,6 @@ def _build_human_readable_summary(data: dict) -> list:
         'focal_spot_mm':      'Размер фокусного пятна (Φ), мм',
         'source_activity':    'Активность источника',
         'scheme_type':        'Схема просвечивания',
-        'film_size':          'Размер плёнки, мм',
         'ofd_mm':             'Расстояние объект–детектор (b), мм',
         'film_name':          'Тип радиографической плёнки',
     }
@@ -370,7 +367,7 @@ def _build_human_readable_summary(data: dict) -> list:
         ]),
         ('3. Параметры просвечивания', [
             'source_code', 'focal_spot_mm', 'source_activity',
-            'scheme_type', 'film_size', 'ofd_mm', 'film_name',
+            'scheme_type', 'ofd_mm', 'film_name',
         ]),
     ]
 
@@ -383,9 +380,6 @@ def _build_human_readable_summary(data: dict) -> list:
                 val,
                 data.get('material_custom', ''),
             )
-        if key == 'film_size':
-            from normative.gost_50_05_07 import parse_film_size
-            return parse_film_size(val).get('label', val)
         if key == 'object_type':
             return OBJECT_TYPES.get(val, val)
         if key == 'weld_category':

@@ -36,6 +36,7 @@ from normative.gost_50_05_07 import (
     OPTICAL_DENSITY, PERSONNEL_REQUIREMENTS, SAFETY_REQUIREMENTS,
     FILM_PROCESSING, IQI_TYPES, DOCUMENT_CODE, DOCUMENT_FULL_NAME,
     parse_film_size,
+    select_film_size_for_length,
 )
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 from normative.np_104_18 import WELD_CATEGORIES
@@ -323,9 +324,6 @@ class RadiographicTechCardCalculator:
 
         focal = self.params['source_focal_spot_mm']
         sensitivity_mm = self.params.get('required_sensitivity_mm', 0.5)
-        film_size = parse_film_size(self.data.get('film_size', '240x100') or '240x100')
-        film_length = float(film_size['length_mm'])
-        film_width = float(film_size['width_mm'])
 
         # Схема просвечивания — выбор пользователя или авторекомендация
         scheme = self.data.get('scheme_type', '').strip()
@@ -334,16 +332,36 @@ class RadiographicTechCardCalculator:
             scheme = recommended[0] if recommended else '4_6'
             self.params['scheme_auto_selected'] = True
 
-        # Точный расчёт параметров по выбранной схеме
-        calc_result = calc_exposure_parameters(
+        sens = sensitivity_mm if sensitivity_mm > 0 else 0.5
+        calc_kwargs = dict(
             scheme=scheme,
             focal_spot_mm=focal,
-            sensitivity_mm=sensitivity_mm if sensitivity_mm > 0 else 0.5,
-            thickness_mm=S,          # для схемы 4.6
+            sensitivity_mm=sens,
+            thickness_mm=S,
             d_outer_mm=D or 0,
             d_inner_mm=d_inner,
-            film_length_mm=film_length,
         )
+
+        if scheme == '5b':
+            # Длина плёнки — вход 5б; сначала оценка L с максимальным типовым размером
+            initial_length = float(parse_film_size('480x100')['length_mm'])
+            calc_result = calc_exposure_parameters(
+                **calc_kwargs, film_length_mm=initial_length,
+            )
+            film_size = select_film_size_for_length(calc_result.get('L_mm'))
+            film_length = float(film_size['length_mm'])
+            if film_length != initial_length:
+                calc_result = calc_exposure_parameters(
+                    **calc_kwargs, film_length_mm=film_length,
+                )
+                film_size = select_film_size_for_length(calc_result.get('L_mm'))
+                film_length = float(film_size['length_mm'])
+        else:
+            calc_result = calc_exposure_parameters(**calc_kwargs)
+            film_size = select_film_size_for_length(calc_result.get('L_mm'))
+
+        film_length = float(film_size['length_mm'])
+        film_width = float(film_size['width_mm'])
 
         if calc_result.get('error'):
             self.warnings.append(f'Схема {scheme}: {calc_result["error"]}')

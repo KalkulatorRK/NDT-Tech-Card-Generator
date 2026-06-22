@@ -80,6 +80,14 @@ class NormativeDataTests(TestCase):
         expected = 5 * (2.0 + 0.3) / 0.3
         self.assertAlmostEqual(min_sfd, round(expected, 1), places=1)
 
+    def test_select_film_size_for_length(self):
+        """Типовой размер плёнки подбирается по длине участка L."""
+        from normative.gost_50_05_07 import select_film_size_for_length
+        self.assertEqual(select_film_size_for_length(80)['code'], '120x100')
+        self.assertEqual(select_film_size_for_length(138)['code'], '240x100')
+        self.assertEqual(select_film_size_for_length(400)['code'], '480x100')
+        self.assertEqual(select_film_size_for_length(None)['code'], '240x100')
+
     def test_suitable_sources_iridium_steel_from_5mm(self):
         """Иридий-192 по табл. Б.1 (сталь) применим с 5 мм."""
         sources = get_suitable_sources(10, 'steel')
@@ -245,13 +253,16 @@ class TechCardCalculatorTests(TestCase):
         params = calc.calculate()
         self.assertEqual(params['weld_category'], 'I')
 
-    def test_film_size_standard(self):
-        """Типовой размер плёнки записывается в параметры."""
-        data = dict(self.base_input, film_size='480x100')
-        calc = RadiographicTechCardCalculator(data)
+    def test_film_size_auto_selected(self):
+        """Размер плёнки подбирается автоматически по длине участка L."""
+        calc = RadiographicTechCardCalculator(self.base_input)
         params = calc.calculate()
-        self.assertEqual(params['film_length_mm'], 480)
+        L = params.get('L_calculated_mm')
+        self.assertIsNotNone(L)
+        # Для схемы 5a, D=219.1: L≈138 мм → 240×100
+        self.assertEqual(params['film_length_mm'], 240)
         self.assertEqual(params['film_width_mm'], 100)
+        self.assertEqual(params['film_size_label'], '240 × 100')
 
     def test_material_type_resolved(self):
         """Тип материала определяется для выбора источника."""

@@ -100,6 +100,10 @@
               <div class="form-text">{{ form.film_name.help_text }}</div>
               {% endif %}
             </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.film_name_custom.label }}</label>
+              {{ form.film_name_custom }}
+            </div>
 
             <!-- OFD -->
             <div class="col-md-6">
@@ -163,12 +167,16 @@
 {% block extra_js %}
 <script>
 var SCHEME_DATA = {{ scheme_ui_json|safe }};
+var WALL_THICKNESS = {{ wall_thickness }};
+var SESSION_MATERIAL = '{{ session_material|escapejs }}';
 
 var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
 var schemeImage = document.getElementById('scheme-image');
 var schemeDesc = document.getElementById('scheme-description');
 var filmSizeBlock = document.getElementById('film-size-block');
+var sourceSelect = document.getElementById('id_source_code');
+var filmSelect = document.getElementById('id_film_name');
 
 function updateSchemeUI(val) {
   if (val && SCHEME_DATA[val]) {
@@ -178,15 +186,48 @@ function updateSchemeUI(val) {
   } else {
     schemeImageBlock.style.display = 'none';
   }
-  // Размер плёнки актуален для схемы 3б (5б)
   if (filmSizeBlock) {
     filmSizeBlock.style.display = (val === '5b') ? '' : 'none';
   }
 }
 
+function updateFilmChoices() {
+  if (!filmSelect) return;
+  var source = sourceSelect ? sourceSelect.value : '';
+  var url = '/ajax/films/?thickness=' + WALL_THICKNESS
+    + '&material=' + encodeURIComponent(SESSION_MATERIAL);
+  if (source) {
+    url += '&source=' + encodeURIComponent(source);
+  }
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var current = filmSelect.value;
+      while (filmSelect.options.length > 1) {
+        filmSelect.remove(1);
+      }
+      (data.films || []).forEach(function(f) {
+        var opt = document.createElement('option');
+        opt.value = f.code;
+        opt.textContent = f.name;
+        filmSelect.appendChild(opt);
+      });
+      if (current && Array.from(filmSelect.options).some(function(o) { return o.value === current; })) {
+        filmSelect.value = current;
+      }
+    })
+    .catch(function(err) {
+      console.warn('AJAX ошибка (плёнки):', err);
+    });
+}
+
 if (schemeSelect) {
   schemeSelect.addEventListener('change', function() { updateSchemeUI(this.value); });
-  updateSchemeUI(schemeSelect.value); // Инициализация при загрузке
+  updateSchemeUI(schemeSelect.value);
+}
+if (sourceSelect) {
+  sourceSelect.addEventListener('change', updateFilmChoices);
+  updateFilmChoices();
 }
 </script>
 {% endblock %}

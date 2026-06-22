@@ -22,7 +22,7 @@ from .generator import generate_tech_card, regenerate_techcard_files, get_defaul
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
-from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info
+from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 
 
@@ -240,16 +240,24 @@ def create_step3_view(request, doc_code):
     )
 
     if request.method == 'POST':
-        form = TechCardStep3Form(request.POST)
+        form = TechCardStep3Form(
+            request.POST,
+            wall_thickness=wall_thickness,
+            material_type=material_type,
+        )
         if form.is_valid():
             data = form.cleaned_data
-            # Применяем ручной ввод плёнки
             if not data.get('film_name') and data.get('film_name_custom'):
                 data['film_name'] = data['film_name_custom']
             _save_session_data(request, data)
             return redirect('create_step4', doc_code=doc_code)
     else:
-        form = TechCardStep3Form()
+        form = TechCardStep3Form(
+            wall_thickness=wall_thickness,
+            material_type=material_type,
+        )
+
+    recommended_films = get_suitable_films(wall_thickness, material_type)
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
     return render(request, 'techcards/create_step3.html', {
@@ -262,6 +270,9 @@ def create_step3_view(request, doc_code):
         'wall_thickness': wall_thickness,
         'material_display': material_display,
         'table_b_info': table_b_info,
+        'recommended_films': recommended_films,
+        'material_type': material_type,
+        'session_material': session_data.get('material', ''),
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
     })
 
@@ -585,6 +596,24 @@ def get_sources_ajax(request):
     material_type = resolve_material_type(material)
     sources = get_suitable_sources(thickness, material_type)
     return JsonResponse({'sources': sources})
+
+
+def get_films_ajax(request):
+    """AJAX: допустимые плёнки по табл. Б для толщины, материала и источника."""
+    thickness = request.GET.get('thickness', 10)
+    material = request.GET.get('material', '')
+    source_code = request.GET.get('source', '') or None
+    try:
+        thickness = float(thickness)
+    except (ValueError, TypeError):
+        thickness = 10
+
+    material_type = resolve_material_type(material)
+    films = get_suitable_films(thickness, material_type, source_code)
+    return JsonResponse({
+        'films': [{'code': f, 'name': f} for f in films],
+        'table_ref': get_table_b_selection_info(thickness, material_type).get('table_ref'),
+    })
 
 
 def get_joint_zones_ajax(request):

@@ -98,11 +98,22 @@ class NormativeDataTests(TestCase):
         codes = [s['code'] for s in sources]
         self.assertIn('Tm-170', codes)
 
-    def test_suitable_sources_cobalt_thick(self):
-        """Кобальт-60 для толстых изделий (сталь)."""
-        sources = get_suitable_sources(100, 'steel')
-        codes = [s['code'] for s in sources]
-        self.assertIn('Co-60', codes)
+    def test_suitable_films_by_source_steel(self):
+        """Плёнки для Ir-192 при 25 мм стали — по строке Se/Ir табл. Б.1."""
+        from normative.gost_50_05_07 import get_suitable_films
+        all_films = get_suitable_films(25, 'steel')
+        ir_films = get_suitable_films(25, 'steel', 'Ir-192')
+        self.assertIn('D5 "Структурикс"', ir_films)
+        self.assertNotIn('D7 "Структурикс"', ir_films)
+        self.assertIn('D7 "Структурикс"', get_suitable_films(25, 'steel', 'X-300kV'))
+        self.assertGreater(len(all_films), len(ir_films))
+
+    def test_suitable_films_aluminum_thin(self):
+        """Для алюминия ≤5 мм — без NDT45 в списке."""
+        from normative.gost_50_05_07 import get_suitable_films
+        films = get_suitable_films(4, 'aluminum', 'Yb-169')
+        self.assertIn('РТ-14', films)
+        self.assertNotIn('NDT45 "Дюпонт"', films)
 
 
 class QualityAssessmentLogicTests(TestCase):

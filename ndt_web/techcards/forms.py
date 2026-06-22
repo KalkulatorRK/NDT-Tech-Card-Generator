@@ -6,7 +6,10 @@
 """
 
 from django import forms
-from normative.gost_50_05_07 import get_source_choices, get_film_choices, get_iqi_choices, get_film_size_choices
+from normative.gost_50_05_07 import (
+    get_source_choices,     get_film_choices, get_iqi_choices, get_film_size_choices,
+    get_suitable_films,
+)
 from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
 from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices,
@@ -185,6 +188,26 @@ class TechCardStep2Form(forms.Form):
 class TechCardStep3Form(forms.Form):
     """Шаг 3: Источник излучения, схема и геометрия просвечивания."""
 
+    def __init__(self, *args, wall_thickness=None, material_type='steel', **kwargs):
+        super().__init__(*args, **kwargs)
+        self._allowed_films = []
+        if wall_thickness is not None:
+            source_code = None
+            if self.data:
+                source_code = self.data.get('source_code') or None
+            self._allowed_films = get_suitable_films(
+                float(wall_thickness), material_type, source_code,
+            )
+            if self._allowed_films:
+                self.fields['film_name'].choices = (
+                    [('', '— Выберите плёнку —')]
+                    + [(f, f) for f in self._allowed_films]
+                )
+                self.fields['film_name'].help_text = (
+                    'Допустимые плёнки по табл. Б ГОСТ Р 50.05.07-2018 '
+                    'для выбранного источника и толщины.'
+                )
+
     scheme_type = forms.ChoiceField(
         choices=SCHEME_CHOICES,
         label='Схема просвечивания *',
@@ -248,8 +271,8 @@ class TechCardStep3Form(forms.Form):
         choices=[('', '— Выберите плёнку —')] + get_film_choices(),
         required=False,
         label='Тип радиографической плёнки',
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Тип плёнки подбирается по категории сварного соединения. Можно не выбирать — подберётся автоматически.',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_film_name'}),
+        help_text='Список формируется по табл. Б после выбора источника излучения.',
     )
     film_name_custom = forms.CharField(
         required=False,
@@ -257,8 +280,23 @@ class TechCardStep3Form(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Например: РТ-4МС или другая плёнка',
+            'id': 'id_film_name_custom',
         }),
     )
+
+    def clean(self):
+        cleaned = super().clean()
+        film = cleaned.get('film_name')
+        custom = (cleaned.get('film_name_custom') or '').strip()
+        cleaned['film_name_custom'] = custom
+        if custom and not film:
+            cleaned['film_name'] = custom
+        elif film and self._allowed_films and film not in self._allowed_films:
+            self.add_error(
+                'film_name',
+                'Выберите плёнку из списка табл. Б или укажите свой вариант вручную.',
+            )
+        return cleaned
 
 
 class TechCardConfirmForm(forms.Form):

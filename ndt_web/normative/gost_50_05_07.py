@@ -72,6 +72,55 @@ def get_sensitivity_mm(thickness_mm: float, category_or_class: str) -> float:
 # ------------------------------------------------------------------
 XRAY_SOURCE_CODES = ['X-100kV', 'X-200kV', 'X-300kV', 'X-400kV']
 
+# Плёнки для выбора в форме (ГОСТ Р 50.05.07-2018, табл. Б.1–Б.3)
+FILM_NAMES = [
+    'РТ-14', 'РТ-15',
+    'РТ-4М', 'РТ-5М', 'РТ-4В', 'РТ-5В', 'РТ-К',
+    'D2 "Структурикс"', 'D3 "Структурикс"', 'D4 "Структурикс"',
+    'D5 "Структурикс"', 'D7 "Структурикс"',
+    'IX25 "Фуджи"', 'IX50 "Фуджи"', 'IX80 "Фуджи"', 'IX100 "Фуджи"',
+    '"Кодак" М100', '"Кодак" МХ125', '"Кодак" Т200', '"Кодак" АА400',
+    'NDT45 "Дюпонт"', 'NDT55 "Дюпонт"', 'NDT65 "Дюпонт"', 'NDT70 "Дюпонт"',
+    'R4 "Фома"', 'R5 "Фома"', 'R7 "Фома"',
+]
+
+# Наборы плёнок по столбцу «Радиографическая плёнка» табл. Б.1–Б.3
+_FILM_BASIC = [
+    'РТ-14', 'РТ-15', 'D2 "Структурикс"', 'D3 "Структурикс"', 'D4 "Структурикс"',
+    'IX25 "Фуджи"', 'IX50 "Фуджи"',
+]
+_FILM_BASIC_NDT = _FILM_BASIC + ['NDT45 "Дюпонт"']
+_FILM_NDT45_ONLY = ['NDT45 "Дюпонт"']
+_FILM_MEDIUM = _FILM_BASIC_NDT + [
+    'D5 "Структурикс"', 'IX80 "Фуджи"', 'NDT55 "Дюпонт"', 'NDT65 "Дюпонт"',
+    'РТ-4М', 'РТ-5М', 'РТ-4В', 'РТ-5В', 'РТ-К',
+    'R4 "Фома"', 'R5 "Фома"',
+    '"Кодак" М100', '"Кодак" МХ125', '"Кодак" Т200',
+]
+_FILM_FULL = _FILM_MEDIUM + [
+    'D7 "Структурикс"', 'IX100 "Фуджи"', 'NDT70 "Дюпонт"', 'R7 "Фома"', '"Кодак" АА400',
+]
+_FILM_CO60_COMPACT = [
+    'D2 "Структурикс"', 'D3 "Структурикс"', 'D4 "Структурикс"',
+    'IX25 "Фуджи"', 'IX50 "Фуджи"', 'NDT45 "Дюпонт"',
+]
+_FILM_HEAVY = [
+    'РТ-4М', 'РТ-5М', 'РТ-4В', 'РТ-5В', 'РТ-К',
+    'D4 "Структурикс"', 'D5 "Структурикс"', 'D7 "Структурикс"',
+    'R4 "Фома"', 'R5 "Фома"', 'R7 "Фома"',
+    'IX80 "Фуджи"', 'IX100 "Фуджи"',
+    'NDT55 "Дюпонт"', 'NDT65 "Дюпонт"', 'NDT70 "Дюпонт"',
+    '"Кодак" М100', '"Кодак" МХ125', '"Кодак" Т200', '"Кодак" АА400',
+]
+_FILM_TI_CO60 = [
+    'РТ-14', 'РТ-15', 'D2 "Структурикс"', 'D3 "Структурикс"', 'D4 "Структурикс"', 'D5 "Структурикс"',
+    'IX25 "Фуджи"', 'IX50 "Фуджи"', 'IX80 "Фуджи"',
+    'NDT45 "Дюпонт"', 'NDT55 "Дюпонт"', 'NDT65 "Дюпонт"',
+    'РТ-4М', 'РТ-5М', 'РТ-4В', 'РТ-5В', 'РТ-К',
+    'R4 "Фома"', 'R5 "Фома"',
+    '"Кодак" М100', '"Кодак" МХ125', '"Кодак" Т200',
+]
+
 RADIATION_SOURCES = [
     {
         'code': 'Yb-169',
@@ -161,30 +210,34 @@ RADIATION_SOURCES = [
 # Применимость источников по материалу и толщине
 # (ГОСТ Р 50.05.07-2018, Приложение Б, таблицы Б.1–Б.3)
 # ------------------------------------------------------------------
+# Каждая строка: (t_min, t_max, коды источников, допустимые плёнки)
 TABLE_B_SOURCE_RANGES = {
     'steel': [
-        (0, 5, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
-        (5, 20, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
-        (20, 30, XRAY_SOURCE_CODES + ['Se-75', 'Ir-192']),
-        (30, 80, XRAY_SOURCE_CODES + ['Ir-192', 'Co-60']),
-        (80, 100, XRAY_SOURCE_CODES + ['Co-60', 'Ir-192']),
-        (100, 150, ['Co-60']),
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170'], _FILM_BASIC_NDT),
+        (5, 20, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192'], _FILM_MEDIUM),
+        (20, 30, XRAY_SOURCE_CODES, _FILM_FULL),
+        (20, 30, ['Se-75', 'Ir-192'], _FILM_MEDIUM),
+        (30, 80, XRAY_SOURCE_CODES + ['Ir-192'], _FILM_FULL),
+        (30, 80, ['Co-60'], _FILM_CO60_COMPACT),
+        (80, 100, XRAY_SOURCE_CODES + ['Co-60', 'Ir-192'], _FILM_HEAVY),
+        (100, 150, ['Co-60'], _FILM_HEAVY),
     ],
     'aluminum': [
-        (0, 5, XRAY_SOURCE_CODES + ['Yb-169']),
-        (5, 15, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
-        (15, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75']),
-        (40, 60, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
-        (60, 90, XRAY_SOURCE_CODES + ['Ir-192']),
-        (90, 150, XRAY_SOURCE_CODES + ['Ir-192']),
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169'], _FILM_BASIC),
+        (5, 15, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170'], _FILM_NDT45_ONLY),
+        (15, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75'], _FILM_MEDIUM),
+        (40, 60, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192'], _FILM_HEAVY),
+        (60, 90, XRAY_SOURCE_CODES + ['Ir-192'], _FILM_HEAVY),
+        (90, 150, XRAY_SOURCE_CODES + ['Ir-192'], _FILM_HEAVY),
     ],
     'titanium': [
-        (0, 5, XRAY_SOURCE_CODES + ['Yb-169']),
-        (5, 10, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170']),
-        (10, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192']),
-        (40, 60, XRAY_SOURCE_CODES + ['Ir-192']),
-        (60, 100, XRAY_SOURCE_CODES + ['Ir-192', 'Co-60']),
-        (100, 120, ['Ir-192', 'Co-60']),
+        (0, 5, XRAY_SOURCE_CODES + ['Yb-169'], _FILM_BASIC),
+        (5, 10, XRAY_SOURCE_CODES + ['Yb-169', 'Tm-170'], _FILM_NDT45_ONLY),
+        (10, 40, XRAY_SOURCE_CODES + ['Tm-170', 'Se-75', 'Ir-192'], _FILM_MEDIUM),
+        (40, 60, XRAY_SOURCE_CODES + ['Ir-192'], _FILM_HEAVY),
+        (60, 100, XRAY_SOURCE_CODES + ['Ir-192'], _FILM_HEAVY),
+        (60, 100, ['Co-60'], _FILM_TI_CO60),
+        (100, 120, ['Ir-192', 'Co-60'], _FILM_HEAVY),
     ],
 }
 
@@ -206,19 +259,53 @@ def _format_table_b_range_label(t_min: float, t_max: float) -> str:
     return f'св. {t_min:g} до {t_max:g} мм включ.'
 
 
-def _matched_table_b_rows(material_type: str, thickness_mm: float) -> list:
-    """Возвращает строки таблицы Б, соответствующие толщине."""
+def _matched_table_b_rows(material_type: str, thickness_mm: float,
+                          source_code: str = None) -> list:
+    """Возвращает строки таблицы Б, соответствующие толщине и (опционально) источнику."""
     ranges = TABLE_B_SOURCE_RANGES.get(material_type, TABLE_B_SOURCE_RANGES['steel'])
     matched = []
-    for t_min, t_max, row_codes in ranges:
-        if _thickness_in_table_range(thickness_mm, t_min, t_max):
-            matched.append({
-                't_min': t_min,
-                't_max': t_max,
-                'codes': row_codes,
-                'range_label': _format_table_b_range_label(t_min, t_max),
-            })
+    for t_min, t_max, row_codes, films in ranges:
+        if not _thickness_in_table_range(thickness_mm, t_min, t_max):
+            continue
+        if source_code and source_code not in row_codes:
+            continue
+        matched.append({
+            't_min': t_min,
+            't_max': t_max,
+            'codes': row_codes,
+            'films': films,
+            'range_label': _format_table_b_range_label(t_min, t_max),
+        })
     return matched
+
+
+def _unique_films_ordered(film_lists: list) -> list:
+    """Объединяет списки плёнок без дубликатов, сохраняя порядок FILM_NAMES."""
+    combined = []
+    for films in film_lists:
+        combined.extend(films)
+    order = {name: idx for idx, name in enumerate(FILM_NAMES)}
+    unique = list(dict.fromkeys(combined))
+    return sorted(unique, key=lambda f: order.get(f, len(FILM_NAMES)))
+
+
+def get_suitable_films(thickness_mm: float, material_type: str = 'steel',
+                       source_code: str = None) -> list:
+    """
+    Возвращает допустимые типы плёнки по табл. Б.1–Б.3.
+
+    :param source_code: если задан — только плёнки для строк с этим источником
+    """
+    if material_type not in MATERIAL_TYPES:
+        material_type = 'steel'
+    rows = _matched_table_b_rows(material_type, thickness_mm, source_code)
+    return _unique_films_ordered([r['films'] for r in rows])
+
+
+def get_film_choices_for_table_b(thickness_mm: float, material_type: str = 'steel',
+                                 source_code: str = None) -> list:
+    """Кортежи (value, label) для выпадающего списка плёнок."""
+    return [(f, f) for f in get_suitable_films(thickness_mm, material_type, source_code)]
 
 
 def get_table_b_selection_info(thickness_mm: float, material_type: str = 'steel') -> dict:
@@ -258,7 +345,7 @@ def _source_codes_for_material_thickness(material_type: str, thickness_mm: float
     """Возвращает коды источников по таблице Б для материала и толщины."""
     ranges = TABLE_B_SOURCE_RANGES.get(material_type, TABLE_B_SOURCE_RANGES['steel'])
     codes: set = set()
-    for t_min, t_max, row_codes in ranges:
+    for t_min, t_max, row_codes, _films in ranges:
         if _thickness_in_table_range(thickness_mm, t_min, t_max):
             codes.update(row_codes)
     return codes
@@ -380,7 +467,7 @@ SCREEN_REQUIREMENTS = {
 }
 
 # ------------------------------------------------------------------
-# Радиографические плёнки (по ГОСТ ИСО 11699-1)
+# Классы плёнки (ГОСТ ИСО 11699-1) — для справки в техкарте
 # ------------------------------------------------------------------
 FILM_CLASSES = [
     {
@@ -427,78 +514,6 @@ FILM_CLASSES = [
     },
 ]
 
-# ------------------------------------------------------------------
-# Выбор плёнки по материалу и толщине (Таблица Б.1 ГОСТ Р 50.05.07-2018)
-# Данные для стали, основной материал в АЭУ.
-# ------------------------------------------------------------------
-FILM_BY_THICKNESS_STEEL = [
-    # (толщ_мин, толщ_макс, источники, плёнки)
-    (0, 5,
-     'Рентгеновский аппарат, иттербий-169, тулий-170',
-     'РТ-14, РТ-15; D2, D3, D4 "Структурикс"; IX25, IX50 "Фуджи"; NDT45 "Дюпонт"'),
-    (5, 20,
-     'Рентгеновский аппарат, тулий-170, селен-75, иридий-192',
-     'РТ-14, РТ-15; D2, D3, D4, D5 "Структурикс"; IX25, IX50, IX80 "Фуджи"; '
-     'NDT45, NDT55, NDT65 "Дюпонт"; РТ-4, РТ-5, РТ-К; R4, R5 "Фома"; '
-     '"Кодак" М100, МХ125, Т200'),
-    (20, 30,
-     'Рентгеновский аппарат (все толщины), Se-75/Ir-192 (тонкостенная часть диапазона)',
-     'РТ-14, РТ-15; D2–D7 "Структурикс"; IX25–IX100 "Фуджи"; '
-     'NDT45–NDT70 "Дюпонт"; РТ-4, РТ-5, РТ-К; R4, R5, R7 "Фома"; '
-     '"Кодак" М100, МХ125, Т200, АА400'),
-    (30, 80,
-     'Рентгеновский аппарат, иридий-192',
-     'РТ-14, РТ-15; D2–D7 "Структурикс"; IX25–IX100 "Фуджи"; '
-     'NDT45–NDT70 "Дюпонт"; РТ-4, РТ-5, РТ-К; R4, R5, R7 "Фома"'),
-]
-
-
-def get_films_for_thickness(thickness_mm: float) -> str:
-    """Возвращает рекомендуемые плёнки для стали заданной толщины."""
-    for t_min, t_max, sources, films in FILM_BY_THICKNESS_STEEL:
-        if t_min < thickness_mm <= t_max or (t_min == 0 and thickness_mm <= t_max):
-            return films
-    return 'D2–D7 "Структурикс"; IX50–IX100 "Фуджи"; РТ-4, РТ-5'
-
-
-# Плёнки для выбора в форме
-FILM_NAMES = [
-    # Отечественные
-    'РТ-14',
-    'РТ-15',
-    'РТ-4М',
-    'РТ-5М',
-    'РТ-4В',
-    'РТ-5В',
-    'РТ-К',
-    # AGFA (Структурикс)
-    'D2 "Структурикс"',
-    'D3 "Структурикс"',
-    'D4 "Структурикс"',
-    'D5 "Структурикс"',
-    'D7 "Структурикс"',
-    # Fuji
-    'IX25 "Фуджи"',
-    'IX50 "Фуджи"',
-    'IX80 "Фуджи"',
-    'IX100 "Фуджи"',
-    # Kodak
-    '"Кодак" М100',
-    '"Кодак" МХ125',
-    '"Кодак" Т200',
-    '"Кодак" АА400',
-    # DuPont
-    'NDT45 "Дюпонт"',
-    'NDT55 "Дюпонт"',
-    'NDT65 "Дюпонт"',
-    'NDT70 "Дюпонт"',
-    # Foma
-    'R4 "Фома"',
-    'R5 "Фома"',
-    'R7 "Фома"',
-]
-
-
 def get_film_for_category(weld_category: str) -> list:
     """Возвращает рекомендуемые плёнки для категории сварного соединения."""
     return [f for f in FILM_CLASSES if weld_category in f['allowed_for']]
@@ -534,7 +549,7 @@ def parse_film_size(film_size_code: str) -> dict:
 
 
 def get_film_choices():
-    """Список плёнок для выпадающего списка."""
+    """Полный список плёнок (для обратной совместимости)."""
     return [(f, f) for f in FILM_NAMES]
 
 

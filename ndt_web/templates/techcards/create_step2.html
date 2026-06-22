@@ -241,14 +241,62 @@ if (processSelect) {
   });
 }
 
-// Поля ручного ввода (если нужной марки/способа нет в списке)
+// Поля ручного ввода марки материала / способа сварки
 var materialSel = document.getElementById('id_material');
+var materialCustom = document.getElementById('id_material_custom');
+var materialCustomGroup = document.getElementById('material-custom-group');
+var materialCustomLabel = materialCustomGroup ?
+  materialCustomGroup.querySelector('label') : null;
 var weldingCustomSel = document.getElementById('id_welding_process');
-function toggleCustom(sel, groupId) {
+var ALLOY_MATERIALS = ['__titanium__', '__aluminum__'];
+
+function updateMaterialUI() {
+  if (!materialSel || !materialCustomGroup) return;
+  var val = materialSel.value;
+  var isAlloy = ALLOY_MATERIALS.indexOf(val) >= 0;
+  var isEmpty = !val;
+
+  if (isAlloy) {
+    materialCustomGroup.style.display = '';
+    if (materialCustomLabel) {
+      materialCustomLabel.textContent = 'Марка основного металла *';
+    }
+    if (materialCustom) {
+      materialCustom.required = true;
+      materialCustom.placeholder = val === '__titanium__' ?
+        'Например: ВТ6, ОТ4, ПТ-3В' : 'Например: АМг6, АД31, 1915';
+    }
+  } else if (isEmpty) {
+    materialCustomGroup.style.display = '';
+    if (materialCustomLabel) {
+      materialCustomLabel.textContent = 'Или введите марку стали вручную (если нет в списке)';
+    }
+    if (materialCustom) {
+      materialCustom.required = false;
+      materialCustom.placeholder = 'Например: 09ХН10Т или другая марка';
+    }
+  } else {
+    materialCustomGroup.style.display = 'none';
+    if (materialCustom) {
+      materialCustom.required = false;
+      materialCustom.value = '';
+    }
+  }
+}
+
+function toggleWeldingCustom(sel, groupId) {
   var g = document.getElementById(groupId);
   if (g) g.style.display = (!sel.value) ? '' : 'none';
 }
-if (materialSel) { materialSel.addEventListener('change', function(){ toggleCustom(this,'material-custom-group'); }); }
-if (weldingCustomSel) { weldingCustomSel.addEventListener('change', function(){ toggleCustom(this,'welding-custom-group'); }); }
+
+if (materialSel) {
+  materialSel.addEventListener('change', updateMaterialUI);
+  updateMaterialUI();
+}
+if (weldingCustomSel) {
+  weldingCustomSel.addEventListener('change', function() {
+    toggleWeldingCustom(this, 'welding-custom-group');
+  });
+}
 </script>
 {% endblock %}

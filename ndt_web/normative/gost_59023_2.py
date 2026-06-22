@@ -749,13 +749,21 @@ def resolve_material_type(material: str) -> str:
     return 'steel'
 
 
-def get_material_display_name(material: str) -> str:
+def requires_material_grade(material: str) -> bool:
+    """Нужно ли вводить марку основного металла вручную."""
+    return material in (MATERIAL_TITANIUM, MATERIAL_ALUMINUM)
+
+
+def get_material_display_name(material: str, material_grade: str = '') -> str:
     """Возвращает отображаемое название материала."""
+    grade = (material_grade or '').strip()
     if material == MATERIAL_TITANIUM:
-        return 'Сплавы на основе титана'
-    if material == MATERIAL_ALUMINUM:
-        return 'Сплавы на основе алюминия'
-    return material
+        base = 'Сплавы на основе титана'
+    elif material == MATERIAL_ALUMINUM:
+        base = 'Сплавы на основе алюминия'
+    else:
+        return material
+    return f'{base}, марка {grade}' if grade else base
 
 
 def get_material_choices():

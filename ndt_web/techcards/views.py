@@ -22,7 +22,7 @@ from .generator import generate_tech_card, regenerate_techcard_files, get_defaul
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
-from normative.gost_50_05_07 import get_suitable_sources
+from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 
 
@@ -192,7 +192,6 @@ def create_step2_view(request, doc_code):
         form = TechCardStep2Form(request.POST)
         if form.is_valid():
             data = form.cleaned_data
-            # Применяем ручной ввод если выбран пункт "другое"
             if not data.get('material') and data.get('material_custom'):
                 data['material'] = data['material_custom']
             if not data.get('welding_process') and data.get('welding_process_custom'):
@@ -234,6 +233,11 @@ def create_step3_view(request, doc_code):
     wall_thickness = float(session_data.get('wall_thickness', 10))
     material_type = resolve_material_type(session_data.get('material', ''))
     suitable_sources = get_suitable_sources(wall_thickness, material_type)
+    table_b_info = get_table_b_selection_info(wall_thickness, material_type)
+    material_display = get_material_display_name(
+        session_data.get('material', ''),
+        session_data.get('material_custom', ''),
+    )
 
     if request.method == 'POST':
         form = TechCardStep3Form(request.POST)
@@ -256,7 +260,8 @@ def create_step3_view(request, doc_code):
         'step_labels': STEP_LABELS,
         'suitable_sources': suitable_sources,
         'wall_thickness': wall_thickness,
-        'material_display': get_material_display_name(session_data.get('material', '')),
+        'material_display': material_display,
+        'table_b_info': table_b_info,
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
     })
 
@@ -363,7 +368,10 @@ def _build_human_readable_summary(data: dict) -> list:
         if not val:
             return '—'
         if key == 'material':
-            return get_material_display_name(val)
+            return get_material_display_name(
+                val,
+                data.get('material_custom', ''),
+            )
         if key == 'film_size':
             from normative.gost_50_05_07 import parse_film_size
             return parse_film_size(val).get('label', val)

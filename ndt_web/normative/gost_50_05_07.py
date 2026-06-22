@@ -80,11 +80,7 @@ RADIATION_SOURCES = [
         'energy_kev': '50–300',
         'energy_display': '0,05–0,30 МэВ',
         'half_life': '32,0 сут',
-        'thickness_min': 0,
-        'thickness_max': 15,
-        'optimal_min': 1,
-        'optimal_max': 5,
-        'notes': 'Малые толщины, высокая чувствительность',
+        'notes': 'Радионуклидный источник для малых толщин',
     },
     {
         'code': 'Tm-170',
@@ -93,11 +89,7 @@ RADIATION_SOURCES = [
         'energy_kev': '84',
         'energy_display': '0,084 МэВ',
         'half_life': '128,6 сут',
-        'thickness_min': 1,
-        'thickness_max': 15,
-        'optimal_min': 1,
-        'optimal_max': 8,
-        'notes': 'Малые толщины, трубопроводы малого диаметра',
+        'notes': 'Радионуклидный источник для малых и средних толщин',
     },
     {
         'code': 'Se-75',
@@ -106,11 +98,7 @@ RADIATION_SOURCES = [
         'energy_kev': '66–400',
         'energy_display': '0,066–0,40 МэВ',
         'half_life': '119,8 сут',
-        'thickness_min': 10,
-        'thickness_max': 40,
-        'optimal_min': 15,
-        'optimal_max': 30,
-        'notes': 'Стали средних толщин, удобен для труднодоступных мест',
+        'notes': 'Радионуклидный источник для средних толщин',
     },
     {
         'code': 'Ir-192',
@@ -119,10 +107,6 @@ RADIATION_SOURCES = [
         'energy_kev': '310–604',
         'energy_display': '0,31–0,60 МэВ',
         'half_life': '73,8 сут',
-        'thickness_min': 5,
-        'thickness_max': 120,
-        'optimal_min': 15,
-        'optimal_max': 60,
         'notes': 'Наиболее применяемый изотоп для промышленного РГК',
     },
     {
@@ -132,11 +116,7 @@ RADIATION_SOURCES = [
         'energy_kev': '1173–1332',
         'energy_display': '1,17–1,33 МэВ',
         'half_life': '5,27 лет',
-        'thickness_min': 40,
-        'thickness_max': 200,
-        'optimal_min': 60,
-        'optimal_max': 150,
-        'notes': 'Большие толщины металла',
+        'notes': 'Радионуклидный источник для больших толщин',
     },
     {
         'code': 'X-100kV',
@@ -145,11 +125,7 @@ RADIATION_SOURCES = [
         'energy_kev': '≤100',
         'energy_display': 'до 100 кВ',
         'half_life': '—',
-        'thickness_min': 0,
-        'thickness_max': 15,
-        'optimal_min': 2,
-        'optimal_max': 10,
-        'notes': 'Малые толщины, высокое качество изображения',
+        'notes': 'Рентгеновский аппарат для малых толщин',
     },
     {
         'code': 'X-200kV',
@@ -158,11 +134,7 @@ RADIATION_SOURCES = [
         'energy_kev': '100–200',
         'energy_display': '100–200 кВ',
         'half_life': '—',
-        'thickness_min': 5,
-        'thickness_max': 40,
-        'optimal_min': 10,
-        'optimal_max': 30,
-        'notes': 'Стали малых и средних толщин',
+        'notes': 'Рентгеновский аппарат для малых и средних толщин',
     },
     {
         'code': 'X-300kV',
@@ -171,11 +143,7 @@ RADIATION_SOURCES = [
         'energy_kev': '200–300',
         'energy_display': '200–300 кВ',
         'half_life': '—',
-        'thickness_min': 15,
-        'thickness_max': 80,
-        'optimal_min': 20,
-        'optimal_max': 60,
-        'notes': 'Стали средних толщин',
+        'notes': 'Рентгеновский аппарат для средних толщин',
     },
     {
         'code': 'X-400kV',
@@ -184,11 +152,7 @@ RADIATION_SOURCES = [
         'energy_kev': '300–400',
         'energy_display': '300–400 кВ',
         'half_life': '—',
-        'thickness_min': 30,
-        'thickness_max': 120,
-        'optimal_min': 40,
-        'optimal_max': 90,
-        'notes': 'Стали больших толщин',
+        'notes': 'Рентгеновский аппарат для больших толщин',
     },
 ]
 
@@ -226,6 +190,60 @@ TABLE_B_SOURCE_RANGES = {
 
 MATERIAL_TYPES = ('steel', 'aluminum', 'titanium')
 
+TABLE_B_REF = {
+    'steel': 'Б.1',
+    'aluminum': 'Б.2',
+    'titanium': 'Б.3',
+}
+
+
+def _format_table_b_range_label(t_min: float, t_max: float) -> str:
+    """Человекочитаемая подпись диапазона радиационной толщины из табл. Б."""
+    if t_min == 0:
+        return f'не более {t_max:g} мм'
+    if t_max >= 9999:
+        return f'св. {t_min:g} мм'
+    return f'св. {t_min:g} до {t_max:g} мм включ.'
+
+
+def _matched_table_b_rows(material_type: str, thickness_mm: float) -> list:
+    """Возвращает строки таблицы Б, соответствующие толщине."""
+    ranges = TABLE_B_SOURCE_RANGES.get(material_type, TABLE_B_SOURCE_RANGES['steel'])
+    matched = []
+    for t_min, t_max, row_codes in ranges:
+        if _thickness_in_table_range(thickness_mm, t_min, t_max):
+            matched.append({
+                't_min': t_min,
+                't_max': t_max,
+                'codes': row_codes,
+                'range_label': _format_table_b_range_label(t_min, t_max),
+            })
+    return matched
+
+
+def get_table_b_selection_info(thickness_mm: float, material_type: str = 'steel') -> dict:
+    """
+    Справочная информация о применимости источников по табл. Б.1–Б.3.
+
+    :return: словарь с table_ref, range_label, thickness_mm, material_type
+    """
+    if material_type not in MATERIAL_TYPES:
+        material_type = 'steel'
+    rows = _matched_table_b_rows(material_type, thickness_mm)
+    if not rows:
+        return {
+            'table_ref': TABLE_B_REF.get(material_type, 'Б.1'),
+            'range_label': 'нет строки таблицы для данной толщины',
+            'thickness_mm': thickness_mm,
+            'material_type': material_type,
+        }
+    return {
+        'table_ref': TABLE_B_REF.get(material_type, 'Б.1'),
+        'range_label': '; '.join(r['range_label'] for r in rows),
+        'thickness_mm': thickness_mm,
+        'material_type': material_type,
+    }
+
 
 def _thickness_in_table_range(thickness_mm: float, t_min: float, t_max: float) -> bool:
     """Проверяет попадание толщины в диапазон строки таблицы Б."""
@@ -251,6 +269,9 @@ def get_suitable_sources(thickness_mm: float, material_type: str = 'steel') -> l
     Возвращает список источников излучения, применимых для заданной толщины
     и материала контролируемого объекта (таблицы Б.1–Б.3 ГОСТ Р 50.05.07-2018).
 
+    Диапазоны применимости определяются ТОЛЬКО по TABLE_B_SOURCE_RANGES.
+    Справочник RADIATION_SOURCES содержит только паспортные характеристики источников.
+
     :param thickness_mm: радиационная / номинальная толщина, мм
     :param material_type: 'steel', 'aluminum' или 'titanium'
     :return: список словарей с описанием источников
@@ -259,14 +280,14 @@ def get_suitable_sources(thickness_mm: float, material_type: str = 'steel') -> l
         material_type = 'steel'
 
     applicable_codes = _source_codes_for_material_thickness(material_type, thickness_mm)
+    table_info = get_table_b_selection_info(thickness_mm, material_type)
     suitable = []
     for source in RADIATION_SOURCES:
         if source['code'] not in applicable_codes:
             continue
         source_copy = dict(source)
-        source_copy['is_optimal'] = (
-            source['optimal_min'] <= thickness_mm <= source['optimal_max']
-        )
+        source_copy['table_ref'] = table_info['table_ref']
+        source_copy['table_range_label'] = table_info['range_label']
         suitable.append(source_copy)
     return suitable
 

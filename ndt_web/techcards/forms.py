@@ -12,6 +12,7 @@ from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices,
     get_controlled_object_material_choices, get_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
+    MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
 )
 from normative.np_104_18 import get_choices as get_category_choices
 
@@ -74,13 +75,13 @@ class TechCardStep2Form(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_material'}),
     )
 
-    # Подсказка: можно вписать свою марку стали если нет в списке
+    # Марка основного металла (для сплавов Ti/Al или своей марки стали)
     material_custom = forms.CharField(
         required=False,
-        label='Или введите марку стали вручную (если нет в списке)',
+        label='Марка основного металла',
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Например: 09ХН10Т или другая марка',
+            'placeholder': 'Например: ВТ6, АМг6 или 09ХН10Т',
             'id': 'id_material_custom',
         }),
     )
@@ -158,6 +159,20 @@ class TechCardStep2Form(forms.Form):
                 'Для трубопровода необходимо указать наружный диаметр.'
             )
         return diameter
+
+    def clean(self):
+        cleaned = super().clean()
+        material = cleaned.get('material', '')
+        grade = (cleaned.get('material_custom') or '').strip()
+        if requires_material_grade(material) and not grade:
+            self.add_error(
+                'material_custom',
+                'Укажите марку основного металла для выбранного типа сплава.',
+            )
+        elif not material and grade:
+            cleaned['material'] = grade
+        cleaned['material_custom'] = grade
+        return cleaned
 
     def clean_joint_designation(self):
         """Проверяем что обозначение шва выбрано."""

@@ -244,10 +244,20 @@ class TechCardCalculatorTests(TestCase):
 
     def test_material_type_resolved(self):
         """Тип материала определяется для выбора источника."""
-        data = dict(self.base_input, material='__titanium__')
+        data = dict(self.base_input, material='__titanium__', material_custom='ВТ6')
         calc = RadiographicTechCardCalculator(data)
         params = calc.calculate()
         self.assertEqual(params['material_type'], 'titanium')
+        self.assertIn('ВТ6', params['material_display'])
+
+    def test_suitable_sources_have_table_b_metadata(self):
+        """Источники содержат ссылку на табл. Б, без устаревших диапазонов."""
+        from normative.gost_50_05_07 import get_suitable_sources
+        sources = get_suitable_sources(10, 'steel')
+        self.assertTrue(sources)
+        self.assertIn('table_ref', sources[0])
+        self.assertNotIn('thickness_min', sources[0])
+        self.assertNotIn('is_optimal', sources[0])
 
     def test_sensitivity_value_filled(self):
         """Значение чувствительности в % рассчитывается."""

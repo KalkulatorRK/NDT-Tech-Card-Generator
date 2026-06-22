@@ -208,12 +208,11 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'steps': [
             f'Толщина S = {S} мм',
             f'Материал: {params.get("material_display", params.get("material", "—"))}',
+            f'Таблица Б.{ {"steel": "1", "aluminum": "2", "titanium": "3"}.get(params.get("material_type", "steel"), "1") } '
+            f'ГОСТ Р 50.05.07-2018',
             f'Применимые источники: {len(params.get("suitable_sources", []))} шт.',
             f'Выбран: {src.get("name", "—")} ({src.get("code", "—")})',
             f'Энергия: {src.get("energy_display", "—")}',
-            f'Диапазон толщин: {src.get("thickness_min", "—")}–'
-            f'{src.get("thickness_max", "—")} мм',
-            f'Оптимален: {"да" if src.get("is_optimal") else "нет (применим)"}',
         ],
         'result': f'Источник: {src.get("name", "—")}',
         'notes': '',

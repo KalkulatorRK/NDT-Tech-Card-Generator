@@ -151,7 +151,11 @@ class RadiographicTechCardCalculator:
             'card_number': d.get('card_number', ''),
             'object_type': d.get('object_type', 'pipe'),
             'material': d.get('material', ''),
-            'material_display': get_material_display_name(d.get('material', '')),
+            'material_grade': (d.get('material_custom') or '').strip(),
+            'material_display': get_material_display_name(
+                d.get('material', ''),
+                d.get('material_custom', ''),
+            ),
             'material_type': resolve_material_type(d.get('material', '')),
             'wall_thickness': float(d.get('wall_thickness', 10)),
             'outer_diameter': float(d.get('outer_diameter', 0) or 0),
@@ -254,17 +258,15 @@ class RadiographicTechCardCalculator:
             match = next((s for s in suitable if s['code'] == chosen_code), None)
             if match:
                 self.params['selected_source'] = match
-                if not match['is_optimal']:
-                    self.warnings.append(
-                        f'Источник {match["name"]} применим, но не оптимален '
-                        f'для толщины {S} мм.'
-                    )
             else:
-                self.warnings.append(f'Источник {chosen_code} не рекомендован для {S} мм.')
+                self.warnings.append(
+                    f'Источник {chosen_code} не допускается табл. '
+                    f'Б.{ {"steel": "1", "aluminum": "2", "titanium": "3"}.get(material_type, "1") } '
+                    f'для толщины {S} мм и выбранного материала.'
+                )
                 self.params['selected_source'] = suitable[0] if suitable else {}
         else:
-            optimal = [s for s in suitable if s.get('is_optimal')]
-            self.params['selected_source'] = optimal[0] if optimal else (suitable[0] if suitable else {})
+            self.params['selected_source'] = suitable[0] if suitable else {}
 
     def _calc_geometric_params(self):
         """

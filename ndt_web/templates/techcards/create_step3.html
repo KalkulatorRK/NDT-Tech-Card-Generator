@@ -17,23 +17,18 @@
         <!-- Доступные источники для введённой толщины -->
         {% if suitable_sources %}
         <div class="mb-4">
-          <strong>Рекомендуемые источники для толщины {{ wall_thickness }} мм
-            {% if material_display %}({{ material_display }}){% endif %}:</strong>
-          <div class="row g-2 mt-1">
+          <strong>Рекомендуемые источники по ГОСТ Р 50.05.07-2018, табл. {{ table_b_info.table_ref }}</strong>
+          <div class="text-muted small mt-1">
+            Радиационная толщина {{ wall_thickness }} мм
+            {% if material_display %}({{ material_display }}){% endif %} —
+            диапазон таблицы: {{ table_b_info.range_label }}
+          </div>
+          <div class="row g-2 mt-2">
             {% for src in suitable_sources %}
             <div class="col-md-6">
-              <div class="p-2 rounded border" style="font-size:0.83rem;
-                   background:{% if src.is_optimal %}#f0fdf4{% else %}#fff{% endif %};">
-                {% if src.is_optimal %}
-                  <i class="bi bi-check-circle-fill text-success me-1"></i>
-                {% else %}
-                  <i class="bi bi-circle me-1 text-muted"></i>
-                {% endif %}
+              <div class="p-2 rounded border" style="font-size:0.83rem; background:#f8fafc;">
+                <i class="bi bi-check-circle-fill text-success me-1"></i>
                 <strong>{{ src.name }}</strong> — {{ src.energy_display }}
-                <br><span class="text-muted" style="font-size:0.78rem;">
-                  Диапазон: {{ src.thickness_min }}–{{ src.thickness_max }} мм
-                  {% if src.is_optimal %}<span class="text-success">(оптимально)</span>{% endif %}
-                </span>
               </div>
             </div>
             {% endfor %}

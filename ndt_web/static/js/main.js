@@ -125,20 +125,22 @@ function initSourceSelector() {
         data.sources.forEach(function (src) {
           var opt = document.createElement('option');
           opt.value = src.code;
-          opt.textContent = src.name + (src.is_optimal ? ' ✓' : '');
+          opt.textContent = src.name;
           sourceSelect.appendChild(opt);
         });
 
         // Показываем информационный блок
         if (sourcesInfo) {
           if (data.sources.length > 0) {
-            var optimal = data.sources.filter(function (s) { return s.is_optimal; });
+            var tableRef = data.sources[0].table_ref || 'Б';
+            var rangeLabel = data.sources[0].table_range_label || '';
             sourcesInfo.innerHTML =
-              '<strong>Подходящих источников: ' + data.sources.length + '</strong>. ' +
-              'Рекомендуются (✓): ' + optimal.map(function (s) { return s.name; }).join(', ') + '.';
+              '<strong>По табл. ' + tableRef + ' ГОСТ Р 50.05.07-2018</strong>: ' +
+              data.sources.length + ' допустимых источников' +
+              (rangeLabel ? ' (диапазон: ' + rangeLabel + ')' : '') + '.';
             sourcesInfo.style.display = '';
           } else {
-            sourcesInfo.innerHTML = 'Нет источников для данной толщины.';
+            sourcesInfo.innerHTML = 'Нет источников для данной толщины и материала по табл. Б.';
             sourcesInfo.style.display = '';
           }
         }

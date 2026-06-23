@@ -20,7 +20,7 @@ from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
 from .generator import generate_tech_card, regenerate_techcard_files, get_default_template_path
 from .calculation_reference import generate_calculation_reference_docx
-from .scheme_display import get_scheme_user_label, get_scheme_ui_data
+from .scheme_display import get_scheme_user_label, get_scheme_ui_data, SCHEME_CHOICES
 from accounts.models import UserBalance
 from normative.calculations import resolve_table_b_thickness_mm
 from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
@@ -125,6 +125,51 @@ def method_select_view(request):
 
 
 SESSION_KEY = 'techcard_data'
+
+
+def build_step3_scheme_data(
+    wall_thickness: float,
+    material_type: str,
+    joint_designation: str = '',
+    welding_process: str = '30',
+) -> dict:
+    """
+    Предрасчёт радиационной толщины, источников и плёнок для каждой схемы.
+
+    Данные встраиваются в шаг 3, чтобы выбор источника работал без AJAX.
+    """
+    radiation_by_scheme = {}
+    sources_by_scheme = {}
+    films_by_scheme = {}
+
+    for code, _label in SCHEME_CHOICES:
+        if not code:
+            continue
+        rad = resolve_table_b_thickness_mm(
+            wall_thickness, code, joint_designation, welding_process,
+        )
+        table_b_thickness = rad['table_b_thickness_mm']
+        table_info = get_table_b_selection_info(table_b_thickness, material_type)
+        sources = get_suitable_sources(table_b_thickness, material_type)
+
+        radiation_by_scheme[code] = {
+            'radiation_thickness_mm': table_b_thickness,
+            'wall_desc': rad.get('wall_desc', ''),
+            'formula_f': rad.get('formula_f', ''),
+            'table_ref': table_info.get('table_ref'),
+            'range_label': table_info.get('range_label'),
+        }
+        sources_by_scheme[code] = sources
+        films_by_scheme[code] = {
+            src['code']: get_suitable_films(table_b_thickness, material_type, src['code'])
+            for src in sources
+        }
+
+    return {
+        'radiation_by_scheme': radiation_by_scheme,
+        'sources_by_scheme': sources_by_scheme,
+        'films_by_scheme': films_by_scheme,
+    }
 
 
 def _get_session_data(request) -> dict:
@@ -261,6 +306,9 @@ def create_step3_view(request, doc_code):
         )
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
+    scheme_data = build_step3_scheme_data(
+        wall_thickness, material_type, joint_designation, welding_process,
+    )
     return render(request, 'techcards/create_step3.html', {
         'form': form,
         'doc': doc,
@@ -274,6 +322,15 @@ def create_step3_view(request, doc_code):
         'joint_designation': joint_designation,
         'welding_process': welding_process,
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
+        'sources_by_scheme_json': json.dumps(
+            scheme_data['sources_by_scheme'], ensure_ascii=False,
+        ),
+        'radiation_by_scheme_json': json.dumps(
+            scheme_data['radiation_by_scheme'], ensure_ascii=False,
+        ),
+        'films_by_scheme_json': json.dumps(
+            scheme_data['films_by_scheme'], ensure_ascii=False,
+        ),
     })
 
 

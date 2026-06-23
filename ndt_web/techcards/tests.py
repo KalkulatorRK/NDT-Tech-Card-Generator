@@ -472,7 +472,7 @@ class CalculationReferenceTests(TestCase):
 
 
 class Step3AjaxTests(TestCase):
-    """AJAX подбора источников по схеме и радиационной толщине."""
+    """AJAX и предрасчёт данных шага 3."""
 
     def test_sources_ajax_requires_scheme(self):
         response = self.client.get('/ajax/sources/?thickness=10&material=08Х18Н10Т')
@@ -488,6 +488,17 @@ class Step3AjaxTests(TestCase):
         self.assertIn('sources', data)
         self.assertGreater(data.get('radiation_thickness_mm', 0), 10)
         self.assertIn('table_ref', data)
+
+    def test_build_step3_scheme_data_has_sources_per_scheme(self):
+        from techcards.views import build_step3_scheme_data
+        data = build_step3_scheme_data(10, 'steel', 'C1', '30')
+        self.assertIn('5a', data['sources_by_scheme'])
+        self.assertTrue(data['sources_by_scheme']['5a'])
+        self.assertGreater(
+            data['radiation_by_scheme']['5v']['radiation_thickness_mm'],
+            data['radiation_by_scheme']['5a']['radiation_thickness_mm'],
+        )
+        self.assertIn('Ir-192', data['films_by_scheme']['5a'])
 
     def test_scheme_5b_label_has_no_ellipse_method(self):
         from techcards.scheme_display import SCHEME_CHOICES, SCHEME_DESCRIPTIONS

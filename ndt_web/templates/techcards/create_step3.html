@@ -157,11 +157,10 @@
 {% block extra_js %}
 <script>
 var SCHEME_DATA = {{ scheme_ui_json|safe }};
-var WALL_THICKNESS = {{ wall_thickness }};
-var SESSION_MATERIAL = '{{ session_material|escapejs }}';
-var JOINT_DESIGNATION = '{{ joint_designation|escapejs }}';
-var WELDING_PROCESS = '{{ welding_process|escapejs }}';
-var SELECTED_SOURCE = '{{ form.source_code.value|default:""|escapejs }}';
+var SOURCES_BY_SCHEME = {{ sources_by_scheme_json|safe }};
+var RADIATION_BY_SCHEME = {{ radiation_by_scheme_json|safe }};
+var FILMS_BY_SCHEME = {{ films_by_scheme_json|safe }};
+var SELECTED_SOURCE = '{{ form.source_code.value|default_if_none:""|escapejs }}';
 
 var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
@@ -173,6 +172,7 @@ var sourcesList = document.getElementById('sources-list');
 var sourcesEmpty = document.getElementById('sources-empty');
 var sourceHidden = document.getElementById('id_source_code');
 var filmSelect = document.getElementById('id_film_name');
+var step3Form = document.querySelector('form');
 
 function updateSchemeUI(val) {
   if (val && SCHEME_DATA[val]) {
@@ -184,18 +184,6 @@ function updateSchemeUI(val) {
   }
 }
 
-function buildAjaxParams() {
-  var scheme = schemeSelect ? schemeSelect.value : '';
-  var params = 'thickness=' + WALL_THICKNESS
-    + '&material=' + encodeURIComponent(SESSION_MATERIAL)
-    + '&joint=' + encodeURIComponent(JOINT_DESIGNATION)
-    + '&welding_process=' + encodeURIComponent(WELDING_PROCESS);
-  if (scheme) {
-    params += '&scheme=' + encodeURIComponent(scheme);
-  }
-  return params;
-}
-
 function selectSource(code) {
   if (!sourceHidden) return;
   sourceHidden.value = code || '';
@@ -205,17 +193,17 @@ function selectSource(code) {
   updateFilmChoices();
 }
 
-function renderSources(data) {
+function renderSources(sources) {
   if (!sourcesList) return;
   sourcesList.innerHTML = '';
-  var sources = data.sources || [];
+  sources = sources || [];
 
   if (!sources.length) {
-    sourcesEmpty.style.display = '';
+    if (sourcesEmpty) sourcesEmpty.style.display = '';
     selectSource('');
     return;
   }
-  sourcesEmpty.style.display = 'none';
+  if (sourcesEmpty) sourcesEmpty.style.display = 'none';
 
   sources.forEach(function(src) {
     var col = document.createElement('div');
@@ -232,6 +220,9 @@ function renderSources(data) {
     var cb = col.querySelector('.source-checkbox');
     cb.addEventListener('change', function() {
       if (this.checked) {
+        document.querySelectorAll('.source-checkbox').forEach(function(other) {
+          if (other !== cb) other.checked = false;
+        });
         selectSource(this.value);
       } else if (sourceHidden.value === this.value) {
         selectSource('');
@@ -244,68 +235,58 @@ function renderSources(data) {
   }
 }
 
-function updateRadiationInfo(data) {
+function updateRadiationInfo(info) {
   if (!radiationBlock) return;
-  if (!data || !data.radiation_thickness_mm) {
+  if (!info || !info.radiation_thickness_mm) {
     radiationBlock.style.display = 'none';
     return;
   }
-  document.getElementById('table-b-ref').textContent = data.table_ref || 'Б';
-  document.getElementById('rad-wall-desc').textContent = data.wall_desc || '';
-  document.getElementById('rad-thickness-value').textContent = data.radiation_thickness_mm;
-  document.getElementById('rad-formula').textContent = data.formula_f || '';
-  document.getElementById('table-range-label').textContent = data.range_label || '—';
+  document.getElementById('table-b-ref').textContent = info.table_ref || 'Б';
+  document.getElementById('rad-wall-desc').textContent = info.wall_desc || '';
+  document.getElementById('rad-thickness-value').textContent = info.radiation_thickness_mm;
+  document.getElementById('rad-formula').textContent = info.formula_f || '';
+  document.getElementById('table-range-label').textContent = info.range_label || '—';
   radiationBlock.style.display = '';
 }
 
 function updateSources() {
   var scheme = schemeSelect ? schemeSelect.value : '';
   if (!scheme) {
-    radiationBlock.style.display = 'none';
-    sourcesBlock.style.display = 'none';
+    if (radiationBlock) radiationBlock.style.display = 'none';
+    if (sourcesBlock) sourcesBlock.style.display = 'none';
     selectSource('');
     return;
   }
 
-  fetch('/ajax/sources/?' + buildAjaxParams())
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      updateRadiationInfo(data);
-      sourcesBlock.style.display = '';
-      renderSources(data);
-    })
-    .catch(function(err) {
-      console.warn('AJAX ошибка (источники):', err);
-    });
+  var radInfo = RADIATION_BY_SCHEME[scheme] || {};
+  var sources = SOURCES_BY_SCHEME[scheme] || [];
+  updateRadiationInfo(radInfo);
+  if (sourcesBlock) sourcesBlock.style.display = '';
+  renderSources(sources);
 }
 
 function updateFilmChoices() {
   if (!filmSelect) return;
+  var scheme = schemeSelect ? schemeSelect.value : '';
   var source = sourceHidden ? sourceHidden.value : '';
-  var url = '/ajax/films/?' + buildAjaxParams();
-  if (source) {
-    url += '&source=' + encodeURIComponent(source);
+  var films = [];
+  if (scheme && source && FILMS_BY_SCHEME[scheme] && FILMS_BY_SCHEME[scheme][source]) {
+    films = FILMS_BY_SCHEME[scheme][source];
   }
-  fetch(url)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var current = filmSelect.value;
-      while (filmSelect.options.length > 1) {
-        filmSelect.remove(1);
-      }
-      (data.films || []).forEach(function(f) {
-        var opt = document.createElement('option');
-        opt.value = f.code;
-        opt.textContent = f.name;
-        filmSelect.appendChild(opt);
-      });
-      if (current && Array.from(filmSelect.options).some(function(o) { return o.value === current; })) {
-        filmSelect.value = current;
-      }
-    })
-    .catch(function(err) {
-      console.warn('AJAX ошибка (плёнки):', err);
-    });
+
+  var current = filmSelect.value;
+  while (filmSelect.options.length > 1) {
+    filmSelect.remove(1);
+  }
+  films.forEach(function(name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    filmSelect.appendChild(opt);
+  });
+  if (current && Array.from(filmSelect.options).some(function(o) { return o.value === current; })) {
+    filmSelect.value = current;
+  }
 }
 
 if (schemeSelect) {
@@ -318,6 +299,21 @@ if (schemeSelect) {
   if (schemeSelect.value) {
     updateSources();
   }
+}
+
+if (step3Form) {
+  step3Form.addEventListener('submit', function(e) {
+    if (!schemeSelect || !schemeSelect.value) {
+      return;
+    }
+    if (!sourceHidden || !sourceHidden.value) {
+      e.preventDefault();
+      if (sourcesBlock) {
+        sourcesBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      alert('Выберите источник излучения из рекомендованного списка.');
+    }
+  });
 }
 </script>
 {% endblock %}

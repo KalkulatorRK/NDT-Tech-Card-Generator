@@ -183,14 +183,20 @@
           </div>
           <div class="d-flex gap-2 align-items-center ms-3">
             {% if tc.is_ready %}
-              <a href="{% url 'download_file' tc.pk 'docx' %}" class="btn btn-sm btn-outline-primary"
-                 title="Скачать DOCX">
+              <button type="button" class="btn btn-sm btn-outline-primary btn-download"
+                      data-download-url="{% url 'download_file' tc.pk 'docx' %}"
+                      data-download-name="TC_{{ tc.card_number|default:tc.pk }}.docx"
+                      data-download-loading=""
+                      title="Скачать DOCX">
                 <i class="bi bi-file-word"></i>
-              </a>
-              <a href="{% url 'download_file' tc.pk 'pdf' %}" class="btn btn-sm btn-outline-danger"
-                 title="Скачать PDF">
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger btn-download"
+                      data-download-url="{% url 'download_file' tc.pk 'pdf' %}"
+                      data-download-name="TC_{{ tc.card_number|default:tc.pk }}.pdf"
+                      data-download-loading=""
+                      title="Скачать PDF">
                 <i class="bi bi-file-pdf"></i>
-              </a>
+              </button>
             {% endif %}
             <a href="{% url 'techcard_detail' tc.pk %}" class="btn btn-sm btn-outline-secondary"
                title="Просмотр">

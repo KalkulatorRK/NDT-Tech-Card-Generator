@@ -62,13 +62,15 @@
           </div>
           {% endfor %}
 
-          <div class="d-flex justify-content-between mt-4">
-            <a href="{% url 'create_step3' doc.code %}" class="btn btn-outline-secondary">
-              <i class="bi bi-arrow-left me-1"></i>Назад
-            </a>
-            <button type="submit" class="btn btn-success btn-lg">
-              <i class="bi bi-lightning-fill me-2"></i>Сгенерировать технологическую карту
-            </button>
+          <div class="form-actions-sticky">
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'create_step3' doc.code %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Назад
+              </a>
+              <button type="submit" class="btn btn-success btn-lg">
+                <i class="bi bi-lightning-fill me-2"></i>Сгенерировать технологическую карту
+              </button>
+            </div>
           </div>
         </form>
       </div>

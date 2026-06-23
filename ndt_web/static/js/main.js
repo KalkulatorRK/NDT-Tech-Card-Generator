@@ -55,6 +55,15 @@ document.addEventListener('DOMContentLoaded', function () {
     new bootstrap.Tooltip(el);
   });
 
+  // ---- Скачивание файлов без ухода со страницы (мобильные браузеры) ----
+  initFileDownloads();
+
+  // ---- Защита от двойной отправки форм ----
+  initFormGuards();
+
+  // ---- Прокрутка к первой ошибке валидации ----
+  initScrollToErrors();
+
 });
 
 
@@ -304,4 +313,121 @@ function updateDefectFieldLabels(selectEl) {
   var s2Label = block.querySelector('.size-2-label');
   if (s1Label) s1Label.textContent = hints.s1;
   if (s2Label) s2Label.textContent = hints.s2;
+}
+
+
+/**
+ * Скачивание файла через fetch + blob — пользователь остаётся на странице.
+ * Используется для DOCX/PDF техкарт на мобильных устройствах.
+ */
+function initFileDownloads() {
+  document.querySelectorAll('[data-download-url]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      triggerFileDownload(btn);
+    });
+  });
+}
+
+function triggerFileDownload(btn) {
+  var url = btn.getAttribute('data-download-url');
+  if (!url || btn.disabled) return;
+
+  var filename = btn.getAttribute('data-download-name') || '';
+  var originalHtml = btn.innerHTML;
+  var loadingLabel = btn.getAttribute('data-download-loading');
+  if (loadingLabel === null) {
+    loadingLabel = 'Скачивание…';
+  }
+
+  btn.disabled = true;
+  btn.classList.add('is-downloading');
+  if (loadingLabel === '') {
+    btn.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+  } else {
+    btn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' +
+      loadingLabel;
+  }
+
+  fetch(url, { credentials: 'same-origin' })
+    .then(function (response) {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      if (!filename) {
+        var disposition = response.headers.get('Content-Disposition');
+        if (disposition) {
+          var utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+          var plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+          if (utfMatch) {
+            filename = decodeURIComponent(utfMatch[1]);
+          } else if (plainMatch) {
+            filename = plainMatch[1];
+          }
+        }
+      }
+      return response.blob();
+    })
+    .then(function (blob) {
+      var objectUrl = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename || 'download';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 2000);
+    })
+    .catch(function (err) {
+      console.error('Ошибка скачивания:', err);
+      alert('Не удалось скачать файл. Попробуйте ещё раз или обновите страницу.');
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn.classList.remove('is-downloading');
+      btn.innerHTML = originalHtml;
+    });
+}
+
+
+/**
+ * Блокирует повторную отправку формы и показывает индикатор загрузки.
+ */
+function initFormGuards() {
+  document.querySelectorAll('form[method="post"]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (form.dataset.submitted === 'true') {
+        e.preventDefault();
+        return;
+      }
+      form.dataset.submitted = 'true';
+      form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (btn) {
+        btn.disabled = true;
+        if (btn.tagName === 'BUTTON' && !btn.dataset.noLoading) {
+          btn.dataset.originalHtml = btn.innerHTML;
+          btn.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' +
+            'Отправка…';
+        }
+      });
+    });
+  });
+}
+
+
+/**
+ * Прокручивает страницу к первой ошибке валидации.
+ */
+function initScrollToErrors() {
+  var errorEl = document.querySelector(
+    '.danger-box, .invalid-feedback, .text-danger.small, .is-invalid, ' +
+    'form .alert-danger, .form-check .text-danger'
+  );
+  if (!errorEl) return;
+  setTimeout(function () {
+    errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 150);
 }

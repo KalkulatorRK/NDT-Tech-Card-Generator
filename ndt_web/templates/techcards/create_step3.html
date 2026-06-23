@@ -139,13 +139,15 @@
           <div class="danger-box mt-3">{{ form.non_field_errors.0 }}</div>
           {% endif %}
 
-          <div class="d-flex justify-content-between mt-4">
-            <a href="{% url 'create_step2' doc.code %}" class="btn btn-outline-secondary">
-              <i class="bi bi-arrow-left me-1"></i>Назад
-            </a>
-            <button type="submit" class="btn btn-primary">
-              Далее <i class="bi bi-arrow-right ms-1"></i>
-            </button>
+          <div class="form-actions-sticky">
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'create_step2' doc.code %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Назад
+              </a>
+              <button type="submit" class="btn btn-primary">
+                Далее <i class="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
           </div>
         </form>
       </div>

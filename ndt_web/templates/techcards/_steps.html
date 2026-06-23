@@ -1,4 +1,5 @@
 <!-- Индикатор шагов -->
+<div class="step-progress-text">Шаг {{ step }} из {{ step_labels|length }}</div>
 <div class="step-indicator mb-4">
   {% for step_label in step_labels %}
   {% with step_num=forloop.counter %}

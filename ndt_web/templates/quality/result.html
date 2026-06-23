@@ -13,9 +13,11 @@
         <i class="bi bi-clipboard-check me-2"></i>Результат оценки качества
       </h3>
     </div>
-    <a href="{% url 'quality_pdf' assessment.pk %}" class="btn btn-outline-danger">
+    <button type="button" class="btn btn-outline-danger btn-download"
+            data-download-url="{% url 'quality_pdf' assessment.pk %}"
+            data-download-name="Оценка_{{ assessment.pk }}.pdf">
       <i class="bi bi-file-pdf me-1"></i>Скачать PDF
-    </a>
+    </button>
   </div>
 
   <!-- Параметры объекта -->

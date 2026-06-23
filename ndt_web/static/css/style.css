@@ -147,6 +147,13 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   color: #fff;
 }
 
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .btn-lg {
   padding: 0.65rem 1.5rem;
   font-size: 1rem;
@@ -248,6 +255,35 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 }
 
 .step-item.active .step-label { color: var(--primary); font-weight: 600; }
+
+.step-progress-text {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* ---- Липкая панель навигации в мастере ---- */
+.form-actions-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+  margin: 1.5rem -1.5rem -1.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: 0 -4px 16px rgba(58, 123, 213, 0.08);
+}
+
+/* ---- Скачивание файлов ---- */
+.btn-download.is-downloading {
+  opacity: 0.85;
+  pointer-events: none;
+}
 
 /* ---- Таблицы ---- */
 .table {
@@ -505,6 +541,11 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   margin-top: 2px;
 }
 
+/* Группа кнопок скачивания на странице техкарты */
+.download-group .btn {
+  white-space: nowrap;
+}
+
 /* ---- Результат оценки ---- */
 .result-verdict {
   font-size: 1.8rem;
@@ -594,9 +635,53 @@ footer .footer-bottom {
   .step-label { display: none; }
   .card { padding: 1rem; }
   .tariff-card { margin-bottom: 1.5rem; }
+
+  .form-actions-sticky {
+    margin-left: -1rem;
+    margin-right: -1rem;
+    margin-bottom: -1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .form-actions-sticky .btn {
+    min-height: 44px;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .techcard-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .techcard-item > .d-flex {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .download-group {
+    width: 100%;
+  }
+
+  .download-group .btn {
+    flex: 1 1 auto;
+    font-size: 0.82rem;
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
 }
 
 @media (max-width: 576px) {
   .hero-section { padding: 2.5rem 0 2rem; }
   .counter-number { font-size: 2rem; }
+
+  .form-actions-sticky .btn-lg {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.8rem;
+  }
+
+  .form-actions-sticky .btn-lg .bi-lightning-fill {
+    display: none;
+  }
 }

@@ -44,12 +44,20 @@
                   <i class="bi bi-eye"></i>
                 </a>
                 {% if tc.is_ready %}
-                <a href="{% url 'download_file' tc.pk 'docx' %}" class="btn btn-sm btn-outline-primary" title="DOCX">
+                <button type="button" class="btn btn-sm btn-outline-primary btn-download"
+                        data-download-url="{% url 'download_file' tc.pk 'docx' %}"
+                        data-download-name="TC_{{ tc.card_number|default:tc.pk }}.docx"
+                        data-download-loading=""
+                        title="DOCX">
                   <i class="bi bi-file-word"></i>
-                </a>
-                <a href="{% url 'download_file' tc.pk 'pdf' %}" class="btn btn-sm btn-outline-danger" title="PDF">
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-download"
+                        data-download-url="{% url 'download_file' tc.pk 'pdf' %}"
+                        data-download-name="TC_{{ tc.card_number|default:tc.pk }}.pdf"
+                        data-download-loading=""
+                        title="PDF">
                   <i class="bi bi-file-pdf"></i>
-                </a>
+                </button>
                 {% endif %}
                 <form method="post" action="{% url 'delete_techcard' tc.pk %}" class="d-inline">
                   {% csrf_token %}

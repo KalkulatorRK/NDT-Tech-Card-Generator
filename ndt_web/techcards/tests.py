@@ -541,11 +541,14 @@ class DocumentKindTests(TestCase):
         )
         self.assertEqual(doc.get_document_kind_display(), 'Методический документ')
 
-    def test_joint_gost_image_available(self):
+    def test_joint_gost_image_is_weld_cross_section(self):
+        """Изображение шва — из столбца «шва сварного соединения», не кромок."""
         from normative.gost_59023_2 import get_joint_image_path
         path = get_joint_image_path('С-1')
-        self.assertTrue(path.startswith('gost/'))
+        self.assertEqual(path, 'gost/С_1.gif')
         full = os.path.join(
             os.path.dirname(__file__), '..', 'static', 'img', 'welds', path,
         )
         self.assertTrue(os.path.isfile(full), msg=full)
+        # Размер соответствует извлечению из правого столбца таблицы 9.1
+        self.assertGreater(os.path.getsize(full), 1900)

@@ -70,14 +70,15 @@
               {% if form.joint_designation.help_text %}<div class="form-text">{{ form.joint_designation.help_text }}</div>{% endif %}
             </div>
 
-            <!-- Эскиз выбранного соединения -->
+            <!-- Эскиз шва в разрезе (ГОСТ Р 59023.2-2020, столбец «шва сварного соединения») -->
             <div class="col-12" id="joint-sketch-block" style="display:none;">
               <div class="border rounded p-3 bg-light">
                 <div class="row align-items-center">
                   <div class="col-md-3 text-center">
-                    <img id="joint-sketch-img" src="" alt="Конструктивные элементы шва"
+                    <img id="joint-sketch-img" src="" alt="Шов сварного соединения в разрезе"
                          class="joint-gost-image"
                          style="max-height:180px; max-width:100%; object-fit:contain;">
+                    <div class="text-muted small mt-1">Шов сварного соединения (в разрезе)</div>
                   </div>
                   <div class="col-md-9">
                     <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>

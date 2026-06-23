@@ -1,7 +1,10 @@
 """
-Извлечение изображений конструктивных элементов швов из RTF ГОСТ Р 59023.2-2020.
+Извлечение изображений швов в разрезе из RTF ГОСТ Р 59023.2-2020.
 
-Сохраняет файлы в static/img/welds/gost/ для отображения в мастере техкарты.
+Берёт рисунки из столбца «шва сварного соединения» (не из столбца
+«подготовленных кромок свариваемых деталей») таблиц раздела 9.
+
+Сохраняет файлы в static/img/welds/gost/.
 """
 
 from __future__ import annotations
@@ -12,31 +15,28 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-
 RTF_NAME = (
     'ГОСТ Р 59023.2-2020 Сварка и наплавка оборудования и трубопроводов '
     'атомных энергетических..._Текст.rtf'
 )
 
+JOINT_CODE_RE = re.compile(r'\b([СУТ]-\d+(?:-\d+)?)\b')
 
-def _rtf_bytes_to_text(raw: bytes) -> str:
+
+def _rtf_cell_text(raw: bytes) -> str:
     def repl(match: re.Match) -> bytes:
         return bytes([int(match.group(1), 16)])
 
-    stripped = re.sub(rb'\\pict[^}]*?(?=\\cell|\\row)', b'', raw, flags=re.DOTALL)
-    s = re.sub(rb"\\'([0-9a-fA-F]{2})", repl, stripped)
-    s = re.sub(rb'\\cell\b', b'|', s)
-    s = re.sub(rb'\\row\b', b'\n', s)
+    s = re.sub(rb"\\'([0-9a-fA-F]{2})", repl, raw)
     s = re.sub(rb'\\[a-z]+-?\d*\s?', b'', s)
     s = s.replace(b'{', b'').replace(b'}', b'')
     return s.decode('cp1251', errors='replace')
 
 
-def _extract_image(row_bytes: bytes) -> tuple[str, bytes] | None:
-    if b'\\pngblip' in row_bytes:
-        idx = row_bytes.find(b'\\pngblip')
-        rest = row_bytes[idx:]
-        match = re.search(rb'([0-9A-Fa-f]{100,})', rest)
+def _extract_image_from_cell(cell_bytes: bytes) -> tuple[str, bytes] | None:
+    if b'\\pngblip' in cell_bytes:
+        idx = cell_bytes.find(b'\\pngblip')
+        match = re.search(rb'([0-9A-Fa-f]{100,})', cell_bytes[idx:])
         if match:
             hex_clean = re.sub(rb'[^0-9A-Fa-f]', b'', match.group(1))
             try:
@@ -46,7 +46,7 @@ def _extract_image(row_bytes: bytes) -> tuple[str, bytes] | None:
             except ValueError:
                 pass
 
-    match = re.search(rb'47494638[0-9A-Fa-f]{100,}', row_bytes)
+    match = re.search(rb'47494638[0-9A-Fa-f]{100,}', cell_bytes)
     if match:
         hex_clean = re.sub(rb'[^0-9A-Fa-f]', b'', match.group(0))
         try:
@@ -58,25 +58,58 @@ def _extract_image(row_bytes: bytes) -> tuple[str, bytes] | None:
     return None
 
 
+def _find_weld_column_indices(cells: list[bytes]) -> tuple[int | None, int | None]:
+    """Определяет индексы столбцов кромок и шва в разрезе по заголовку таблицы."""
+    edge_idx = weld_idx = None
+    for i, cell in enumerate(cells):
+        text = _rtf_cell_text(cell).lower().replace('\n', ' ')
+        if 'кромок' in text and 'свар' in text:
+            edge_idx = i
+        if 'шва свар' in text or ('шва' in text and 'соеди' in text):
+            weld_idx = i
+    if edge_idx is not None and weld_idx is None:
+        weld_idx = edge_idx + 1
+    return edge_idx, weld_idx
+
+
 def extract_joint_images(rtf_path: Path, out_dir: Path) -> dict[str, str]:
-    """Возвращает {код_шва: относительный путь от static/img/welds/}."""
+    """
+    Извлекает эскизы шва в разрезе для каждого условного обозначения.
+
+    :return: {код_шва: относительный путь от static/img/welds/}
+    """
     data = rtf_path.read_bytes()
     rows = data.split(b'\\row')
+    weld_col_idx: int | None = None
     extracted: dict[str, tuple[str, bytes]] = {}
 
-    for i, row in enumerate(rows):
-        image = _extract_image(row)
+    for row in rows:
+        cells = row.split(b'\\cell')
+        edge_idx, weld_idx = _find_weld_column_indices(cells)
+        if edge_idx is not None:
+            weld_col_idx = weld_idx
+            continue
+
+        if weld_col_idx is None or weld_col_idx >= len(cells):
+            continue
+
+        joint_code = None
+        for cell in cells:
+            match = JOINT_CODE_RE.search(_rtf_cell_text(cell))
+            if match:
+                joint_code = match.group(1)
+                break
+        if not joint_code:
+            continue
+
+        image = _extract_image_from_cell(cells[weld_col_idx])
         if not image:
             continue
-        combined = row + (rows[i + 1] if i + 1 < len(rows) else b'')
-        text = _rtf_bytes_to_text(combined)
-        codes = re.findall(r'([СУТ]-\d+(?:-\d+)?)', text)
-        if not codes:
-            continue
-        code = codes[0]
+
         fmt, raw = image
-        if code not in extracted or len(raw) > len(extracted[code][1]):
-            extracted[code] = (fmt, raw)
+        prev = extracted.get(joint_code)
+        if prev is None or len(raw) > len(prev[1]):
+            extracted[joint_code] = (fmt, raw)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     mapping: dict[str, str] = {}
@@ -84,11 +117,15 @@ def extract_joint_images(rtf_path: Path, out_dir: Path) -> dict[str, str]:
         filename = code.replace('-', '_') + f'.{fmt}'
         (out_dir / filename).write_bytes(raw)
         mapping[code] = f'gost/{filename}'
+
     return mapping
 
 
 class Command(BaseCommand):
-    help = 'Извлечь изображения типов швов из RTF ГОСТ Р 59023.2-2020'
+    help = (
+        'Извлечь изображения швов в разрезе (столбец «шва сварного соединения») '
+        'из RTF ГОСТ Р 59023.2-2020'
+    )
 
     def handle(self, *args, **options):
         base = Path(settings.BASE_DIR)
@@ -101,7 +138,7 @@ class Command(BaseCommand):
 
         mapping = extract_joint_images(rtf_path, out_dir)
         self.stdout.write(self.style.SUCCESS(
-            f'Извлечено {len(mapping)} изображений в {out_dir}'
+            f'Извлечено {len(mapping)} изображений швов в разрезе → {out_dir}'
         ))
         for code in sorted(mapping):
             self.stdout.write(f'  {code} -> {mapping[code]}')

@@ -110,7 +110,7 @@ def get_welding_process_choices_for_joint(joint_code: str):
     return choices
 
 
-# Изображения конструктивных элементов шва (столбец таблиц ГОСТ Р 59023.2-2020)
+# Изображения швов в разрезе (столбец «шва сварного соединения», таблицы ГОСТ Р 59023.2-2020)
 JOINT_IMAGES = {
     'С-1': 'gost/С_1.gif',
     'С-1-1': 'gost/С_1_1.gif',
@@ -118,7 +118,7 @@ JOINT_IMAGES = {
     'С-4': 'gost/С_4.gif',
     'С-5': 'gost/С_5.gif',
     'С-6': 'gost/С_6.gif',
-    'С-7': 'gost/С_7.png',
+    'С-7': 'gost/С_7.gif',
     'С-11': 'gost/С_11.gif',
     'С-12': 'gost/С_12.gif',
     'С-13': 'gost/С_13.gif',
@@ -133,7 +133,7 @@ JOINT_IMAGES = {
     'С-25': 'gost/С_25.gif',
     'С-27': 'gost/С_27.gif',
     'С-42': 'gost/С_42.gif',
-    'У-1': 'gost/У_1.png',
+    'У-1': 'gost/У_1.gif',
     'У-10': 'gost/У_10.gif',
     'Т-1': 'gost/Т_1.gif',
     'Т-2': 'gost/Т_2.gif',

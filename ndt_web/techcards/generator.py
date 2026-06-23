@@ -252,7 +252,9 @@ class RadiographicTechCardCalculator:
     def _select_sources(self):
         S = self.params['wall_thickness']
         material_type = self.params.get('material_type', 'steel')
-        suitable = get_suitable_sources(S, material_type)
+        rad = self.params.get('rad_thickness') or {}
+        table_b_thickness = rad.get('s_rad_f_mm', S)
+        suitable = get_suitable_sources(table_b_thickness, material_type)
         self.params['suitable_sources'] = suitable
         chosen_code = self.params['source_code']
         if chosen_code:
@@ -263,7 +265,7 @@ class RadiographicTechCardCalculator:
                 self.warnings.append(
                     f'Источник {chosen_code} не допускается табл. '
                     f'Б.{ {"steel": "1", "aluminum": "2", "titanium": "3"}.get(material_type, "1") } '
-                    f'для толщины {S} мм и выбранного материала.'
+                    f'для радиационной толщины {table_b_thickness} мм и выбранного материала.'
                 )
                 self.params['selected_source'] = suitable[0] if suitable else {}
         else:

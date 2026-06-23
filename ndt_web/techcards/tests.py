@@ -339,11 +339,15 @@ class SchemeDisplayTests(TestCase):
 
     def test_k_uses_s_plus_g_min_for_two_walls(self):
         """K определяется только по S + g_min, даже для двух стенок."""
-        from normative.calculations import calc_radiation_thickness
+        from normative.calculations import calc_radiation_thickness, resolve_table_b_thickness_mm
         rad = calc_radiation_thickness(10, 0.5, 3.5, '5v')
         self.assertEqual(rad['s_rad_k_mm'], 10.5)
         self.assertEqual(rad['formula_k'], '10 + 0.5 = 10.5 мм')
         self.assertEqual(rad['s_rad_f_mm'], 27.0)
+
+        rad_b = resolve_table_b_thickness_mm(10, '5a', 'C1', '30')
+        self.assertEqual(rad_b['table_b_thickness_mm'], rad_b['s_rad_f_mm'])
+        self.assertLess(rad_b['table_b_thickness_mm'], rad['s_rad_f_mm'])
 
     def test_negative_f_clamped_to_zero(self):
         """Отрицательное f в техкарте приводится к 0 мм."""
@@ -465,3 +469,28 @@ class CalculationReferenceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(os.path.exists(docx_abs))
         self.assertGreater(os.path.getsize(docx_abs), 1000)
+
+
+class Step3AjaxTests(TestCase):
+    """AJAX подбора источников по схеме и радиационной толщине."""
+
+    def test_sources_ajax_requires_scheme(self):
+        response = self.client.get('/ajax/sources/?thickness=10&material=08Х18Н10Т')
+        data = response.json()
+        self.assertEqual(data.get('error'), 'scheme_required')
+
+    def test_sources_ajax_returns_radiation_thickness(self):
+        response = self.client.get(
+            '/ajax/sources/?thickness=10&material=08Х18Н10Т'
+            '&scheme=5a&joint=C1&welding_process=30',
+        )
+        data = response.json()
+        self.assertIn('sources', data)
+        self.assertGreater(data.get('radiation_thickness_mm', 0), 10)
+        self.assertIn('table_ref', data)
+
+    def test_scheme_5b_label_has_no_ellipse_method(self):
+        from techcards.scheme_display import SCHEME_CHOICES, SCHEME_DESCRIPTIONS
+        label_5b = dict(SCHEME_CHOICES).get('5b', '')
+        self.assertNotIn('эллипс', label_5b.lower())
+        self.assertNotIn('эллипс', SCHEME_DESCRIPTIONS.get('5b', '').lower())

@@ -14,38 +14,16 @@
           Шаг 3: Схема просвечивания, источник излучения и геометрия
         </div>
 
-        <!-- Доступные источники для введённой толщины -->
-        {% if suitable_sources %}
-        <div class="mb-4">
-          <strong>Рекомендуемые источники по ГОСТ Р 50.05.07-2018, табл. {{ table_b_info.table_ref }}</strong>
-          <div class="text-muted small mt-1">
-            Радиационная толщина {{ wall_thickness }} мм
-            {% if material_display %}({{ material_display }}){% endif %} —
-            диапазон таблицы: {{ table_b_info.range_label }}
-          </div>
-          <div class="row g-2 mt-2">
-            {% for src in suitable_sources %}
-            <div class="col-md-6">
-              <div class="p-2 rounded border" style="font-size:0.83rem; background:#f8fafc;">
-                <i class="bi bi-check-circle-fill text-success me-1"></i>
-                <strong>{{ src.name }}</strong> — {{ src.energy_display }}
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
         <form method="post" novalidate>
           {% csrf_token %}
           <div class="row g-4">
 
-            <!-- СХЕМА ПРОСВЕЧИВАНИЯ -->
+            <!-- 1. СХЕМА ПРОСВЕЧИВАНИЯ -->
             <div class="col-12">
               <label class="form-label fw-semibold">
                 {{ form.scheme_type.label }}
                 <span class="tooltip-icon" data-bs-toggle="tooltip"
-                      title="Схема определяет формулы расчёта f, N, L. Выберите по типу объекта и доступу к нему.">?</span>
+                      title="Сначала выберите схему — от неё зависит радиационная толщина и список допустимых источников по табл. Б.">?</span>
               </label>
               {{ form.scheme_type }}
               {% if form.scheme_type.help_text %}
@@ -60,17 +38,41 @@
             <div class="col-12" id="scheme-image-block" style="display:none;">
               <div class="border rounded p-3 bg-light text-center">
                 <img id="scheme-image" src="" alt="Схема просвечивания"
-                     style="max-height:220px; max-width:100%; object-fit:contain;">
+                     style="max-height:260px; max-width:100%; object-fit:contain;">
                 <div id="scheme-description" class="mt-2 text-muted" style="font-size:0.85rem;"></div>
               </div>
             </div>
 
-            <!-- Источник излучения -->
-            <div class="col-md-6">
-              <label class="form-label">{{ form.source_code.label }}</label>
+            <!-- 2. Радиационная толщина -->
+            <div class="col-12" id="radiation-thickness-block" style="display:none;">
+              <div class="info-box mb-0">
+                <strong>Радиационная толщина для табл. <span id="table-b-ref">Б</span></strong>
+                <div class="mt-1" style="font-size:0.88rem;">
+                  Толщина стенки {{ wall_thickness }} мм
+                  {% if material_display %}({{ material_display }}){% endif %},
+                  <span id="rad-wall-desc"></span>:
+                  <strong><span id="rad-thickness-value"></span> мм</strong>
+                  (<span id="rad-formula"></span>)
+                </div>
+                <div class="text-muted small mt-1">
+                  Диапазон таблицы: <span id="table-range-label"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Источники излучения (чекбоксы) -->
+            <div class="col-12" id="sources-block" style="display:none;">
+              <label class="form-label fw-semibold">{{ form.source_code.label }}</label>
+              <div class="form-text mb-2">
+                Отметьте один из рекомендованных источников по ГОСТ Р 50.05.07-2018, табл. Б.1–Б.3.
+              </div>
               {{ form.source_code }}
-              {% if form.source_code.help_text %}
-              <div class="form-text">{{ form.source_code.help_text }}</div>
+              <div id="sources-list" class="row g-2"></div>
+              <div id="sources-empty" class="text-muted small" style="display:none;">
+                Для данной радиационной толщины и материала нет подходящих источников в табл. Б.
+              </div>
+              {% if form.source_code.errors %}
+              <div class="text-danger small mt-1">{{ form.source_code.errors.0 }}</div>
               {% endif %}
             </div>
 
@@ -157,12 +159,19 @@
 var SCHEME_DATA = {{ scheme_ui_json|safe }};
 var WALL_THICKNESS = {{ wall_thickness }};
 var SESSION_MATERIAL = '{{ session_material|escapejs }}';
+var JOINT_DESIGNATION = '{{ joint_designation|escapejs }}';
+var WELDING_PROCESS = '{{ welding_process|escapejs }}';
+var SELECTED_SOURCE = '{{ form.source_code.value|default:""|escapejs }}';
 
 var schemeSelect = document.getElementById('id_scheme_type');
 var schemeImageBlock = document.getElementById('scheme-image-block');
 var schemeImage = document.getElementById('scheme-image');
 var schemeDesc = document.getElementById('scheme-description');
-var sourceSelect = document.getElementById('id_source_code');
+var radiationBlock = document.getElementById('radiation-thickness-block');
+var sourcesBlock = document.getElementById('sources-block');
+var sourcesList = document.getElementById('sources-list');
+var sourcesEmpty = document.getElementById('sources-empty');
+var sourceHidden = document.getElementById('id_source_code');
 var filmSelect = document.getElementById('id_film_name');
 
 function updateSchemeUI(val) {
@@ -175,11 +184,105 @@ function updateSchemeUI(val) {
   }
 }
 
+function buildAjaxParams() {
+  var scheme = schemeSelect ? schemeSelect.value : '';
+  var params = 'thickness=' + WALL_THICKNESS
+    + '&material=' + encodeURIComponent(SESSION_MATERIAL)
+    + '&joint=' + encodeURIComponent(JOINT_DESIGNATION)
+    + '&welding_process=' + encodeURIComponent(WELDING_PROCESS);
+  if (scheme) {
+    params += '&scheme=' + encodeURIComponent(scheme);
+  }
+  return params;
+}
+
+function selectSource(code) {
+  if (!sourceHidden) return;
+  sourceHidden.value = code || '';
+  document.querySelectorAll('.source-checkbox').forEach(function(cb) {
+    cb.checked = (cb.value === code);
+  });
+  updateFilmChoices();
+}
+
+function renderSources(data) {
+  if (!sourcesList) return;
+  sourcesList.innerHTML = '';
+  var sources = data.sources || [];
+
+  if (!sources.length) {
+    sourcesEmpty.style.display = '';
+    selectSource('');
+    return;
+  }
+  sourcesEmpty.style.display = 'none';
+
+  sources.forEach(function(src) {
+    var col = document.createElement('div');
+    col.className = 'col-md-6';
+    col.innerHTML =
+      '<label class="d-flex align-items-start gap-2 p-2 rounded border h-100" '
+      + 'style="font-size:0.83rem; background:#f8fafc; cursor:pointer;">'
+      + '<input type="checkbox" class="form-check-input mt-1 source-checkbox" value="' + src.code + '">'
+      + '<span><strong>' + src.name + '</strong><br>'
+      + '<span class="text-muted">' + src.energy_display + '</span></span>'
+      + '</label>';
+    sourcesList.appendChild(col);
+
+    var cb = col.querySelector('.source-checkbox');
+    cb.addEventListener('change', function() {
+      if (this.checked) {
+        selectSource(this.value);
+      } else if (sourceHidden.value === this.value) {
+        selectSource('');
+      }
+    });
+  });
+
+  if (SELECTED_SOURCE && sources.some(function(s) { return s.code === SELECTED_SOURCE; })) {
+    selectSource(SELECTED_SOURCE);
+  }
+}
+
+function updateRadiationInfo(data) {
+  if (!radiationBlock) return;
+  if (!data || !data.radiation_thickness_mm) {
+    radiationBlock.style.display = 'none';
+    return;
+  }
+  document.getElementById('table-b-ref').textContent = data.table_ref || 'Б';
+  document.getElementById('rad-wall-desc').textContent = data.wall_desc || '';
+  document.getElementById('rad-thickness-value').textContent = data.radiation_thickness_mm;
+  document.getElementById('rad-formula').textContent = data.formula_f || '';
+  document.getElementById('table-range-label').textContent = data.range_label || '—';
+  radiationBlock.style.display = '';
+}
+
+function updateSources() {
+  var scheme = schemeSelect ? schemeSelect.value : '';
+  if (!scheme) {
+    radiationBlock.style.display = 'none';
+    sourcesBlock.style.display = 'none';
+    selectSource('');
+    return;
+  }
+
+  fetch('/ajax/sources/?' + buildAjaxParams())
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      updateRadiationInfo(data);
+      sourcesBlock.style.display = '';
+      renderSources(data);
+    })
+    .catch(function(err) {
+      console.warn('AJAX ошибка (источники):', err);
+    });
+}
+
 function updateFilmChoices() {
   if (!filmSelect) return;
-  var source = sourceSelect ? sourceSelect.value : '';
-  var url = '/ajax/films/?thickness=' + WALL_THICKNESS
-    + '&material=' + encodeURIComponent(SESSION_MATERIAL);
+  var source = sourceHidden ? sourceHidden.value : '';
+  var url = '/ajax/films/?' + buildAjaxParams();
   if (source) {
     url += '&source=' + encodeURIComponent(source);
   }
@@ -206,12 +309,15 @@ function updateFilmChoices() {
 }
 
 if (schemeSelect) {
-  schemeSelect.addEventListener('change', function() { updateSchemeUI(this.value); });
+  schemeSelect.addEventListener('change', function() {
+    SELECTED_SOURCE = '';
+    updateSchemeUI(this.value);
+    updateSources();
+  });
   updateSchemeUI(schemeSelect.value);
-}
-if (sourceSelect) {
-  sourceSelect.addEventListener('change', updateFilmChoices);
-  updateFilmChoices();
+  if (schemeSelect.value) {
+    updateSources();
+  }
 }
 </script>
 {% endblock %}

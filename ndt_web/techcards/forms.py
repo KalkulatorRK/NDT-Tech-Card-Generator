@@ -7,8 +7,8 @@
 
 from django import forms
 from normative.gost_50_05_07 import (
-    get_source_choices,     get_film_choices, get_iqi_choices,
-    get_suitable_films,
+    get_film_choices, get_iqi_choices,
+    get_suitable_films, get_suitable_sources,
 )
 from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
 from normative.gost_59023_2 import (
@@ -188,15 +188,36 @@ class TechCardStep2Form(forms.Form):
 class TechCardStep3Form(forms.Form):
     """Шаг 3: Источник излучения, схема и геометрия просвечивания."""
 
-    def __init__(self, *args, wall_thickness=None, material_type='steel', **kwargs):
+    def __init__(self, *args, wall_thickness=None, material_type='steel',
+                 joint_designation='', welding_process='30', **kwargs):
         super().__init__(*args, **kwargs)
+        self._wall_thickness = wall_thickness
+        self._material_type = material_type
+        self._joint_designation = joint_designation
+        self._welding_process = welding_process
         self._allowed_films = []
-        if wall_thickness is not None:
-            source_code = None
-            if self.data:
-                source_code = self.data.get('source_code') or None
+        self._allowed_source_codes = set()
+        self._table_b_thickness = None
+
+        scheme = None
+        source_code = None
+        if self.data:
+            scheme = (self.data.get('scheme_type') or '').strip() or None
+            source_code = (self.data.get('source_code') or '').strip() or None
+
+        if wall_thickness is not None and scheme:
+            from normative.calculations import resolve_table_b_thickness_mm
+            rad = resolve_table_b_thickness_mm(
+                float(wall_thickness), scheme, joint_designation, welding_process,
+            )
+            self._table_b_thickness = rad['table_b_thickness_mm']
+            self._allowed_source_codes = {
+                s['code'] for s in get_suitable_sources(
+                    self._table_b_thickness, material_type,
+                )
+            }
             self._allowed_films = get_suitable_films(
-                float(wall_thickness), material_type, source_code,
+                self._table_b_thickness, material_type, source_code,
             )
             if self._allowed_films:
                 self.fields['film_name'].choices = (
@@ -205,7 +226,7 @@ class TechCardStep3Form(forms.Form):
                 )
                 self.fields['film_name'].help_text = (
                     'Допустимые плёнки по табл. Б ГОСТ Р 50.05.07-2018 '
-                    'для выбранного источника и толщины.'
+                    'для выбранного источника и радиационной толщины.'
                 )
 
     scheme_type = forms.ChoiceField(
@@ -214,11 +235,10 @@ class TechCardStep3Form(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_scheme_type'}),
         help_text=SCHEME_HELP_TEXT,
     )
-    source_code = forms.ChoiceField(
-        choices=[('', '— Выберите источник —')] + get_source_choices(),
+    source_code = forms.CharField(
+        required=True,
         label='Источник излучения *',
-        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_source_code'}),
-        help_text='Выберите источник в соответствии с толщиной металла.',
+        widget=forms.HiddenInput(attrs={'id': 'id_source_code'}),
     )
     focal_spot_mm = forms.FloatField(
         min_value=0.1, max_value=20,
@@ -266,7 +286,23 @@ class TechCardStep3Form(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        scheme = (cleaned.get('scheme_type') or '').strip()
+        source = (cleaned.get('source_code') or '').strip()
+        cleaned['source_code'] = source
         film = cleaned.get('film_name')
+
+        if not scheme:
+            self.add_error('scheme_type', 'Выберите схему просвечивания.')
+            return cleaned
+
+        if not source:
+            self.add_error('source_code', 'Выберите источник излучения из рекомендованных.')
+        elif self._allowed_source_codes and source not in self._allowed_source_codes:
+            self.add_error(
+                'source_code',
+                'Выберите источник из списка, допустимого по табл. Б для рассчитанной радиационной толщины.',
+            )
+
         if film and self._allowed_films and film not in self._allowed_films:
             self.add_error(
                 'film_name',

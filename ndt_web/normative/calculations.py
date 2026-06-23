@@ -87,7 +87,7 @@ SCHEME_INFO = {
     },
     '5b': {
         'name': 'Чертёж 3б',
-        'description': 'Трубопровод Dн > 50 мм. Плёнка внутри трубы. Метод эллипса.',
+        'description': 'Трубопровод Dн > 50 мм. Плёнка внутри трубы.',
         'image': 'img/scheme_5b.png',
         'requires_diameters': True,
         'requires_thickness': False,
@@ -227,6 +227,31 @@ def calc_radiation_thickness(
         'formula_k': formula_k,
         'formula_f': formula_f,
     }
+
+
+def resolve_table_b_thickness_mm(
+    wall_thickness_mm: float,
+    scheme_code: str,
+    joint_code: str = '',
+    welding_method: str = '30',
+) -> dict:
+    """
+    Радиационная толщина для подбора источника и плёнки по табл. Б.1–Б.3.
+
+    Используется S_рад(f) — путь излучения через металл с учётом числа стенок
+    и наибольшего усиления шва (g_max).
+    """
+    from normative.gost_59023_2 import get_inspection_zone
+
+    zone = get_inspection_zone(joint_code, wall_thickness_mm, welding_method)
+    rad = calc_radiation_thickness(
+        wall_thickness_mm,
+        zone.get('g_min_mm', 0.5),
+        zone.get('g_max_mm', 3.5),
+        scheme_code,
+    )
+    rad['table_b_thickness_mm'] = rad['s_rad_f_mm']
+    return rad
 
 def _get_C(focal_spot_mm: float, sensitivity_mm: float) -> float:
     """

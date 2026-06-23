@@ -22,6 +22,7 @@ from .generator import generate_tech_card, regenerate_techcard_files, get_defaul
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data
 from accounts.models import UserBalance
+from normative.calculations import resolve_table_b_thickness_mm
 from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 
@@ -232,8 +233,8 @@ def create_step3_view(request, doc_code):
     session_data = _get_session_data(request)
     wall_thickness = float(session_data.get('wall_thickness', 10))
     material_type = resolve_material_type(session_data.get('material', ''))
-    suitable_sources = get_suitable_sources(wall_thickness, material_type)
-    table_b_info = get_table_b_selection_info(wall_thickness, material_type)
+    joint_designation = session_data.get('joint_designation', '')
+    welding_process = session_data.get('welding_process', '30')
     material_display = get_material_display_name(
         session_data.get('material', ''),
         session_data.get('material_custom', ''),
@@ -244,6 +245,8 @@ def create_step3_view(request, doc_code):
             request.POST,
             wall_thickness=wall_thickness,
             material_type=material_type,
+            joint_designation=joint_designation,
+            welding_process=welding_process,
         )
         if form.is_valid():
             data = form.cleaned_data
@@ -253,9 +256,9 @@ def create_step3_view(request, doc_code):
         form = TechCardStep3Form(
             wall_thickness=wall_thickness,
             material_type=material_type,
+            joint_designation=joint_designation,
+            welding_process=welding_process,
         )
-
-    recommended_films = get_suitable_films(wall_thickness, material_type)
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
     return render(request, 'techcards/create_step3.html', {
@@ -264,13 +267,12 @@ def create_step3_view(request, doc_code):
         'step': 3,
         'total_steps': 4,
         'step_labels': STEP_LABELS,
-        'suitable_sources': suitable_sources,
         'wall_thickness': wall_thickness,
         'material_display': material_display,
-        'table_b_info': table_b_info,
-        'recommended_films': recommended_films,
         'material_type': material_type,
         'session_material': session_data.get('material', ''),
+        'joint_designation': joint_designation,
+        'welding_process': welding_process,
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
     })
 
@@ -579,34 +581,63 @@ def delete_techcard_view(request, pk):
 
 
 def get_sources_ajax(request):
-    """AJAX: возвращает подходящие источники для заданной толщины и материала."""
-    thickness = request.GET.get('thickness', 10)
+    """AJAX: подходящие источники по радиационной толщине, схеме и материалу."""
+    scheme = (request.GET.get('scheme') or '').strip()
     material = request.GET.get('material', '')
+    joint = request.GET.get('joint', '')
+    welding_process = request.GET.get('welding_process', '30')
     try:
-        thickness = float(thickness)
+        wall_thickness = float(request.GET.get('thickness', 10))
     except (ValueError, TypeError):
-        thickness = 10
+        wall_thickness = 10.0
+
+    if not scheme:
+        return JsonResponse({'sources': [], 'error': 'scheme_required'})
 
     material_type = resolve_material_type(material)
-    sources = get_suitable_sources(thickness, material_type)
-    return JsonResponse({'sources': sources})
+    rad = resolve_table_b_thickness_mm(
+        wall_thickness, scheme, joint, welding_process,
+    )
+    table_b_thickness = rad['table_b_thickness_mm']
+    sources = get_suitable_sources(table_b_thickness, material_type)
+    table_b_info = get_table_b_selection_info(table_b_thickness, material_type)
+    return JsonResponse({
+        'sources': sources,
+        'table_ref': table_b_info.get('table_ref'),
+        'range_label': table_b_info.get('range_label'),
+        'radiation_thickness_mm': table_b_thickness,
+        'wall_desc': rad.get('wall_desc', ''),
+        'formula_f': rad.get('formula_f', ''),
+        'wall_thickness_mm': wall_thickness,
+    })
 
 
 def get_films_ajax(request):
-    """AJAX: допустимые плёнки по табл. Б для толщины, материала и источника."""
-    thickness = request.GET.get('thickness', 10)
+    """AJAX: допустимые плёнки по табл. Б для радиационной толщины, схемы, материала и источника."""
+    scheme = (request.GET.get('scheme') or '').strip()
     material = request.GET.get('material', '')
+    joint = request.GET.get('joint', '')
+    welding_process = request.GET.get('welding_process', '30')
     source_code = request.GET.get('source', '') or None
     try:
-        thickness = float(thickness)
+        wall_thickness = float(request.GET.get('thickness', 10))
     except (ValueError, TypeError):
-        thickness = 10
+        wall_thickness = 10.0
 
     material_type = resolve_material_type(material)
-    films = get_suitable_films(thickness, material_type, source_code)
+    if scheme:
+        rad = resolve_table_b_thickness_mm(
+            wall_thickness, scheme, joint, welding_process,
+        )
+        table_b_thickness = rad['table_b_thickness_mm']
+    else:
+        table_b_thickness = wall_thickness
+
+    films = get_suitable_films(table_b_thickness, material_type, source_code)
     return JsonResponse({
         'films': [{'code': f, 'name': f} for f in films],
-        'table_ref': get_table_b_selection_info(thickness, material_type).get('table_ref'),
+        'table_ref': get_table_b_selection_info(table_b_thickness, material_type).get('table_ref'),
+        'radiation_thickness_mm': table_b_thickness,
     })
 
 

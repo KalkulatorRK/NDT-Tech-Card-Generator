@@ -11,8 +11,8 @@ from .models import NormativeDocument, TechCard
 class NormativeDocumentAdmin(admin.ModelAdmin):
     """Администрирование нормативных документов."""
 
-    list_display = ('code', 'control_method', 'is_implemented', 'is_active', 'sort_order')
-    list_filter = ('control_method', 'is_implemented', 'is_active')
+    list_display = ('code', 'document_kind', 'control_method', 'is_implemented', 'is_active', 'sort_order')
+    list_filter = ('document_kind', 'control_method', 'is_implemented', 'is_active')
     search_fields = ('code', 'full_name')
     list_editable = ('is_implemented', 'is_active', 'sort_order')
     ordering = ('sort_order', 'code')

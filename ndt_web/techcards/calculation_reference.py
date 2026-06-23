@@ -415,7 +415,7 @@ def generate_calculation_reference_docx(
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     subtitle.add_run(
         f'Технологическая карта № {card_number or "—"}\n'
-        f'Нормативный документ: {normative_doc_code}\n'
+        f'Методический документ: {normative_doc_code}\n'
         f'Дата формирования: {datetime.now().strftime("%d.%m.%Y %H:%M")}'
     ).font.size = Pt(9)
 

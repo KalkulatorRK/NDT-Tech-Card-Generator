@@ -53,6 +53,7 @@ class Command(BaseCommand):
                 'is_implemented': True,
                 'is_active': True,
                 'sort_order': 10,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
                 'description': (
                     'Определяет технические требования к радиографическому контролю '
                     'оборудования и трубопроводов атомных энергетических установок.'

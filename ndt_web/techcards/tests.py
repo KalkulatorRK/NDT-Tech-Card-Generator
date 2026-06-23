@@ -505,3 +505,47 @@ class Step3AjaxTests(TestCase):
         label_5b = dict(SCHEME_CHOICES).get('5b', '')
         self.assertNotIn('эллипс', label_5b.lower())
         self.assertNotIn('эллипс', SCHEME_DESCRIPTIONS.get('5b', '').lower())
+
+
+class WeldingProcessFilterTests(TestCase):
+    """Фильтрация способов сварки по типу соединения (ГОСТ Р 59023.2-2020)."""
+
+    def test_choices_limited_to_joint_methods(self):
+        from normative.gost_59023_2 import get_welding_process_choices_for_joint
+        codes = [c for c, _ in get_welding_process_choices_for_joint('С-1') if c]
+        self.assertEqual(set(codes), {'53', '10'})
+
+    def test_form_rejects_invalid_welding_process(self):
+        from techcards.forms import TechCardStep2Form
+        form = TechCardStep2Form({
+            'object_type': 'flat',
+            'material': '08Х18Н10Т',
+            'wall_thickness': '10',
+            'joint_designation': 'С-1',
+            'welding_process': '30',
+            'weld_category': 'II',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('welding_process', form.errors)
+
+
+class DocumentKindTests(TestCase):
+    """Вид документа: методический vs нормативный."""
+
+    def test_gost_is_methodological(self):
+        doc = NormativeDocument.objects.create(
+            code='ГОСТ Р 50.05.07-2018',
+            full_name='Радиографический контроль',
+            control_method='RT',
+            document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+        )
+        self.assertEqual(doc.get_document_kind_display(), 'Методический документ')
+
+    def test_joint_gost_image_available(self):
+        from normative.gost_59023_2 import get_joint_image_path
+        path = get_joint_image_path('С-1')
+        self.assertTrue(path.startswith('gost/'))
+        full = os.path.join(
+            os.path.dirname(__file__), '..', 'static', 'img', 'welds', path,
+        )
+        self.assertTrue(os.path.isfile(full), msg=full)

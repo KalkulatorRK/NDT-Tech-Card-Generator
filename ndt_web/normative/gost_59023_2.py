@@ -95,6 +95,59 @@ def get_welding_process_choices():
     return [(code, f'{code} — {info["name"]}') for code, info in WELDING_PROCESSES.items()]
 
 
+def get_welding_process_choices_for_joint(joint_code: str):
+    """
+    Допустимые способы сварки для типа соединения по ГОСТ Р 59023.2-2020.
+
+    Возвращает только коды из поля methods соответствующей строки таблицы.
+    """
+    info = JOINT_TYPES.get(joint_code, {})
+    allowed = info.get('methods', [])
+    choices = [('', '— Выберите способ сварки —')]
+    for code, label in get_welding_process_choices():
+        if code in allowed:
+            choices.append((code, label))
+    return choices
+
+
+# Изображения конструктивных элементов шва (столбец таблиц ГОСТ Р 59023.2-2020)
+JOINT_IMAGES = {
+    'С-1': 'gost/С_1.gif',
+    'С-1-1': 'gost/С_1_1.gif',
+    'С-3': 'gost/С_3.gif',
+    'С-4': 'gost/С_4.gif',
+    'С-5': 'gost/С_5.gif',
+    'С-6': 'gost/С_6.gif',
+    'С-7': 'gost/С_7.png',
+    'С-11': 'gost/С_11.gif',
+    'С-12': 'gost/С_12.gif',
+    'С-13': 'gost/С_13.gif',
+    'С-14': 'gost/С_14.gif',
+    'С-15': 'gost/С_15.gif',
+    'С-16': 'gost/С_16.gif',
+    'С-17': 'gost/С_17.gif',
+    'С-18': 'gost/С_18.gif',
+    'С-19': 'gost/С_19.gif',
+    'С-21': 'gost/С_21.gif',
+    'С-22': 'gost/С_22.gif',
+    'С-25': 'gost/С_25.gif',
+    'С-27': 'gost/С_27.gif',
+    'С-42': 'gost/С_42.gif',
+    'У-1': 'gost/У_1.png',
+    'У-10': 'gost/У_10.gif',
+    'Т-1': 'gost/Т_1.gif',
+    'Т-2': 'gost/Т_2.gif',
+}
+
+
+def get_joint_image_path(joint_code: str) -> str:
+    """Относительный путь к изображению шва (от static/img/welds/)."""
+    if joint_code in JOINT_IMAGES:
+        return JOINT_IMAGES[joint_code]
+    info = JOINT_TYPES.get(joint_code, {})
+    return info.get('sketch', '')
+
+
 # ------------------------------------------------------------------
 # Типы сварных соединений
 #
@@ -503,7 +556,10 @@ def get_joint_type_choices(material_class: str = None):
 
 def get_joint_info(joint_code: str) -> dict:
     """Возвращает полную информацию о типе соединения."""
-    return JOINT_TYPES.get(joint_code, {})
+    info = dict(JOINT_TYPES.get(joint_code, {}))
+    if info:
+        info['image'] = get_joint_image_path(joint_code)
+    return info
 
 
 # ------------------------------------------------------------------

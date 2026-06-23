@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container py-4">
   <h2 class="mb-2"><i class="bi bi-file-earmark-plus me-2" style="color:var(--primary);"></i>Создание технологической карты</h2>
-  <p class="text-muted mb-4">Выберите метод неразрушающего контроля и нормативный документ.</p>
+  <p class="text-muted mb-4">Выберите метод неразрушающего контроля и документ (нормативный или методический).</p>
 
   {% for method_name, docs in methods.items %}
   <div class="card mb-4">
@@ -17,7 +17,12 @@
       <div class="col-md-6 col-lg-4">
         <div class="border rounded p-3 h-100 d-flex flex-column"
              style="background:{% if doc.is_implemented %}#fafcff{% else %}#f9f9f9{% endif %};">
-          <div class="fw-semibold mb-1">{{ doc.code }}</div>
+          <div class="fw-semibold mb-1">
+            {{ doc.code }}
+            <span class="badge bg-light text-dark border ms-1" style="font-size:0.7rem;">
+              {{ doc.get_document_kind_display }}
+            </span>
+          </div>
           <div class="text-muted flex-grow-1 mb-3" style="font-size:0.82rem;">
             {{ doc.full_name|truncatechars:100 }}
           </div>

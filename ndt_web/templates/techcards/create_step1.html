@@ -17,7 +17,7 @@
 
         <div class="info-box mb-4">
           <i class="bi bi-file-text me-1"></i>
-          <strong>Нормативный документ:</strong> {{ doc.code }} — {{ doc.full_name|truncatechars:80 }}
+          <strong>{{ doc.get_document_kind_display }}:</strong> {{ doc.code }} — {{ doc.full_name|truncatechars:80 }}
           {% if free_available %}
           <br><i class="bi bi-gift me-1"></i>
           <strong>Ознакомительная карта доступна</strong> по данному документу.

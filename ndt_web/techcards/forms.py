@@ -13,6 +13,7 @@ from normative.gost_50_05_07 import (
 from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
 from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices,
+    get_welding_process_choices_for_joint,
     get_controlled_object_material_choices, get_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
@@ -125,14 +126,11 @@ class TechCardStep2Form(forms.Form):
         ),
     )
     welding_process = forms.ChoiceField(
-        choices=[('', '— Выберите способ сварки —')] + get_welding_process_choices(),
+        choices=[('', '— Выберите способ сварки —')],
         required=False,
         label='Способ сварки (код по ГОСТ Р 59023.2-2020) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_welding_process'}),
-        help_text=(
-            '10 — АДФ под флюсом; 30 — РДС; 40 — комбинированная; '
-            '51/52 — аргонодуговая; 60 — ЭЛС'
-        ),
+        help_text='Список ограничен допустимыми способами для выбранного типа соединения.',
     )
     welding_process_custom = forms.CharField(
         required=False,
@@ -152,6 +150,18 @@ class TechCardStep2Form(forms.Form):
             'Категория III — прочее оборудование.'
         ),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        joint = ''
+        if self.is_bound:
+            joint = self.data.get('joint_designation', '')
+        else:
+            joint = self.initial.get('joint_designation', '')
+        if joint:
+            self.fields['welding_process'].choices = (
+                get_welding_process_choices_for_joint(joint)
+            )
 
     def clean_outer_diameter(self):
         """Диаметр обязателен для трубопровода."""
@@ -175,6 +185,23 @@ class TechCardStep2Form(forms.Form):
         elif not material and grade:
             cleaned['material'] = grade
         cleaned['material_custom'] = grade
+
+        joint = cleaned.get('joint_designation', '')
+        process = (cleaned.get('welding_process') or '').strip()
+        custom_process = (cleaned.get('welding_process_custom') or '').strip()
+        if joint and process:
+            allowed = JOINT_TYPES.get(joint, {}).get('methods', [])
+            if process not in allowed:
+                self.add_error(
+                    'welding_process',
+                    'Выбранный способ сварки не допускается для данного типа соединения '
+                    f'по ГОСТ Р 59023.2-2020 (допустимо: {", ".join(allowed)}).',
+                )
+        elif joint and not process and not custom_process:
+            self.add_error(
+                'welding_process',
+                'Выберите способ сварки из списка допустимых для выбранного соединения.',
+            )
         return cleaned
 
     def clean_joint_designation(self):

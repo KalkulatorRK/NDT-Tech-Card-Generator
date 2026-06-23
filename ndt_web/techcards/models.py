@@ -12,10 +12,17 @@ from accounts.models import CustomUser
 
 class NormativeDocument(models.Model):
     """
-    Нормативный документ, по которому разрабатываются техкарты.
+    Документ нормативно-методической базы, по которому разрабатываются техкарты.
 
-    Каждая запись идентифицирует конкретный стандарт или норматив.
+    Каждая запись идентифицирует конкретный стандарт, норматив или методический документ.
     """
+
+    KIND_NORMATIVE = 'normative'
+    KIND_METHODOLOGICAL = 'methodological'
+    KIND_CHOICES = [
+        (KIND_NORMATIVE, 'Нормативный документ'),
+        (KIND_METHODOLOGICAL, 'Методический документ'),
+    ]
 
     METHOD_RT = 'RT'   # Радиографический
     METHOD_VT = 'VT'   # Визуальный и измерительный
@@ -51,10 +58,17 @@ class NormativeDocument(models.Model):
     )
     sort_order = models.IntegerField(default=100, verbose_name='Порядок сортировки')
     description = models.TextField(blank=True, verbose_name='Краткое описание')
+    document_kind = models.CharField(
+        max_length=20,
+        choices=KIND_CHOICES,
+        default=KIND_NORMATIVE,
+        verbose_name='Вид документа',
+        help_text='Нормативный или методический документ',
+    )
 
     class Meta:
-        verbose_name = 'Нормативный документ'
-        verbose_name_plural = 'Нормативные документы'
+        verbose_name = 'Документ НДТ'
+        verbose_name_plural = 'Документы НДТ'
         ordering = ['sort_order', 'code']
 
     def __str__(self):

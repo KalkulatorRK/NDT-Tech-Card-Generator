@@ -279,6 +279,13 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   box-shadow: 0 -4px 16px rgba(58, 123, 213, 0.08);
 }
 
+.joint-gost-image {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 0.35rem;
+}
+
 /* ---- Скачивание файлов ---- */
 .btn-download.is-downloading {
   opacity: 0.85;

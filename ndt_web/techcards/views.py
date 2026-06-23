@@ -245,18 +245,21 @@ def create_step2_view(request, doc_code):
             _save_session_data(request, data)
             return redirect('create_step3', doc_code=doc_code)
     else:
-        form = TechCardStep2Form()
+        form = TechCardStep2Form(initial=_get_session_data(request))
 
-    # Данные о типах соединений для JavaScript
-    from normative.gost_59023_2 import JOINT_TYPES
+    from normative.gost_59023_2 import JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path
     joint_data = {
         code: {
             'name': info['name'],
             'methods': info['methods'],
             'groove': info['groove'],
-            'sketch': info.get('sketch', ''),
+            'image': get_joint_image_path(code),
         }
         for code, info in JOINT_TYPES.items()
+    }
+    welding_labels = {
+        code: f'{code} — {info["name"]}'
+        for code, info in WELDING_PROCESSES.items()
     }
 
     return render(request, 'techcards/create_step2.html', {
@@ -266,6 +269,7 @@ def create_step2_view(request, doc_code):
         'total_steps': 4,
         'step_labels': ['Объект', 'Параметры', 'Источник', 'Подтверждение'],
         'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
+        'welding_labels_json': json.dumps(welding_labels, ensure_ascii=False),
     })
 
 
@@ -309,6 +313,13 @@ def create_step3_view(request, doc_code):
     scheme_data = build_step3_scheme_data(
         wall_thickness, material_type, joint_designation, welding_process,
     )
+    from normative.gost_59023_2 import get_joint_info, WELDING_PROCESSES
+    joint_info = get_joint_info(joint_designation) if joint_designation else {}
+    welding_label = ''
+    if welding_process and welding_process in WELDING_PROCESSES:
+        wp = WELDING_PROCESSES[welding_process]
+        welding_label = f'{welding_process} — {wp["name"]}'
+
     return render(request, 'techcards/create_step3.html', {
         'form': form,
         'doc': doc,
@@ -320,7 +331,9 @@ def create_step3_view(request, doc_code):
         'material_type': material_type,
         'session_material': session_data.get('material', ''),
         'joint_designation': joint_designation,
+        'joint_info': joint_info,
         'welding_process': welding_process,
+        'welding_label': welding_label,
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
         'sources_by_scheme_json': json.dumps(
             scheme_data['sources_by_scheme'], ensure_ascii=False,

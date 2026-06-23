@@ -1197,7 +1197,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     story.append(Paragraph('РАДИОГРАФИЧЕСКОГО КОНТРОЛЯ', title_s))
     story.append(Paragraph(
         f'№ {card_num}     Дата: {dev_date}     '
-        f'Нормативный документ: {DOCUMENT_CODE}', norm_s))
+        f'Методический документ: {DOCUMENT_CODE}', norm_s))
     story.append(Spacer(1, 5*mm))
 
     src = params.get('selected_source') or {}
@@ -1279,7 +1279,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     section('7–10. ПОДГОТОВКА, УСЛОВИЯ, ОЦЕНКА', [
         ('8.3 Состав рабочего звена', pers.get('level')),
         ('8.4 Диапазон рабочих температур, °С', '+5 ÷ +40'),
-        ('9. Нормативный документ оценки', params.get('quality_normative')),
+        ('9. Нормативный документ оценки качества (НП-105-18)', params.get('quality_normative')),
         ('10. Критерии качества', params.get('quality_criteria_summary')),
         ('Специалист НК', params.get('inspector_name') or '___________________'),
     ])

@@ -48,7 +48,7 @@
 
         <div class="text-muted mb-3" style="font-size:0.82rem;">
           <i class="bi bi-info-circle me-1"></i>
-          Ознакомительный кредит: первая техкарта по каждому нормативному документу
+          Ознакомительный кредит: первая техкарта по каждому документу (методическому или нормативному)
         </div>
 
         {% if user.is_admin and admin_unread_total > 0 %}
@@ -99,13 +99,13 @@
       <!-- Доступные документы и статус -->
       <div class="card mb-4">
         <div class="card-header-section">
-          <i class="bi bi-journal-check me-2"></i>Статус по нормативным документам
+          <i class="bi bi-journal-check me-2"></i>Доступные документы
         </div>
         <div class="table-responsive">
           <table class="table mb-0">
             <thead>
               <tr>
-                <th>Нормативный документ</th>
+                <th>Документ</th>
                 <th>Метод</th>
                 <th>Ознакомительная карта</th>
                 <th>Действие</th>

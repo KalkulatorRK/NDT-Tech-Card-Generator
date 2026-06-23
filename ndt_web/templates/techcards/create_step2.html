@@ -75,8 +75,9 @@
               <div class="border rounded p-3 bg-light">
                 <div class="row align-items-center">
                   <div class="col-md-3 text-center">
-                    <img id="joint-sketch-img" src="" alt="Эскиз сварного соединения"
-                         style="max-height:120px; max-width:200px;">
+                    <img id="joint-sketch-img" src="" alt="Конструктивные элементы шва"
+                         class="joint-gost-image"
+                         style="max-height:180px; max-width:100%; object-fit:contain;">
                   </div>
                   <div class="col-md-9">
                     <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
@@ -154,48 +155,65 @@
 // При выборе типа соединения запрашиваем данные и показываем эскиз
 
 var JOINT_DATA = {{ joint_data_json|safe }};
+var WELDING_LABELS = {{ welding_labels_json|safe }};
+var WELDS_STATIC = '{% static "img/welds/" %}';
 
 var jointSelect = document.getElementById('id_joint_designation');
 var sketchBlock = document.getElementById('joint-sketch-block');
 var sketchImg = document.getElementById('joint-sketch-img');
 var sketchInfo = document.getElementById('joint-sketch-info');
 var dimensionsBlock = document.getElementById('joint-dimensions');
+var processSelect = document.getElementById('id_welding_process');
+
+function rebuildWeldingChoices(allowedMethods, selectedValue) {
+  if (!processSelect) return;
+  var current = selectedValue || processSelect.value;
+  processSelect.innerHTML = '';
+  var empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = '— Выберите способ сварки —';
+  processSelect.appendChild(empty);
+
+  (allowedMethods || []).forEach(function (code) {
+    if (!WELDING_LABELS[code]) return;
+    var opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = WELDING_LABELS[code];
+    processSelect.appendChild(opt);
+  });
+
+  if (current && allowedMethods && allowedMethods.indexOf(current) >= 0) {
+    processSelect.value = current;
+  } else {
+    processSelect.value = '';
+    if (allowedMethods && allowedMethods.length === 1) {
+      processSelect.value = allowedMethods[0];
+    }
+  }
+  toggleWeldingCustom(processSelect, 'welding-custom-group');
+}
 
 function updateJointUI(jointCode) {
   if (!jointCode || !JOINT_DATA[jointCode]) {
     sketchBlock.style.display = 'none';
+    rebuildWeldingChoices([], '');
     return;
   }
   var info = JOINT_DATA[jointCode];
 
-  // Показываем эскиз
-  if (info.sketch) {
-    sketchImg.src = '{% static "img/welds/" %}' + info.sketch;
+  if (info.image) {
+    sketchImg.src = WELDS_STATIC + info.image;
     sketchImg.style.display = '';
   } else {
     sketchImg.style.display = 'none';
   }
 
-  // Описание
   sketchInfo.innerHTML = '<strong>' + jointCode + '</strong> — ' + info.name +
-    '<br><span class="text-muted">Способы сварки: ' + info.methods.join(', ') +
+    '<br><span class="text-muted">Допустимые способы сварки: ' + info.methods.join(', ') +
     ' | Разделка: ' + info.groove + '</span>';
 
   sketchBlock.style.display = '';
-
-  // Обновляем список допустимых способов сварки
-  var processSelect = document.getElementById('id_welding_process');
-  if (processSelect && info.methods) {
-    for (var i = 0; i < processSelect.options.length; i++) {
-      var opt = processSelect.options[i];
-      if (opt.value === '') continue;
-      var isAllowed = info.methods.some(function(m) { return opt.value.startsWith(m); });
-      opt.style.color = isAllowed ? '' : '#999';
-      opt.style.background = isAllowed ? '' : '#f8f8f8';
-    }
-  }
-
-  // Рассчитываем зоны если введена толщина
+  rebuildWeldingChoices(info.methods, processSelect ? processSelect.value : '');
   calculateZones(jointCode);
 }
 
@@ -236,9 +254,9 @@ if (thicknessInput) {
     if (jointSelect) calculateZones(jointSelect.value);
   });
 }
-var processSelect = document.getElementById('id_welding_process');
 if (processSelect) {
   processSelect.addEventListener('change', function() {
+    toggleWeldingCustom(this, 'welding-custom-group');
     if (jointSelect) calculateZones(jointSelect.value);
   });
 }

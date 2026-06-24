@@ -41,6 +41,24 @@ class QualityViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('assessment_data', response.context)
 
+    def test_assessment_rejects_excess_inclusion_count(self):
+        """Превышение числа включений на 100 мм даёт вердикт БРАК."""
+        self.client.get(reverse('quality_form'))
+        data = {
+            'normative_doc': 'НП-105-18',
+            'weld_category': 'I',
+            'wall_thickness': '10',
+            'defect_count': '1',
+            'defect_0-defect_type': 'pore',
+            'defect_0-size_1': '0.5',
+            'defect_0-size_2': '0',
+            'defect_0-count': '15',
+        }
+        response = self.client.post(reverse('quality_form'), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['assessment_data']['is_acceptable'])
+        self.assertEqual(response.context['assessment_data']['verdict'], 'БРАК')
+
     def test_guest_counter_increments(self):
         """Счётчик гостевых оценок увеличивается после отправки."""
         session = self.client.session

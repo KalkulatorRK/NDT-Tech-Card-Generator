@@ -222,6 +222,48 @@ class QualityAssessmentLogicTests(TestCase):
         from normative.np_105_18 import get_required_sensitivity
         self.assertEqual(get_required_sensitivity('III', 150.0), 2.50)
 
+    def test_pore_count_exceeds_max_per_100mm(self):
+        """Пора допустима по размеру, но превышает число на 100 мм (табл. 4.8)."""
+        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=15)
+        self.assertFalse(result['is_acceptable'])
+        self.assertEqual(result['max_allowed_count'], 12)
+
+    def test_pore_count_within_max_per_100mm(self):
+        """15 пор по размеру, но 12 шт. — в пределах нормы на 100 мм."""
+        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=12)
+        self.assertTrue(result['is_acceptable'])
+
+    def test_aggregate_inclusion_count_exceeded(self):
+        """Суммарное число включений и скоплений на 100 мм превышает норму."""
+        defects = [
+            {'type': 'pore', 'size_1': 0.5, 'count': 7},
+            {'type': 'slag', 'size_1': 0.8, 'count': 6},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10)
+        self.assertFalse(result['is_acceptable'])
+        self.assertTrue(result['count_exceeded'])
+        self.assertEqual(result['total_inclusion_count'], 13)
+
+    def test_aggregate_inclusion_count_ok(self):
+        """Суммарное число включений на 100 мм в пределах нормы."""
+        defects = [
+            {'type': 'pore', 'size_1': 0.5, 'count': 6},
+            {'type': 'slag', 'size_1': 0.8, 'count': 6},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10)
+        self.assertTrue(result['is_acceptable'])
+        self.assertFalse(result['count_exceeded'])
+
+    def test_aggregate_scales_with_weld_length(self):
+        """При длине шва > 100 мм допустимое суммарное число масштабируется."""
+        defects = [
+            {'type': 'pore', 'size_1': 0.5, 'count': 10},
+            {'type': 'slag', 'size_1': 0.8, 'count': 10},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10, weld_length_mm=200)
+        self.assertTrue(result['is_acceptable'])
+        self.assertEqual(result['max_inclusion_count_allowed'], 24)
+
 
 class TechCardCalculatorTests(TestCase):
     """Тесты вычислительного ядра генератора техкарт."""

@@ -12,6 +12,8 @@
 При выходе новых изменений необходимо актуализировать этот модуль.
 """
 
+import math
+
 # ------------------------------------------------------------------
 # Идентификатор документа
 # ------------------------------------------------------------------
@@ -383,6 +385,7 @@ def assess_inclusion(
     thickness_mm: float,
     size_mm: float,
     is_cluster: bool = False,
+    count: int = 1,
 ) -> dict:
     """
     Оценивает допустимость одиночного включения или скопления
@@ -393,6 +396,7 @@ def assess_inclusion(
     :param thickness_mm: номинальная толщина, мм
     :param size_mm: максимальный размер дефекта, мм
     :param is_cluster: True если это скопление, False если одиночное включение
+    :param count: количество дефектов на оцениваемом участке
     :return: словарь с результатом оценки
     """
     criteria = _lookup_table(category, thickness_mm)
@@ -404,9 +408,11 @@ def assess_inclusion(
             'criterion': '',
             'reference': 'НП-105-18, Таблица 4.8',
             'max_allowed_mm': 0,
+            'max_allowed_count': 0,
         }
 
     max_allowed = criteria['max_cluster_mm'] if is_cluster else criteria['max_inclusion_mm']
+    max_count = criteria.get('max_count_100mm')
 
     if max_allowed is None:
         return {
@@ -415,20 +421,51 @@ def assess_inclusion(
             'criterion': 'Не допускаются',
             'reference': 'НП-105-18, Таблица 4.9',
             'max_allowed_mm': 0,
+            'max_allowed_count': 0,
         }
 
-    is_ok = size_mm <= max_allowed
+    size_ok = size_mm <= max_allowed
+    count_ok = True
+    if max_count is not None:
+        count_ok = count <= max_count
+
+    is_ok = size_ok and count_ok
+    reasons = []
+    if not size_ok:
+        reasons.append(
+            f'{"Одиночное скопление" if is_cluster else "Одиночное включение"} '
+            f'{size_mm:.2f} мм превышает допустимый размер {max_allowed:.2f} мм'
+        )
+    if not count_ok and max_count is not None:
+        reasons.append(
+            f'Количество {count} шт. превышает допустимое {max_count} шт. '
+            f'на участке длиной 100,0 мм'
+        )
+
+    if is_ok:
+        reason = (
+            f'{"Одиночное скопление" if is_cluster else "Одиночное включение"} '
+            f'{size_mm:.2f} мм, {count} шт. — допустимо '
+            f'(размер ≤ {max_allowed:.2f} мм'
+            + (f', число ≤ {max_count} шт. на 100,0 мм' if max_count is not None else '')
+            + ')'
+        )
+    else:
+        reason = ' | '.join(reasons)
+
+    criterion = f'Допустимый размер: {max_allowed:.2f} мм'
+    if max_count is not None:
+        criterion += (
+            f'; допустимое число включений и скоплений на 100,0 мм: {max_count} шт.'
+        )
+
     return {
         'is_acceptable': is_ok,
-        'reason': (
-            f'{"Одиночное скопление" if is_cluster else "Одиночное включение"} '
-            f'{size_mm:.2f} мм — '
-            f'{"допустимо" if is_ok else "ПРЕВЫШАЕТ НОРМУ"} '
-            f'(допустимо: {max_allowed:.2f} мм)'
-        ),
-        'criterion': f'Допустимый размер: {max_allowed:.2f} мм',
+        'reason': reason,
+        'criterion': criterion,
         'reference': f'НП-105-18, Таблица {criteria["table"]}',
         'max_allowed_mm': max_allowed,
+        'max_allowed_count': max_count,
         'sensitivity_K': criteria['sensitivity_K'],
     }
 
@@ -491,24 +528,96 @@ def assess_undercut(
     }
 
 
-def assess_tungsten(category: str, thickness_mm: float, size_mm: float) -> dict:
+def assess_tungsten(category: str, thickness_mm: float, size_mm: float, count: int = 1) -> dict:
     """
     Оценивает допустимость вольфрамового включения по Таблице N 4.6.
     """
     crit = TUNGSTEN_CRITERIA.get(category, TUNGSTEN_CRITERIA.get('I'))
     max_size = min(crit['size_coeff'] * thickness_mm, crit['abs_max'])
+    max_count = crit.get('max_count_100mm', 1)
 
-    is_ok = size_mm <= max_size
+    size_ok = size_mm <= max_size
+    count_ok = count <= max_count
+    is_ok = size_ok and count_ok
+
+    reasons = []
+    if not size_ok:
+        reasons.append(
+            f'Размер {size_mm:.2f} мм превышает допустимый {max_size:.2f} мм'
+        )
+    if not count_ok:
+        reasons.append(
+            f'Количество {count} шт. превышает допустимое {max_count} шт. на 100,0 мм'
+        )
+
+    if is_ok:
+        reason = (
+            f'Вольфрамовое включение {size_mm:.2f} мм, {count} шт. — допустимо'
+        )
+    else:
+        reason = ' | '.join(reasons)
+
     return {
         'is_acceptable': is_ok,
-        'reason': (
-            f'Вольфрамовое включение {size_mm:.2f} мм — '
-            f'{"допустимо" if is_ok else "ПРЕВЫШАЕТ НОРМУ"} '
-            f'(допустимо: {max_size:.2f} мм)'
+        'reason': reason,
+        'criterion': (
+            f'≤ 0,1S = {max_size:.2f} мм; не более {max_count} шт. на 100,0 мм'
         ),
-        'criterion': f'≤ 0,1S = {max_size:.2f} мм, 1 шт. на 100 мм',
         'reference': 'НП-105-18, Таблица N 4.6',
         'max_allowed_mm': max_size,
+        'max_allowed_count': max_count,
+    }
+
+
+def _check_aggregate_inclusion_count(
+    defects: list,
+    category: str,
+    thickness_mm: float,
+    weld_length_mm: float = 0,
+) -> dict | None:
+    """
+    Суммарная проверка числа включений и скоплений по табл. 4.8/4.9.
+
+    Учитывает все поры, шлаковые включения и скопления на оцениваемом участке.
+    """
+    criteria = _lookup_table(category, thickness_mm)
+    max_per_100 = criteria.get('max_count_100mm')
+    if max_per_100 is None:
+        return None
+
+    inclusion_types = {'pore', 'slag', 'cluster'}
+    total = sum(
+        int(d.get('count', 1) or 1)
+        for d in defects
+        if d.get('type') in inclusion_types
+    )
+    if total == 0:
+        return None
+
+    segment_mm = 100.0
+    if weld_length_mm and weld_length_mm > segment_mm:
+        segments = math.ceil(weld_length_mm / segment_mm)
+        allowed = max_per_100 * segments
+        segment_desc = (
+            f'на длине шва {weld_length_mm:.0f} мм '
+            f'({segments:.0f}×100,0 мм, всего {allowed:.0f} шт.)'
+        )
+    else:
+        allowed = max_per_100
+        segment_desc = f'на участке длиной 100,0 мм (не более {allowed} шт.)'
+
+    is_ok = total <= allowed
+    return {
+        'is_acceptable': is_ok,
+        'total_count': total,
+        'allowed_count': allowed,
+        'max_count_100mm': max_per_100,
+        'reason': (
+            f'Суммарное число включений и скоплений: {total} шт. — '
+            f'{"допустимо" if is_ok else "ПРЕВЫШАЕТ НОРМУ"} '
+            f'({segment_desc})'
+        ),
+        'reference': f'НП-105-18, Таблица {criteria.get("table", "4.8")}',
     }
 
 
@@ -554,15 +663,21 @@ def assess_defect(
 
     # Оценка включений (поры, шлак, скопления)
     if defect_type in ('pore', 'slag'):
-        result = assess_inclusion(defect_type, category, thickness_mm, size_1_mm, is_cluster=False)
+        result = assess_inclusion(
+            defect_type, category, thickness_mm, size_1_mm,
+            is_cluster=False, count=count,
+        )
         base.update(result)
 
     elif defect_type == 'cluster':
-        result = assess_inclusion(defect_type, category, thickness_mm, size_1_mm, is_cluster=True)
+        result = assess_inclusion(
+            defect_type, category, thickness_mm, size_1_mm,
+            is_cluster=True, count=count,
+        )
         base.update(result)
 
     elif defect_type == 'tungsten':
-        result = assess_tungsten(category, thickness_mm, size_1_mm)
+        result = assess_tungsten(category, thickness_mm, size_1_mm, count=count)
         base.update(result)
 
     elif defect_type == 'undercut':
@@ -609,10 +724,30 @@ def assess_multiple_defects(
             thickness_mm=thickness_mm,
             size_1_mm=float(defect.get('size_1', 0) or 0),
             size_2_mm=float(defect.get('size_2', 0) or 0),
-            count=int(defect.get('count', 1)),
+            count=int(defect.get('count', 1) or 1),
             weld_length_mm=weld_length_mm,
         )
         results.append(result)
+
+    aggregate = _check_aggregate_inclusion_count(
+        defects, category, thickness_mm, weld_length_mm,
+    )
+    if aggregate and not aggregate['is_acceptable']:
+        results.append({
+            'defect_type': '_aggregate_inclusions',
+            'defect_name': (
+                'Суммарное число включений и скоплений (табл. 4.8, на 100,0 мм)'
+            ),
+            'is_acceptable': False,
+            'reason': aggregate['reason'],
+            'criterion': (
+                f'Не более {aggregate["max_count_100mm"]} шт. '
+                f'на участке длиной 100,0 мм'
+            ),
+            'reference': aggregate['reference'],
+            'max_allowed_mm': 0,
+            'max_allowed_count': aggregate['max_count_100mm'],
+        })
 
     all_ok = all(r.get('is_acceptable', False) for r in results)
 
@@ -620,12 +755,21 @@ def assess_multiple_defects(
     criteria_row = _lookup_table(category, thickness_mm)
     required_sensitivity = criteria_row.get('sensitivity_K', '—')
 
+    count_exceeded = aggregate is not None and not aggregate['is_acceptable']
+
     return {
         'is_acceptable': all_ok,
         'verdict': 'ГОДЕН' if all_ok else 'БРАК',
         'results': results,
         'required_sensitivity_K': required_sensitivity,
         'criteria_table': criteria_row,
+        'max_count_100mm': criteria_row.get('max_count_100mm'),
+        'total_inclusion_count': aggregate['total_count'] if aggregate else 0,
+        'max_inclusion_count_allowed': aggregate['allowed_count'] if aggregate else None,
+        'count_exceeded': count_exceeded,
+        'count_reason': aggregate['reason'] if count_exceeded else '',
+        'score_exceeded': count_exceeded,
+        'score_reason': aggregate['reason'] if count_exceeded else '',
     }
 
 

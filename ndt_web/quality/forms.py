@@ -107,6 +107,7 @@ class DefectEntryForm(forms.Form):
             'min': '1',
             'placeholder': '1',
         }),
+        help_text='Число дефектов на оцениваемом участке (норма — по табл. 4.8 на 100,0 мм шва).',
     )
 
     def clean_defect_type(self):

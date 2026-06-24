@@ -76,7 +76,7 @@
             <th>Фактический<br>размер, мм</th>
             <th>Доп. размер,<br>мм</th>
             <th>Норма<br>(макс.), мм</th>
-            <th>Балл</th>
+            <th>Кол-во,<br>шт.</th>
             <th>Результат</th>
             <th>Ссылка на НД</th>
           </tr>
@@ -93,7 +93,11 @@
             </td>
             <td>—</td>
             <td>{% if result.max_allowed_mm %}{{ result.max_allowed_mm|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td>{% if result.score %}{{ result.score|floatformat:1 }}{% else %}—{% endif %}</td>
+            <td>
+              {% with defect=defects_data|index:forloop.counter0 %}
+              {% if defect and defect.count %}{{ defect.count }}{% elif result.max_allowed_count %}{{ result.max_allowed_count }}{% else %}—{% endif %}
+              {% endwith %}
+            </td>
             <td>
               {% if result.is_acceptable %}
               <span class="badge bg-success">ГОДЕН</span>
@@ -115,13 +119,18 @@
       </table>
     </div>
 
-    <!-- Суммарный балл по порам -->
-    {% if assessment_data.total_pore_score > 0 %}
+    <!-- Суммарное число включений на 100 мм -->
+    {% if assessment_data.total_inclusion_count %}
     <div class="info-box mt-3">
-      <strong>Суммарный балл по порам:</strong>
-      {{ assessment_data.total_pore_score|floatformat:1 }}
-      (допустимо: {{ assessment_data.max_pore_score }})
-      {% if assessment_data.score_exceeded %}
+      <strong>Суммарное число включений и скоплений:</strong>
+      {{ assessment_data.total_inclusion_count }} шт.
+      {% if assessment_data.max_count_100mm %}
+      (допустимо на 100,0 мм: {{ assessment_data.max_count_100mm }} шт.
+      {% if assessment_data.max_inclusion_count_allowed and assessment_data.weld_length and assessment_data.weld_length > 100 %}
+      , на длине {{ assessment_data.weld_length|floatformat:0 }} мм: {{ assessment_data.max_inclusion_count_allowed|floatformat:0 }} шт.
+      {% endif %})
+      {% endif %}
+      {% if assessment_data.count_exceeded %}
       <span class="text-danger fw-bold"> — ПРЕВЫШЕНО</span>
       {% else %}
       <span class="text-success"> — в норме</span>

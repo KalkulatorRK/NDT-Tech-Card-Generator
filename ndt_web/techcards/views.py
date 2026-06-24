@@ -470,7 +470,7 @@ def _build_human_readable_summary(data: dict) -> list:
             return SCHEME_LABELS.get(val, val)
         if key == 'iqi_side':
             return {
-                'source': 'Со стороны источника (эталона)',
+                'source': 'Со стороны источника',
                 'film': 'Со стороны плёнки',
             }.get(val, val)
         if key == 'welding_process':

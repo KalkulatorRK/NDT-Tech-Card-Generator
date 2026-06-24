@@ -152,12 +152,12 @@ class QualityAssessmentLogicTests(TestCase):
 
     def test_pore_rejected_cat_i_s10(self):
         """
-        Пора 2.0 мм, категория I, S=10 мм.
-        По Табл. 4.8: строка 7.5–10.0 мм → макс. 1.2 мм.
-        2.0 > 1.2 → недопустимо.
+        Пора 4.0 мм, категория I, S=10 мм.
+        Превышает допустимый размер крупных включений (3,5 мм, табл. 4.8).
         """
-        result = assess_defect('pore', 'I', 10, size_1_mm=2.0)
+        result = assess_defect('pore', 'I', 10, size_1_mm=4.0)
         self.assertFalse(result['is_acceptable'])
+        self.assertEqual(result['inclusion_group'], 'large')
 
     def test_pore_acceptable_cat_iii_s20(self):
         """
@@ -170,11 +170,12 @@ class QualityAssessmentLogicTests(TestCase):
 
     def test_pore_rejected_cat_iii_s20(self):
         """
-        Пора 4.0 мм, категория III, S=20 мм.
-        По Табл. 4.8: макс. включение 3.0 мм → недопустимо.
+        Пора 8.0 мм, категория III, S=20 мм.
+        Превышает допустимый размер крупных включений (7,0 мм, табл. 4.8).
         """
-        result = assess_defect('pore', 'III', 20, size_1_mm=4.0)
+        result = assess_defect('pore', 'III', 20, size_1_mm=8.0)
         self.assertFalse(result['is_acceptable'])
+        self.assertEqual(result['inclusion_group'], 'large')
 
     def test_undercut_depth_acceptable(self):
         """
@@ -263,6 +264,48 @@ class QualityAssessmentLogicTests(TestCase):
         result = assess_multiple_defects(defects, 'I', 10, weld_length_mm=200)
         self.assertTrue(result['is_acceptable'])
         self.assertEqual(result['max_inclusion_count_allowed'], 24)
+
+    def test_large_inclusion_classified_by_size(self):
+        """Пора 2,0 мм (кат. I, S=10) относится к крупным включениям."""
+        result = assess_defect('pore', 'I', 10, size_1_mm=2.0, count=1)
+        self.assertEqual(result['inclusion_group'], 'large')
+        self.assertEqual(result['max_allowed_count'], 1)
+        self.assertTrue(result['is_acceptable'])
+
+    def test_large_inclusion_count_exceeds_limit(self):
+        """Крупное включение: не более 1 шт. на 100,0 мм."""
+        result = assess_defect('pore', 'I', 10, size_1_mm=2.0, count=2)
+        self.assertFalse(result['is_acceptable'])
+        self.assertEqual(result['max_allowed_count'], 1)
+
+    def test_regular_inclusion_uses_regular_count_limit(self):
+        """Мелкая пора оценивается по лимиту одиночных включений и скоплений."""
+        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=12)
+        self.assertEqual(result['inclusion_group'], 'regular')
+        self.assertTrue(result['is_acceptable'])
+
+    def test_aggregate_large_inclusions_separate(self):
+        """Крупные включения суммируются отдельно от обычных."""
+        defects = [
+            {'type': 'pore', 'size_1': 0.5, 'count': 6},
+            {'type': 'pore', 'size_1': 2.0, 'count': 1},
+            {'type': 'pore', 'size_1': 2.5, 'count': 1},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10)
+        self.assertFalse(result['is_acceptable'])
+        self.assertTrue(result['count_exceeded'])
+        self.assertEqual(result['total_inclusion_count'], 6)
+        self.assertEqual(result['total_large_inclusion_count'], 2)
+
+    def test_aggregate_regular_and_large_both_ok(self):
+        """Обычные и крупные включения в пределах нормы — ГОДЕН."""
+        defects = [
+            {'type': 'pore', 'size_1': 0.5, 'count': 6},
+            {'type': 'pore', 'size_1': 2.0, 'count': 1},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10)
+        self.assertTrue(result['is_acceptable'])
+        self.assertEqual(len(result['aggregates']), 2)
 
 
 class Gost7512DefectNotationTests(TestCase):

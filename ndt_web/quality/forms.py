@@ -6,6 +6,7 @@
 
 from django import forms
 from normative.np_104_18 import get_choices as get_category_choices
+from normative.np_105_18 import COUNT_PER_100MM_LABEL
 
 
 NORMATIVE_DOC_CHOICES = [
@@ -100,14 +101,17 @@ class DefectEntryForm(forms.Form):
     )
     count = forms.IntegerField(
         min_value=1, max_value=999,
-        label='Количество',
+        label=COUNT_PER_100MM_LABEL,
         initial=1,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '1',
             'placeholder': '1',
         }),
-        help_text='Число дефектов на оцениваемом участке (норма — по табл. 4.8 на 100,0 мм шва).',
+        help_text=(
+            'Наибольшее число дефектов данного типа на любом участке шва '
+            'длиной 100,0 мм (табл. 4.8 НП-105-18).'
+        ),
     )
 
     def clean_defect_type(self):

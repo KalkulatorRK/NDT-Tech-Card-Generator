@@ -630,7 +630,7 @@ def assess_undercut(
             f'Глубина: 0,1×S = {max_depth:.2f} мм, не более 0,5 мм; '
             f'Длина: не более {max_length:.0f} мм на 100 мм шва'
         ),
-        'reference': 'НП-105-18, Таблица N 4.6',
+        'reference': 'НП-105-18',
         'max_allowed_mm': max_depth,
     }
 
@@ -670,7 +670,7 @@ def assess_tungsten(category: str, thickness_mm: float, size_mm: float, count: i
         'criterion': (
             f'≤ 0,1S = {max_size:.2f} мм; не более {max_count} шт. на 100,0 мм'
         ),
-        'reference': 'НП-105-18, Таблица N 4.6',
+        'reference': 'НП-105-18',
         'max_allowed_mm': max_size,
         'max_allowed_count': max_count,
     }

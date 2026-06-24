@@ -17,6 +17,13 @@ def index(lst, i):
 
 
 @register.filter
+def radiographic_reference(value):
+    """Ссылка на НД без табл./п. 4.6 для радиографической оценки."""
+    from quality.assessor import _sanitize_radiographic_reference
+    return _sanitize_radiographic_reference(value)
+
+
+@register.filter
 def subtract(value, arg):
     """Вычитание двух чисел."""
     try:

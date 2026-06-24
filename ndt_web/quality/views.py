@@ -151,9 +151,8 @@ def download_assessment_pdf_view(request, pk):
     except QualityAssessment.DoesNotExist:
         raise Http404('Оценка не найдена.')
 
-    # Получаем дефекты и результаты
+    # Получаем дефекты
     defects = list(assessment.defects.all())
-    results = list(assessment.results.all())
 
     defects_data = [{
         'defect_type': d.defect_type,
@@ -162,37 +161,15 @@ def download_assessment_pdf_view(request, pk):
         'count': d.count,
     } for d in defects]
 
-    results_data = []
-    for d, r in zip(defects, results):
-        from normative.gost_7512 import format_gost_7512_defect_notation
-        gost_notation = format_gost_7512_defect_notation(
-            d.defect_type, d.size_1, d.size_2, d.count,
-            morphology='cluster' if d.defect_type == 'cluster' else 'single',
-            elongated=d.defect_type in ('pore', 'slag', 'tungsten') and d.size_2 > 0,
-        )
-        results_data.append({
-            'defect_name': d.get_defect_type_display(),
-            'is_acceptable': r.is_acceptable,
-            'criterion': r.criterion,
-            'reason': r.reason,
-            'reference': r.reference,
-            'max_allowed_mm': r.max_allowed_mm,
-            'gost_notation': gost_notation,
-        })
-
-    from normative.gost_7512 import format_gost_7512_notation_list
-    assessment_data = {
+    form_data = {
         'normative_doc': assessment.normative_doc,
         'weld_category': assessment.weld_category,
         'wall_thickness': assessment.wall_thickness,
         'weld_length': assessment.weld_length,
-        'is_acceptable': assessment.verdict == 'ГОДЕН',
-        'verdict': assessment.verdict,
-        'results': results_data,
-        'combined_gost_notation': format_gost_7512_notation_list(
-            [item['gost_notation'] for item in results_data],
-        ),
+        'inclusion_cluster_count_100mm': assessment.inclusion_cluster_count_100mm,
+        'large_inclusion_count_100mm': assessment.large_inclusion_count_100mm,
     }
+    assessment_data = perform_assessment(form_data, defects_data)
 
     # Генерируем PDF
     uid = uuid.uuid4().hex[:8]

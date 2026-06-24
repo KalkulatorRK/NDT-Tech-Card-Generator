@@ -29,6 +29,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
+from common.pdf_fonts import register_cyrillic_fonts, FONT_REGULAR, FONT_BOLD
+
 from normative.gost_50_05_07 import (
     get_sensitivity, get_sensitivity_mm, get_suitable_sources,
     calc_geometric_unsharpness, calc_min_sfd,
@@ -1199,6 +1201,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     Используется как дополнение к DOCX или если шаблон недоступен.
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    register_cyrillic_fonts()
 
     doc_pdf = SimpleDocTemplate(
         output_path, pagesize=A4,
@@ -1208,14 +1211,16 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
 
     styles = getSampleStyleSheet()
     title_s = ParagraphStyle('T', parent=styles['Title'], fontSize=13,
-                              spaceAfter=4, alignment=TA_CENTER)
+                              spaceAfter=4, alignment=TA_CENTER, fontName=FONT_BOLD)
     head_s = ParagraphStyle('H', parent=styles['Normal'], fontSize=10,
                              spaceAfter=3, spaceBefore=5,
                              backColor=colors.Color(0.84, 0.89, 0.94),
-                             leftIndent=4, fontName='Helvetica-Bold')
-    norm_s = ParagraphStyle('N', parent=styles['Normal'], fontSize=9, spaceAfter=2)
+                             leftIndent=4, fontName=FONT_BOLD)
+    norm_s = ParagraphStyle('N', parent=styles['Normal'], fontSize=9,
+                             spaceAfter=2, fontName=FONT_REGULAR)
     label_s = ParagraphStyle('L', parent=styles['Normal'], fontSize=9,
-                              textColor=colors.Color(0.2, 0.2, 0.6))
+                              textColor=colors.Color(0.2, 0.2, 0.6),
+                              fontName=FONT_REGULAR)
 
     story = []
     card_num = params.get('card_number', '___')

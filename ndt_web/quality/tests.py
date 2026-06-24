@@ -2,6 +2,9 @@
 Тесты приложения «Оценка качества».
 """
 
+import os
+import tempfile
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -94,3 +97,39 @@ class QualityViewTests(TestCase):
 
         response = self.client.get(reverse('quality_form'))
         self.assertRedirects(response, reverse('register'))
+
+
+class QualityPdfTests(TestCase):
+    """Тесты генерации PDF оценки качества."""
+
+    def test_pdf_uses_dejavu_font(self):
+        """PDF протокола использует кириллический шрифт DejaVu."""
+        from quality.assessor import generate_assessment_pdf, perform_assessment
+
+        form_data = {
+            'normative_doc': 'НП-105-18',
+            'weld_category': 'III',
+            'wall_thickness': 10,
+            'weld_length': 300,
+            'inclusion_cluster_count_100mm': 9,
+            'large_inclusion_count_100mm': 0,
+        }
+        defects = [{
+            'defect_type': 'pore',
+            'size_1': 2.0,
+            'size_2': 0,
+            'count': 1,
+        }]
+        assessment_data = perform_assessment(form_data, defects)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf_path = os.path.join(tmp, 'test.pdf')
+            generate_assessment_pdf(assessment_data, defects, pdf_path)
+            raw = open(pdf_path, 'rb').read()
+            self.assertIn(b'DejaVuSans', raw)
+
+    def test_undercut_reference_without_table_46(self):
+        """Подрез не ссылается на табл. 4.6 в радиографической оценке."""
+        from normative.np_105_18 import assess_defect
+        result = assess_defect('undercut', 'I', 10, size_1_mm=0.1)
+        self.assertNotIn('4.6', result['reference'])

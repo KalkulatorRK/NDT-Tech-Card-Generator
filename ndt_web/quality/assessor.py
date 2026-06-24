@@ -6,7 +6,7 @@
 """
 
 import os
-import io
+import re
 from datetime import datetime
 
 from reportlab.lib.pagesizes import A4
@@ -16,9 +16,20 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
 )
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
-from normative.np_105_18 import assess_multiple_defects, DOCUMENT_FULL_NAME
+from common.pdf_fonts import register_cyrillic_fonts, FONT_REGULAR, FONT_BOLD
+from normative.np_105_18 import assess_multiple_defects
+
+
+def _sanitize_radiographic_reference(reference: str) -> str:
+    """Убирает ссылки на табл./п. 4.6 — для оценки по радиографическим снимкам."""
+    if not reference:
+        return '—'
+    ref = reference.strip()
+    if re.search(r'4[.,\s]*6', ref):
+        return 'НП-105-18'
+    return ref
 
 
 def perform_assessment(form_data: dict, defects_data: list) -> dict:
@@ -34,7 +45,6 @@ def perform_assessment(form_data: dict, defects_data: list) -> dict:
     weld_length = float(form_data.get('weld_length', 0) or 0)
     normative_doc = form_data.get('normative_doc', 'НП-105-18')
 
-    # Приводим данные к нужному формату для np_105_18
     defects = []
     for d in defects_data:
         defects.append({
@@ -65,158 +75,226 @@ def perform_assessment(form_data: dict, defects_data: list) -> dict:
     }
 
 
+def _pdf_styles():
+    """Стили Paragraph с кириллическим шрифтом."""
+    register_cyrillic_fonts()
+    base = getSampleStyleSheet()
+    return {
+        'title': ParagraphStyle(
+            'PdfTitle', parent=base['Title'],
+            fontName=FONT_BOLD, fontSize=13, spaceAfter=4, alignment=TA_CENTER,
+        ),
+        'heading': ParagraphStyle(
+            'PdfHeading', parent=base['Normal'],
+            fontName=FONT_BOLD, fontSize=10, spaceBefore=4, spaceAfter=4,
+        ),
+        'normal': ParagraphStyle(
+            'PdfNormal', parent=base['Normal'],
+            fontName=FONT_REGULAR, fontSize=9, spaceAfter=2, leading=11,
+        ),
+        'small': ParagraphStyle(
+            'PdfSmall', parent=base['Normal'],
+            fontName=FONT_REGULAR, fontSize=8, leading=10,
+        ),
+        'cell': ParagraphStyle(
+            'PdfCell', parent=base['Normal'],
+            fontName=FONT_REGULAR, fontSize=8, leading=10,
+        ),
+        'cell_bold': ParagraphStyle(
+            'PdfCellBold', parent=base['Normal'],
+            fontName=FONT_BOLD, fontSize=8, leading=10,
+        ),
+        'verdict_ok': ParagraphStyle(
+            'PdfVerdictOk', parent=base['Normal'],
+            fontName=FONT_BOLD, fontSize=14, textColor=colors.Color(0.1, 0.6, 0.1),
+            alignment=TA_CENTER, spaceBefore=5, spaceAfter=5,
+        ),
+        'verdict_fail': ParagraphStyle(
+            'PdfVerdictFail', parent=base['Normal'],
+            fontName=FONT_BOLD, fontSize=14, textColor=colors.Color(0.8, 0.1, 0.1),
+            alignment=TA_CENTER, spaceBefore=5, spaceAfter=5,
+        ),
+    }
+
+
+def _p(text, style, markup: bool = False) -> Paragraph:
+    raw = str(text if text is not None else '—')
+    if markup:
+        safe = raw.replace('&', '&amp;')
+    else:
+        safe = raw.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return Paragraph(safe, style)
+
+
 def generate_assessment_pdf(assessment_data: dict, defects_data: list, output_path: str) -> str:
     """
-    Создаёт PDF-отчёт об оценке качества.
-
-    :param assessment_data: данные об объекте контроля
-    :param defects_data: список дефектов
-    :param output_path: путь для сохранения файла
-    :return: путь к созданному файлу
+    Создаёт PDF-отчёт об оценке качества с поддержкой кириллицы.
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    styles = _pdf_styles()
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
-        rightMargin=15 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'T', parent=styles['Title'], fontSize=13, spaceAfter=6, alignment=TA_CENTER,
-    )
-    normal = ParagraphStyle(
-        'N', parent=styles['Normal'], fontSize=9, spaceAfter=3,
-    )
-    small = ParagraphStyle(
-        'S', parent=styles['Normal'], fontSize=8, textColor=colors.grey,
+        rightMargin=12 * mm,
+        leftMargin=15 * mm,
+        topMargin=15 * mm,
+        bottomMargin=15 * mm,
     )
 
     story = []
-
-    story.append(Paragraph('ПРОТОКОЛ ОЦЕНКИ КАЧЕСТВА', title_style))
-    story.append(Paragraph('СВАРНОГО СОЕДИНЕНИЯ', title_style))
-    story.append(Paragraph(
+    story.append(_p('ПРОТОКОЛ ОЦЕНКИ КАЧЕСТВА', styles['title']))
+    story.append(_p('СВАРНОГО СОЕДИНЕНИЯ', styles['title']))
+    story.append(_p(
         f'Нормативный документ: {assessment_data.get("normative_doc", "НП-105-18")}',
-        normal,
+        styles['normal'],
     ))
-    story.append(Paragraph(f'Дата: {datetime.now().strftime("%d.%m.%Y %H:%M")}', normal))
-    story.append(Spacer(1, 5 * mm))
+    story.append(_p(
+        f'Дата: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
+        styles['normal'],
+    ))
+    story.append(Spacer(1, 4 * mm))
 
-    # Параметры объекта
-    params_data = [
-        ['Параметр', 'Значение'],
-        ['Категория шва', assessment_data.get('weld_category', '')],
-        ['Толщина стенки, мм', str(assessment_data.get('wall_thickness', ''))],
-        ['Длина шва, мм', str(assessment_data.get('weld_length', '')) or '—'],
+    params_rows = [
+        [_p('Параметр', styles['cell_bold']), _p('Значение', styles['cell_bold'])],
+        [_p('Категория шва', styles['cell']), _p(assessment_data.get('weld_category', ''), styles['cell'])],
+        [_p('Толщина стенки, мм', styles['cell']), _p(assessment_data.get('wall_thickness', ''), styles['cell'])],
+        [_p('Длина шва, мм', styles['cell']), _p(assessment_data.get('weld_length', '') or '—', styles['cell'])],
     ]
-    t = Table(params_data, colWidths=[80 * mm, 80 * mm])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.24, 0.47, 0.85)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 1), (0, -1), colors.Color(0.95, 0.97, 1.0)),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 5 * mm))
-
-    # Результаты оценки дефектов
-    results = assessment_data.get('results', [])
-    table_data = [[
-        '№', 'Тип дефекта', 'Усл. запись',
-        'Размер, мм', 'Доп. размер\n(мм)', 'Доп. размер\n(норма)', 'Результат', 'Ссылка',
-    ]]
-
-    for i, r in enumerate(results, 1):
-        defect = defects_data[i - 1] if i - 1 < len(defects_data) else {}
-        s1 = defect.get('size_1', 0)
-        verdict_text = 'ГОДЕН' if r.get('is_acceptable') else 'БРАК'
-        table_data.append([
-            str(i),
-            r.get('defect_name', ''),
-            r.get('gost_notation', '') or '—',
-            f'{s1:.2f}',
-            f'{r.get("max_allowed_mm", 0):.2f}',
-            '',
-            verdict_text,
-            r.get('reference', ''),
+    inc_count = assessment_data.get('inclusion_cluster_count_100mm')
+    if inc_count is not None:
+        params_rows.append([
+            _p('Включения и скопления на 100,0 мм, шт.', styles['cell']),
+            _p(inc_count, styles['cell']),
+        ])
+    large_count = assessment_data.get('large_inclusion_count_100mm')
+    if large_count is not None:
+        params_rows.append([
+            _p('Крупные включения на 100,0 мм, шт.', styles['cell']),
+            _p(large_count, styles['cell']),
         ])
 
-    results_table = Table(
-        table_data,
-        colWidths=[8 * mm, 32 * mm, 24 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm, 26 * mm],
-    )
+    params_table = Table(params_rows, colWidths=[85 * mm, 85 * mm])
+    params_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.24, 0.47, 0.85)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BACKGROUND', (0, 1), (0, -1), colors.Color(0.95, 0.97, 1.0)),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(params_table)
+    story.append(Spacer(1, 4 * mm))
+
+    results = assessment_data.get('results', [])
+    aggregate_types = {'_aggregate_regular_inclusions', '_aggregate_large_inclusions'}
+    defect_results = [r for r in results if r.get('defect_type') not in aggregate_types]
+
+    header = [
+        _p('№', styles['cell_bold']),
+        _p('Тип дефекта', styles['cell_bold']),
+        _p('Усл. запись', styles['cell_bold']),
+        _p('Размер,<br/>мм', styles['cell_bold'], markup=True),
+        _p('Разм. 2,<br/>мм', styles['cell_bold'], markup=True),
+        _p('Норма,<br/>мм', styles['cell_bold'], markup=True),
+        _p('Кол-во', styles['cell_bold']),
+        _p('Результат', styles['cell_bold']),
+        _p('Ссылка на НД', styles['cell_bold']),
+    ]
+    table_data = [header]
+
+    for i, r in enumerate(defect_results, 1):
+        defect = defects_data[i - 1] if i - 1 < len(defects_data) else {}
+        s1 = defect.get('size_1', 0)
+        s2 = defect.get('size_2', 0)
+        count = defect.get('count', 1)
+        verdict_text = 'ГОДЕН' if r.get('is_acceptable') else 'БРАК'
+        name = r.get('defect_name', '')
+        if r.get('inclusion_group_label'):
+            name = f'{name}<br/><i>{r["inclusion_group_label"]}</i>'
+
+        table_data.append([
+            _p(str(i), styles['cell']),
+            _p(name, styles['cell'], markup=True),
+            _p(r.get('gost_notation', '') or '—', styles['cell']),
+            _p(f'{float(s1):.2f}', styles['cell']),
+            _p(f'{float(s2):.2f}' if s2 else '—', styles['cell']),
+            _p(
+                f'{r.get("max_allowed_mm", 0):.2f}' if r.get('max_allowed_mm') else '—',
+                styles['cell'],
+            ),
+            _p(str(count) if count else '—', styles['cell']),
+            _p(verdict_text, styles['cell']),
+            _p(_sanitize_radiographic_reference(r.get('reference', '')), styles['cell']),
+        ])
+
+    col_widths = [7 * mm, 30 * mm, 22 * mm, 14 * mm, 14 * mm, 14 * mm, 11 * mm, 14 * mm, 28 * mm]
+    results_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     results_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.24, 0.47, 0.85)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('TOPPADDING', (0, 0), (-1, -1), 2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-        ('LEFTPADDING', (0, 0), (-1, -1), 3),
-        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-        ('ALIGN', (2, 1), (4, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 1), (7, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
     ]))
 
-    # Цвет строк в зависимости от результата
-    for i, r in enumerate(results, 1):
-        if not r.get('is_acceptable'):
-            results_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, i), (-1, i), colors.Color(1.0, 0.9, 0.9)),
-            ]))
-        else:
-            results_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, i), (-1, i), colors.Color(0.9, 1.0, 0.9)),
-            ]))
+    for i, r in enumerate(defect_results, 1):
+        bg = (
+            colors.Color(0.9, 1.0, 0.9) if r.get('is_acceptable')
+            else colors.Color(1.0, 0.9, 0.9)
+        )
+        results_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, i), (-1, i), bg),
+        ]))
 
-    story.append(Paragraph('Результаты оценки дефектов:', ParagraphStyle('H', fontSize=10, spaceBefore=4, spaceAfter=4, fontName='Helvetica-Bold')))
+    story.append(_p('Детальная оценка дефектов', styles['heading']))
     story.append(results_table)
-    story.append(Spacer(1, 5 * mm))
+    story.append(Spacer(1, 3 * mm))
 
-    # Итоговое заключение
-    is_ok = assessment_data.get('is_acceptable', False)
-    verdict = assessment_data.get('verdict', '—')
-    verdict_color = colors.Color(0.1, 0.6, 0.1) if is_ok else colors.Color(0.8, 0.1, 0.1)
+    for i, r in enumerate(defect_results, 1):
+        if r.get('reason'):
+            story.append(_p(f'{i}. {r["reason"]}', styles['small']))
+    story.append(Spacer(1, 3 * mm))
 
-    verdict_style = ParagraphStyle(
-        'Verdict',
-        parent=styles['Normal'],
-        fontSize=14,
-        textColor=verdict_color,
-        fontName='Helvetica-Bold',
-        alignment=TA_CENTER,
-        spaceBefore=5,
-        spaceAfter=5,
-    )
-    story.append(Paragraph(f'ЗАКЛЮЧЕНИЕ: {verdict}', verdict_style))
-
-    if assessment_data.get('combined_gost_notation'):
-        story.append(Paragraph(
-            f'Условная запись дефектов (ГОСТ 7512-82, приложение 5): '
-            f'<b>{assessment_data["combined_gost_notation"]}</b>',
-            normal,
-        ))
+    aggregates = assessment_data.get('aggregates', [])
+    if aggregates:
+        story.append(_p('Оценка числа включений на участке 100,0 мм', styles['heading']))
+        for agg in aggregates:
+            status = 'в норме' if agg.get('is_acceptable') else 'ПРЕВЫШЕНО'
+            story.append(_p(
+                f'{agg.get("group_label", "")}: {agg.get("total_count", 0)} шт. '
+                f'(допустимо: {agg.get("max_count_100mm", "—")} шт.) — {status}',
+                styles['normal'],
+            ))
         story.append(Spacer(1, 3 * mm))
 
-    if assessment_data.get('score_exceeded'):
-        story.append(Paragraph(assessment_data.get('score_reason', ''), normal))
-
-    story.append(Spacer(1, 10 * mm))
-    story.append(Paragraph(
-        f'Подпись специалиста НК: _____________________',
-        normal,
+    is_ok = assessment_data.get('is_acceptable', False)
+    verdict = assessment_data.get('verdict', '—')
+    story.append(_p(
+        f'ЗАКЛЮЧЕНИЕ: {verdict}',
+        styles['verdict_ok'] if is_ok else styles['verdict_fail'],
     ))
+
+    if assessment_data.get('combined_gost_notation'):
+        story.append(_p(
+            f'Условная запись дефектов (ГОСТ 7512-82, приложение 5): '
+            f'<b>{assessment_data["combined_gost_notation"]}</b>',
+            styles['normal'],
+            markup=True,
+        ))
+
+    if assessment_data.get('score_exceeded') and assessment_data.get('score_reason'):
+        story.append(_p(assessment_data['score_reason'], styles['normal']))
+
+    story.append(Spacer(1, 8 * mm))
+    story.append(_p('Подпись специалиста НК: _____________________', styles['normal']))
 
     doc.build(story)
     return output_path

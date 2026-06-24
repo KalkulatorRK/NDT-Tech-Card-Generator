@@ -195,6 +195,8 @@ class RadiographicTechCardCalculator:
         # g_min и g_max для расчёта радиационной толщины (используются в _calc_sensitivity_value)
         self.params['g_min_mm'] = zone.get('g_min_mm', 0.5)
         self.params['g_max_mm'] = zone.get('g_max_mm', 3.5)
+        self.params['backing_thickness_mm'] = zone.get('backing_thickness_mm', 0.0)
+        self.params['has_backing'] = zone.get('has_backing', False)
         self.params['haz_width_mm'] = zone.get('haz_width_mm', 5.0)
         self.params['zone_width_mm'] = zone.get('zone_width_mm', '')
         self.params['film_width_min_mm'] = zone.get('film_width_min_mm', '')
@@ -207,17 +209,11 @@ class RadiographicTechCardCalculator:
         """
         Рассчитывает требуемое значение чувствительности K по НП-105-18.
 
-        По НП-105-18, Таблица N 4.8, заголовок: «Номинальная толщина
-        сваренных деталей в месте сварки, мм».
+        По НП-105-18, п. 46 / Табл. 4.8:
+            S_K = S + g_min + Sпк  (одна просвечиваемая стенка)
+            S_K = S + S            (две стенки)
 
-        «Номинальная толщина в месте сварки» — это толщина стенки
-        ВМЕСТЕ с минимальным усилением шва:
-            S_K = S_ном + g_min
-
-        Для схем ЧЕРЕЗ ОБЕ СТЕНКИ K ищется по одной стенке (S + g_min),
-        а не по двойной радиационной толщине (2S + 2g_min).
-
-        Для расчёта расстояния f используется наибольшая толщина:
+        Для расчёта расстояния f:
             S_рад(f) = S + g_max       (1 стенка)
             S_рад(f) = 2S + 2×g_max   (2 стенки)
         """
@@ -228,25 +224,31 @@ class RadiographicTechCardCalculator:
         scheme = self.data.get('scheme_type', '4_6')
         g_min = self.params.get('g_min_mm', 0.5)
         g_max = self.params.get('g_max_mm', 3.5)
+        s_pk = self.params.get('backing_thickness_mm', 0.0)
 
-        # Радиационные толщины
-        rad = calc_radiation_thickness(S, g_min, g_max, scheme)
+        rad = calc_radiation_thickness(S, g_min, g_max, scheme, s_pk)
         self.params['rad_thickness'] = rad
 
-        # K ищем по S + g_min — «номинальная толщина в месте сварки»
-        # (одна стенка + минимальное усиление, независимо от числа стенок)
-        s_k = round(S + g_min, 1)
+        s_k = rad['s_rad_k_mm']
         K = get_sensitivity(s_k, weld_cat)
         mm_val = get_sensitivity_mm(s_k, weld_cat)
 
         self.params['required_sensitivity_pct'] = K
         self.params['required_sensitivity_mm'] = mm_val
-        self.params['s_k_mm'] = s_k            # S + g_min (для поиска K)
-        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']  # для расчёта f
+        self.params['s_k_mm'] = s_k
+        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
+
+        if rad['wall_count'] == 2:
+            sk_desc = f'S_K = S + S = {S} + {S} = {s_k} мм'
+        elif s_pk > 0:
+            sk_desc = f'S_K = S + g_min + Sпк = {S} + {g_min} + {s_pk} = {s_k} мм'
+        else:
+            sk_desc = f'S_K = S + g_min = {S} + {g_min} = {s_k} мм'
+
         self.params['sensitivity_desc'] = (
             f'K ≤ {mm_val:.3f} мм '
-            f'(НП-105-18, Табл. 4.8: Sном+g_min = {S}+{g_min} = {s_k} мм, '
-            f'кат. {self.params.get("weld_category","")})'
+            f'(НП-105-18, Табл. 4.8: {sk_desc}, '
+            f'кат. {self.params.get("weld_category", "")})'
         )
 
     def _select_sources(self):
@@ -418,16 +420,29 @@ class RadiographicTechCardCalculator:
         self.params['screens'] = screens
 
     def _calc_iqi(self):
+        from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement
+        from normative.calculations import SCHEME_WALL_COUNT
+
         weld_cat = self.params['weld_category']
         preferred = [iqi for iqi in IQI_TYPES if weld_cat in iqi['preferred_for']]
         self.params['recommended_iqi'] = preferred[0] if preferred else IQI_TYPES[0]
+
         mm_val = self.params.get('required_sensitivity_mm', 0)
-        wire_diameters = [
-            0.063, 0.080, 0.10, 0.125, 0.160, 0.20, 0.25, 0.32,
-            0.40, 0.50, 0.63, 0.80, 1.00, 1.25, 1.60, 2.00, 2.50, 3.20,
-        ]
-        wire = next((w for w in wire_diameters if w >= mm_val), wire_diameters[-1])
-        self.params['iqi_wire_diameter_mm'] = wire
+        scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
+        wall_count = (self.params.get('rad_thickness') or {}).get(
+            'wall_count', SCHEME_WALL_COUNT.get(scheme, 1),
+        )
+        rad_f = self.params.get('s_rad_f_mm', self.params['wall_thickness'])
+
+        placement = resolve_iqi_placement(scheme, wall_count)
+        self.params['iqi_placement'] = placement
+
+        iqi_wire = get_wire_iqi(rad_f, mm_val, shift_steps=placement['shift_steps'])
+        self.params['iqi_wire'] = iqi_wire
+        self.params['iqi_set_number'] = iqi_wire['set_number']
+        self.params['iqi_wire_number'] = iqi_wire['wire_number']
+        self.params['iqi_wire_diameter_mm'] = iqi_wire['wire_diameter_mm']
+        self.params['iqi_label'] = iqi_wire['label']
 
     def _fill_processing(self):
         self.params['film_processing'] = FILM_PROCESSING
@@ -483,6 +498,7 @@ def _build_value_map(params: dict) -> dict:
     scheme_result = params.get('exposure_scheme') or {}
     scheme_info = params.get('scheme_info') or {}
     iqi = params.get('recommended_iqi') or {}
+    placement = params.get('iqi_placement') or {}
     screens = params.get('screens') or {}
     film_info = params.get('film_class_info') or {}
     pers = params.get('personnel_requirements') or {}
@@ -617,8 +633,8 @@ def _build_value_map(params: dict) -> dict:
         '5.1': src.get('name', ''),
         '5.2': focal_field,
         '5.3': (
-            f"{iqi.get('name', '')} по {iqi.get('standard', '')} "
-            f"/ Ø проволоки {params.get('iqi_wire_diameter_mm', '')} мм"
+            f"{iqi.get('name', '')} {params.get('iqi_label', '')} "
+            f"({placement.get('side_label', 'со стороны источника')})"
         ),
         '5.4': params.get('film_name', film_info.get('examples', '')),
         '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
@@ -638,9 +654,9 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
         '6.2': (
-            f'Sном + g_min = {S}+{params.get("g_min_mm",0.5)} = {params.get("s_k_mm", S+0.5):.1f} мм → '
-            f'K ≤ {params.get("required_sensitivity_mm","—"):.3f} мм '
-            f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category","")});  '
+            f'S_K = {params.get("s_k_mm", "—")} мм → '
+            f'K ≤ {params.get("required_sensitivity_mm", "—"):.3f} мм '
+            f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category", "")});  '
             f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
         ),
         '6.3': params.get('sensitivity_desc', ''),
@@ -814,7 +830,7 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
                         s_rad_f = params.get('s_rad_f_mm', '')
                         rad_run = rad_para.add_run(
                             f'{rad_note}. '
-                            f'Sном+g_min = {params.get("s_k_mm", "")} мм (для K); '
+                            f'S_K = {params.get("s_k_mm", "")} мм (для K); '
                             f'Sрад(f) = {s_rad_f} мм'
                         )
                         rad_run.font.size = Pt(8)
@@ -1255,7 +1271,10 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('Энергия излучения', src.get('energy_display')),
         ('5.2 Размер фокусного пятна (d), мм', params.get('source_focal_spot_mm')),
         ('Активность / мощность', params.get('source_activity') or 'по паспорту источника'),
-        ('5.3 Тип и номер ИКИ', iqi.get('name') + ' / ' + iqi.get('standard', '')),
+        ('5.3 Тип и номер ИКИ', (
+            f"{iqi.get('name', '')} — {params.get('iqi_label', '')} "
+            f"({(params.get('iqi_placement') or {}).get('side_label', '')})"
+        )),
         ('Диаметр контрольной проволоки, мм', params.get('iqi_wire_diameter_mm')),
         ('5.4 Тип плёнки', params.get('film_name') or film_info.get('examples', '')),
         ('Класс плёнки (ГОСТ ИСО 11699-1)', film_info.get('class')),

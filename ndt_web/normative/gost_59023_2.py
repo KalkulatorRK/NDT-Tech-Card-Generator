@@ -650,6 +650,17 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
 
 HAZ_WIDTH_MM = 5.0   # Ширина околошовной зоны для РГК, мм
 
+# Соединения и способы сварки с подкладкой (остающейся подкладкой / кольцом)
+BACKING_JOINT_CODES = frozenset({'С-1-1', 'С-16'})
+BACKING_WELDING_METHODS = frozenset({'32', '42'})
+
+
+def joint_uses_backing(joint_code: str, welding_method: str = '30') -> bool:
+    """True, если в шве применяется остающаяся подкладка или подкладное кольцо."""
+    if joint_code in BACKING_JOINT_CODES:
+        return True
+    return welding_method in BACKING_WELDING_METHODS
+
 
 def get_inspection_zone(
     joint_code: str,
@@ -701,12 +712,17 @@ def get_inspection_zone(
     else:
         film_width_min = e + 40
 
+  # Толщина подкладки Sпк для расчёта S_K (НП-105-18, п. 46)
+    backing_thickness = thickness_mm if joint_uses_backing(joint_code, welding_method) else 0.0
+
     return {
         # 4.2.2 — ширина валика и высота усиления
         'bead_width_mm': round(bead_width_surface, 1),
         'bead_height_mm': round(g_nom, 1),
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
+        'backing_thickness_mm': round(backing_thickness, 1),
+        'has_backing': backing_thickness > 0,
         # 4.2.4 — ширина ОШЗ
         'haz_width_mm': haz_width,
         # 4.2.5 — ширина контролируемой зоны

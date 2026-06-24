@@ -185,12 +185,14 @@ def calc_radiation_thickness(
     g_min_mm: float,
     g_max_mm: float,
     scheme_code: str,
+    backing_thickness_mm: float = 0.0,
 ) -> dict:
     """
     Рассчитывает радиационную толщину для заданной схемы просвечивания.
 
-    По НП-105-18, Табл. 4.8, для определения K используется только:
-        S_K = S + g_min  (номинальная толщина + минимальное усиление шва)
+    По НП-105-18, п. 46 / Табл. 4.8, для определения K:
+        S_K = S + g_min + Sпк   (одна стенка, Sпк — толщина подкладки/кольца)
+        S_K = S + S             (две стенки)
 
     По ГОСТ Р 50.05.07-2018 (раздел 6.3.5) для расчёта f применяется g_max
     с учётом числа просвечиваемых стенок:
@@ -200,28 +202,40 @@ def calc_radiation_thickness(
     :param g_min_mm: наименьшая допустимая высота валика шва, мм
     :param g_max_mm: наибольшая допустимая высота валика шва, мм
     :param scheme_code: код схемы просвечивания
+    :param backing_thickness_mm: толщина подкладки Sпк, мм (0 если нет)
     :return: словарь с S_rad_K, S_rad_f и формулами
     """
     walls = SCHEME_WALL_COUNT.get(scheme_code, 1)
+    s_pk = max(0.0, float(backing_thickness_mm or 0))
 
-    # K — всегда по S + g_min (одна стенка + минимальное усиление)
-    s_rad_k = wall_thickness_mm + g_min_mm
-    formula_k = f'{wall_thickness_mm} + {g_min_mm:.1f} = {s_rad_k:.1f} мм'
+    if walls == 2:
+        s_rad_k = 2 * wall_thickness_mm
+        formula_k = f'{wall_thickness_mm} + {wall_thickness_mm} = {s_rad_k:.1f} мм'
+        wall_desc = 'Две стенки'
+    else:
+        s_rad_k = wall_thickness_mm + g_min_mm + s_pk
+        if s_pk > 0:
+            formula_k = (
+                f'{wall_thickness_mm} + {g_min_mm:.1f} + {s_pk:.1f} '
+                f'= {s_rad_k:.1f} мм'
+            )
+        else:
+            formula_k = f'{wall_thickness_mm} + {g_min_mm:.1f} = {s_rad_k:.1f} мм'
+        wall_desc = 'Одна стенка'
 
     if walls == 2:
         s_rad_f = 2 * wall_thickness_mm + 2 * g_max_mm
         formula_f = f'2×{wall_thickness_mm} + 2×{g_max_mm:.1f} = {s_rad_f:.1f} мм'
-        wall_desc = 'Две стенки'
     else:
         s_rad_f = wall_thickness_mm + g_max_mm
         formula_f = f'{wall_thickness_mm} + {g_max_mm:.1f} = {s_rad_f:.1f} мм'
-        wall_desc = 'Одна стенка'
 
     return {
         'wall_count': walls,
         'wall_desc': wall_desc,
-        's_rad_k_mm': round(s_rad_k, 1),  # S + g_min для K (НП-105-18)
-        's_rad_f_mm': round(s_rad_f, 1),  # Для расчёта f (расстояние)
+        's_rad_k_mm': round(s_rad_k, 1),
+        's_rad_f_mm': round(s_rad_f, 1),
+        'backing_thickness_mm': round(s_pk, 1),
         'g_min_mm': g_min_mm,
         'g_max_mm': g_max_mm,
         'formula_k': formula_k,
@@ -246,9 +260,10 @@ def resolve_table_b_thickness_mm(
     zone = get_inspection_zone(joint_code, wall_thickness_mm, welding_method)
     rad = calc_radiation_thickness(
         wall_thickness_mm,
-        zone.get('g_min_mm', 0.5),
+        zone.get('g_min_mm',  0.5),
         zone.get('g_max_mm', 3.5),
         scheme_code,
+        zone.get('backing_thickness_mm', 0.0),
     )
     rad['table_b_thickness_mm'] = rad['s_rad_f_mm']
     return rad

@@ -337,17 +337,42 @@ class SchemeDisplayTests(TestCase):
             self.assertNotIn('источник снаружи', desc.lower())
             self.assertNotIn('источник внутри', desc.lower())
 
-    def test_k_uses_s_plus_g_min_for_two_walls(self):
-        """K определяется только по S + g_min, даже для двух стенок."""
+    def test_sk_two_walls_is_sum_of_thicknesses(self):
+        """При двух стенках S_K = S + S (НП-105-18, п. 46)."""
         from normative.calculations import calc_radiation_thickness, resolve_table_b_thickness_mm
         rad = calc_radiation_thickness(10, 0.5, 3.5, '5v')
-        self.assertEqual(rad['s_rad_k_mm'], 10.5)
-        self.assertEqual(rad['formula_k'], '10 + 0.5 = 10.5 мм')
+        self.assertEqual(rad['s_rad_k_mm'], 20.0)
+        self.assertEqual(rad['formula_k'], '10 + 10 = 20.0 мм')
         self.assertEqual(rad['s_rad_f_mm'], 27.0)
 
-        rad_b = resolve_table_b_thickness_mm(10, '5a', 'C1', '30')
+        rad_b = resolve_table_b_thickness_mm(10, '5a', 'С-3', '30')
         self.assertEqual(rad_b['table_b_thickness_mm'], rad_b['s_rad_f_mm'])
         self.assertLess(rad_b['table_b_thickness_mm'], rad['s_rad_f_mm'])
+
+    def test_sk_one_wall_with_backing(self):
+        """При одной стенке с подкладкой S_K = S + g_min + Sпк."""
+        from normative.calculations import calc_radiation_thickness
+        rad = calc_radiation_thickness(4, 0.5, 2.0, '5a', backing_thickness_mm=4)
+        self.assertEqual(rad['s_rad_k_mm'], 8.5)
+        self.assertIn('4.0', rad['formula_k'])
+
+    def test_example_s4_scheme_5g_cat_ii(self):
+        """Пример из ТС: S=4 мм, схема 3г → S_K=8 мм, K=0,20 мм (кат. II)."""
+        from normative.calculations import calc_radiation_thickness
+        from normative.gost_50_05_07 import get_sensitivity
+        rad = calc_radiation_thickness(4, 0.5, 2.0, '5g')
+        self.assertEqual(rad['s_rad_k_mm'], 8.0)
+        self.assertEqual(get_sensitivity(rad['s_rad_k_mm'], 'II'), 0.20)
+
+    def test_iqi_film_side_two_wall_pipe(self):
+        """Для схем 3в/3г/3д ИКИ со стороны плёнки со сдвигом на 1 ступень."""
+        from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement
+        placement = resolve_iqi_placement('5g', 2)
+        self.assertEqual(placement['side'], 'film')
+        self.assertEqual(placement['shift_steps'], 1)
+        base = get_wire_iqi(11.0, 0.20, shift_steps=0)
+        shifted = get_wire_iqi(11.0, 0.20, shift_steps=1)
+        self.assertLess(shifted['wire_diameter_mm'], base['wire_diameter_mm'])
 
     def test_negative_f_clamped_to_zero(self):
         """Отрицательное f в техкарте приводится к 0 мм."""

@@ -97,28 +97,28 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
 
     sections.append({
         'title': '2. Зоны контроля и размеры шва',
-        'normative_ref': 'ГОСТ Р 59023.2-2020; НП-105-18 (п. 4.2)',
+        'normative_ref': 'ГОСТ Р 59023.2-2020; НП-105-18',
         'logic': (
-            'По условному обозначению сварного соединения и способу сварки '
+            'По условному обозначению сварного соединения и номинальной толщине S '
             'определяются ширина валика, зона термического влияния (ОШЗ), '
             'контролируемая зона и допустимые значения усиления шва g_min, g_max. '
             'Значения g_min и g_max используются при расчёте радиационной толщины.'
         ),
-        'variables': ['g_min', 'g_max', 'S'],
+        'variables': ['g_min', 'g_max', 'S', 'Sпк'],
         'formula': (
             'Ширина валика, ОШЗ и контролируемая зона — по таблицам '
             'ГОСТ Р 59023.2-2020 для кода соединения и толщины S.'
         ),
         'steps': [
             f'Код соединения: {params.get("joint_designation", "—")}',
-            f'Толщина S = {S} мм, способ сварки: {params.get("welding_process", "—")}',
+            f'Толщина S = {S} мм',
             f'Ширина валика: {params.get("weld_bead_width_mm", "—")} мм',
             f'Высота валика (справочно): {params.get("weld_bead_height_mm", "—")} мм',
             f'g_min = {g_min} мм (для расчёта K)',
             f'g_max = {g_max} мм (для расчёта f)',
+            f'Толщина подкладки Sпк = {params.get("backing_thickness_mm", 0)} мм',
             f'Ширина ОШЗ: {params.get("haz_width_mm", "—")} мм',
             f'Ширина контролируемой зоны: {params.get("zone_width_mm", "—")} мм',
-            f'Мин. ширина плёнки: {params.get("film_width_min_mm", "—")} мм',
         ],
         'result': (
             f'g_min = {g_min} мм, g_max = {g_max} мм — приняты для расчёта '
@@ -129,11 +129,12 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
 
     sections.append({
         'title': '3. Категория сварного соединения',
-        'normative_ref': 'НП-104-18; НП-105-18, Таблица N 4.8',
+        'normative_ref': 'НП-105-18, Таблица N 4.8',
         'logic': (
-            'Категория сварного соединения по НП-104-18 определяет объём контроля '
-            'и нормы оценки качества по НП-105-18 (табл. 4.8). '
-            'Для оценки качества применяются категории I, II и III.'
+            'Категория сварного соединения задаётся пользователем и определяет '
+            'нормы оценки качества по НП-105-18 (табл. 4.8). '
+            'Для оценки качества применяются категории I, II и III. '
+            'При контроле единичного шва в техкарте объём контроля принимается 100 %.'
         ),
         'variables': [],
         'formula': 'Категория шва → нормы табл. 4.8 НП-105-18',
@@ -145,20 +146,32 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'notes': '',
     })
 
+    sk_formula = rad.get('formula_k', '—')
+    if rad.get('wall_count') == 2:
+        sk_logic = (
+            'По НП-105-18, п. 46 / Табл. 4.8, при просвечивании через две стенки '
+            'номинальная толщина в месте сварки: S_K = S + S. '
+            'Значение K — диаметр проволоки ИКИ в мм.'
+        )
+        sk_expr = 'S_K = S + S'
+    else:
+        sk_logic = (
+            'По НП-105-18, п. 46 / Табл. 4.8, при просвечивании через одну стенку '
+            'номинальная толщина в месте сварки: S_K = S + g_min + Sпк '
+            '(Sпк — толщина подкладки/кольца, 0 если не применяется). '
+            'Значение K — диаметр проволоки ИКИ в мм.'
+        )
+        sk_expr = 'S_K = S + g_min + Sпк'
+
     sections.append({
         'title': '4. Требуемая чувствительность K',
-        'normative_ref': 'НП-105-18, Таблица N 4.8',
-        'logic': (
-            'По НП-105-18, Табл. 4.8, чувствительность K определяется по '
-            '«номинальной толщине сваренных деталей в месте сварки», которая '
-            'равна S + g_min (одна стенка + минимальное усиление), независимо '
-            'от числа просвечиваемых стенок. Значение K — диаметр проволоки ИКИ в мм.'
-        ),
-        'variables': ['S', 'g_min', 'S_K', 'K'],
-        'formula': 'S_K = S + g_min; K = f(S_K, категория) по Табл. 4.8 НП-105-18',
+        'normative_ref': 'НП-105-18, п. 46; Таблица N 4.8',
+        'logic': sk_logic,
+        'variables': ['S', 'g_min', 'Sпк', 'S_K', 'K'],
+        'formula': f'{sk_expr}; K = f(S_K, категория) по Табл. 4.8 НП-105-18',
         'steps': [
-            f'S = {S} мм, g_min = {g_min} мм',
-            f'S_K = S + g_min = {S} + {g_min} = {params.get("s_k_mm", "—")} мм',
+            f'S = {S} мм, g_min = {g_min} мм, Sпк = {params.get("backing_thickness_mm", 0)} мм',
+            f'S_K: {sk_formula}',
             f'Категория сварного соединения: {params.get("weld_category", "—")}',
             f'По Табл. 4.8 НП-105-18: K ≤ {params.get("required_sensitivity_mm", "—")} мм '
             f'({params.get("required_sensitivity_pct", "—")} %)',
@@ -169,22 +182,21 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
 
     sections.append({
         'title': '5. Радиационная толщина',
-        'normative_ref': f'{DOCUMENT_CODE}, п. 6.3.5',
+        'normative_ref': f'{DOCUMENT_CODE}, п. 6.3.5; НП-105-18, п. 46',
         'logic': (
-            'По НП-105-18, Табл. 4.8, для определения K используется только '
-            'номинальная толщина в месте сварки: S + g_min, независимо от схемы '
-            'просвечивания и числа стенок. Для расчёта f применяется S_рад(f) '
+            'Для определения K по НП-105-18 используется номинальная толщина S_K '
+            '(см. раздел 4). Для расчёта f и подбора источника применяется S_рад(f) '
             'с наибольшим усилением g_max и учётом числа просвечиваемых стенок.'
         ),
-        'variables': ['S', 'g_min', 'g_max', 'S_K', 'S_рад(f)'],
+        'variables': ['S', 'g_min', 'g_max', 'Sпк', 'S_K', 'S_рад(f)'],
         'formula': (
-            'S_K = S + g_min (для K); '
+            'S_K — по п. 46 НП-105-18; '
             'S_рад(f) = S + g_max или 2S + 2g_max (для f)'
         ),
         'steps': [
             f'Схема: {get_scheme_user_label(params.get("scheme_type", ""))} — {rad.get("wall_desc", "")}',
             f'Число стенок (для f): {rad.get("wall_count", "—")}',
-            f'S_K = S + g_min = {rad.get("formula_k", "—")}',
+            f'S_K = {rad.get("formula_k", "—")}',
             f'S_рад(f) = {rad.get("formula_f", "—")}',
         ],
         'result': (
@@ -300,32 +312,45 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'notes': '',
     })
 
+    placement = params.get('iqi_placement') or {}
+
     sections.append({
         'title': '9. Плёнка, экраны и ИКИ',
-        'normative_ref': f'{DOCUMENT_CODE}, разделы 5.3–5.4; ГОСТ ИСО 11699-1',
+        'normative_ref': (
+            f'{DOCUMENT_CODE}, п. 6.1.11; ГОСТ 7512-82, табл. 2; '
+            'ГОСТ ИСО 11699-1'
+        ),
         'logic': (
             'Класс плёнки (ГОСТ ИСО 11699-1) подбирается по категории сварного соединения. '
             'Толщина свинцовых экранов зависит от типа источника. '
-            'Диаметр проволоки ИКИ не менее требуемого K.'
+            'ИКИ по умолчанию устанавливается со стороны источника (п. 6.1.11). '
+            'Для трубопроводов при просвечивании через две стенки (схемы 3в, 3г, 3д) '
+            'допускается установка со стороны плёнки; номер проволоки сдвигается '
+            'на одну ступень жёстче. Номер проволоки определяется по ГОСТ 7512-82.'
         ),
-        'variables': ['K'],
-        'formula': 'Диаметр проволоки ИКИ ≥ K (ближайший стандартный размер)',
+        'variables': ['K', 'S_рад(f)'],
+        'formula': (
+            'ИКИ: типоразмер и № проволоки по ГОСТ 7512-82; '
+            'd_проволоки ≤ K (со сдвигом при установке со стороны плёнки)'
+        ),
         'steps': [
             f'Рекомендуемый класс плёнки: {film.get("class", "—")} — {film.get("description", "")}',
             f'Примеры плёнок: {film.get("examples", "—")}',
             f'Выбранная плёнка: {params.get("film_name", "—")}',
             f'Оптическая плотность: {params.get("optical_density_min", "—")}–'
             f'{params.get("optical_density_max", "—")}',
-            f'ИКИ: {iqi.get("name", "—")} ({iqi.get("standard", "")})',
+            f'ИКИ: {iqi.get("name", "—")} — {params.get("iqi_label", "—")}',
+            f'Сторона установки: {placement.get("side_label", "со стороны источника")}',
             f'Диаметр проволоки ИКИ: {params.get("iqi_wire_diameter_mm", "—")} мм',
             f'Передний экран: {screens.get("front_mm", "—")} мм ({screens.get("material", "")})',
             f'Задний экран: {screens.get("back_mm", "—")} мм',
         ],
         'result': (
-            f'ИКИ: проволока Ø {params.get("iqi_wire_diameter_mm", "—")} мм; '
+            f'ИКИ: {params.get("iqi_label", "—")}, '
+            f'{placement.get("side_label", "")}; '
             f'плёнка класса {film.get("class", "—")}'
         ),
-        'notes': screens.get('note', ''),
+        'notes': placement.get('note', '') or screens.get('note', ''),
     })
 
     sections.append({

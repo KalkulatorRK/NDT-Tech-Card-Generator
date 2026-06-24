@@ -253,9 +253,7 @@ function createDefectBlock(index) {
                'class="form-control size-2-field" step="0.1" min="0" value="0">' +
       '</div>' +
       '<div class="col-md-2">' +
-        '<label class="form-label" style="font-size:0.72rem;line-height:1.2;">' +
-          'Наибольшее количество на любом участке сварного соединения длиной 100,0&nbsp;мм, шт.' +
-        '</label>' +
+        '<label class="form-label">Кол-во</label>' +
         '<input type="number" name="defect_' + index + '-count" ' +
                'class="form-control" min="1" value="1">' +
       '</div>' +

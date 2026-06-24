@@ -393,27 +393,7 @@ COUNT_PER_100MM_LABEL = (
 )
 
 
-def _allowed_count_on_segment(max_per_100mm: float, weld_length_mm: float = 0) -> float:
-    """Допустимое суммарное число дефектов с учётом длины шва."""
-    segment_mm = 100.0
-    if weld_length_mm and weld_length_mm > segment_mm:
-        return max_per_100mm * math.ceil(weld_length_mm / segment_mm)
-    return max_per_100mm
-
-
-def _segment_count_description(
-    weld_length_mm: float,
-    allowed: float,
-    max_per_100mm: float,
-) -> str:
-    segment_mm = 100.0
-    if weld_length_mm and weld_length_mm > segment_mm:
-        segments = math.ceil(weld_length_mm / segment_mm)
-        return (
-            f'на длине шва {weld_length_mm:.0f} мм '
-            f'({segments:.0f}×100,0 мм, всего {allowed:.0f} шт.; '
-            f'норма {max_per_100mm} шт./100,0 мм)'
-        )
+def _segment_count_description(max_per_100mm: float) -> str:
     return (
         f'на участке длиной 100,0 мм (не более {max_per_100mm:.0f} шт.)'
     )
@@ -504,7 +484,7 @@ def assess_inclusion(
     :param size_mm: основной размер (диаметр / большая сторона), мм
     :param size_2_mm: вторая сторона удлинённого включения, мм
     :param is_cluster: True если это скопление
-    :param count: наибольшее число на участке 100,0 мм, шт.
+    :param count: количество одинаковых дефектов (для условной записи по ГОСТ 7512)
     :return: словарь с результатом оценки
     """
     criteria = _lookup_table(category, thickness_mm)
@@ -545,9 +525,7 @@ def assess_inclusion(
         width_limit = group_info.get('max_width_mm', max_allowed)
         size_ok = size_ok and min_dim <= width_limit
 
-    count_ok = True
-    if max_count is not None:
-        count_ok = count <= max_count
+    count_ok = True  # число на участке 100 мм вводится отдельно в форме оценки
 
     is_ok = size_ok and count_ok
     kind_name = {
@@ -571,21 +549,11 @@ def assess_inclusion(
             reasons.append(
                 f'{kind_name} {size_text} превышает допустимый размер {max_allowed:.2f} мм'
             )
-    if not count_ok and max_count is not None:
-        reasons.append(
-            f'{COUNT_PER_100MM_LABEL}: {count} шт. > {max_count} шт. '
-            f'({group_label})'
-        )
 
     if is_ok:
         reason = (
-            f'{kind_name} {size_text}, {count} шт. — допустимо '
-            f'({group_label}; размер ≤ {max_allowed:.2f} мм'
-            + (
-                f', {COUNT_PER_100MM_LABEL}: ≤ {max_count} шт.'
-                if max_count is not None else ''
-            )
-            + ')'
+            f'{kind_name} {size_text} — допустимо по размеру '
+            f'({group_label}; ≤ {max_allowed:.2f} мм)'
         )
     else:
         reason = ' | '.join(reasons)
@@ -708,43 +676,33 @@ def assess_tungsten(category: str, thickness_mm: float, size_mm: float, count: i
     }
 
 
-def _check_aggregate_inclusion_counts(
-    defects: list,
+def _check_segment_inclusion_counts(
     category: str,
     thickness_mm: float,
-    weld_length_mm: float = 0,
+    inclusion_cluster_count_100mm: int | None = None,
+    large_inclusion_count_100mm: int | None = None,
 ) -> list:
     """
-    Суммарная проверка числа включений по табл. 4.8/4.9 отдельно для:
-    одиночных включений и скоплений; одиночных крупных включений.
+    Проверка числа включений на участке 100,0 мм по табл. 4.8/4.9.
+
+    Значения вводятся пользователем как наибольшее число на любом
+    участке сварного соединения длиной 100,0 мм (без масштабирования
+    по общей длине шва).
     """
     criteria = _lookup_table(category, thickness_mm)
     if not criteria:
         return []
 
-    inclusion_types = {'pore', 'slag', 'cluster'}
-    totals = {INCLUSION_GROUP_REGULAR: 0, INCLUSION_GROUP_LARGE: 0}
-
-    for d in defects:
-        if d.get('type') not in inclusion_types:
-            continue
-        size_1 = float(d.get('size_1', 0) or 0)
-        size_2 = float(d.get('size_2', 0) or 0)
-        count = int(d.get('count', 1) or 1)
-        is_cluster = d.get('type') == 'cluster'
-        group_info = classify_inclusion_group(criteria, size_1, size_2, is_cluster)
-        totals[group_info['group']] += count
-
     checks = [
         (
             INCLUSION_GROUP_REGULAR,
-            totals[INCLUSION_GROUP_REGULAR],
+            inclusion_cluster_count_100mm,
             'max_count_100mm',
             INCLUSION_GROUP_LABELS[INCLUSION_GROUP_REGULAR],
         ),
         (
             INCLUSION_GROUP_LARGE,
-            totals[INCLUSION_GROUP_LARGE],
+            large_inclusion_count_100mm,
             'max_large_count_100mm',
             INCLUSION_GROUP_LABELS[INCLUSION_GROUP_LARGE],
         ),
@@ -752,22 +710,23 @@ def _check_aggregate_inclusion_counts(
 
     results = []
     for group, total, max_key, group_label in checks:
+        if total is None:
+            continue
         max_per_100 = criteria.get(max_key)
-        if max_per_100 is None or total == 0:
+        if max_per_100 is None:
             continue
 
-        allowed = _allowed_count_on_segment(max_per_100, weld_length_mm)
-        is_ok = total <= allowed
-        segment_desc = _segment_count_description(weld_length_mm, allowed, max_per_100)
+        is_ok = total <= max_per_100
+        segment_desc = _segment_count_description(max_per_100)
         results.append({
             'group': group,
             'group_label': group_label,
             'is_acceptable': is_ok,
             'total_count': total,
-            'allowed_count': allowed,
+            'allowed_count': max_per_100,
             'max_count_100mm': max_per_100,
             'reason': (
-                f'Суммарное число ({group_label}): {total} шт. — '
+                f'{group_label}: {total} шт. — '
                 f'{"допустимо" if is_ok else "ПРЕВЫШАЕТ НОРМУ"} '
                 f'({segment_desc})'
             ),
@@ -886,6 +845,8 @@ def assess_multiple_defects(
     category: str,
     thickness_mm: float,
     weld_length_mm: float = 0,
+    inclusion_cluster_count_100mm: int | None = None,
+    large_inclusion_count_100mm: int | None = None,
 ) -> dict:
     """
     Оценивает перечень дефектов и формирует итоговое заключение.
@@ -894,6 +855,10 @@ def assess_multiple_defects(
     :param category: категория сварного соединения
     :param thickness_mm: толщина стенки, мм
     :param weld_length_mm: длина шва (для подрезов)
+    :param inclusion_cluster_count_100mm: число включений и скоплений
+        на любом участке длиной 100,0 мм (ввод пользователя)
+    :param large_inclusion_count_100mm: число крупных одиночных включений
+        на любом участке длиной 100,0 мм (ввод пользователя)
     :return: итоговое заключение
     """
     results = []
@@ -909,8 +874,11 @@ def assess_multiple_defects(
         )
         results.append(result)
 
-    aggregates = _check_aggregate_inclusion_counts(
-        defects, category, thickness_mm, weld_length_mm,
+    aggregates = _check_segment_inclusion_counts(
+        category,
+        thickness_mm,
+        inclusion_cluster_count_100mm=inclusion_cluster_count_100mm,
+        large_inclusion_count_100mm=large_inclusion_count_100mm,
     )
     aggregate_type_map = {
         INCLUSION_GROUP_REGULAR: '_aggregate_regular_inclusions',
@@ -920,10 +888,7 @@ def assess_multiple_defects(
         if not aggregate['is_acceptable']:
             results.append({
                 'defect_type': aggregate_type_map[aggregate['group']],
-                'defect_name': (
-                    f'Суммарное число: {aggregate["group_label"]} '
-                    f'(табл. 4.8, на 100,0 мм)'
-                ),
+                'defect_name': aggregate['group_label'],
                 'is_acceptable': False,
                 'reason': aggregate['reason'],
                 'criterion': (

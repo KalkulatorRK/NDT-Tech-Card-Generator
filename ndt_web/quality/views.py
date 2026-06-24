@@ -79,6 +79,8 @@ def quality_form_view(request):
                 weld_category=form_data['weld_category'],
                 wall_thickness=form_data['wall_thickness'],
                 weld_length=form_data.get('weld_length'),
+                inclusion_cluster_count_100mm=form_data.get('inclusion_cluster_count_100mm'),
+                large_inclusion_count_100mm=form_data.get('large_inclusion_count_100mm'),
                 verdict=assessment_result.get('verdict', ''),
             )
 

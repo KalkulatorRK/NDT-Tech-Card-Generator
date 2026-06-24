@@ -6,7 +6,6 @@
 
 from django import forms
 from normative.np_104_18 import get_choices as get_category_choices
-from normative.np_105_18 import COUNT_PER_100MM_LABEL
 
 
 NORMATIVE_DOC_CHOICES = [
@@ -49,6 +48,42 @@ class QualityAssessmentForm(forms.Form):
             'placeholder': '500',
         }),
         help_text='Необходимо для оценки суммарной длины подрезов.',
+    )
+    inclusion_cluster_count_100mm = forms.IntegerField(
+        required=False,
+        min_value=0, max_value=999,
+        label=(
+            'Число включений и скоплений на любом участке сварного '
+            'соединения длиной 100,0 мм, шт.'
+        ),
+        initial=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'placeholder': '0',
+        }),
+        help_text=(
+            'Наибольшее число одиночных включений и скоплений на любом '
+            'участке шва длиной 100,0 мм (табл. 4.8 НП-105-18).'
+        ),
+    )
+    large_inclusion_count_100mm = forms.IntegerField(
+        required=False,
+        min_value=0, max_value=999,
+        label=(
+            'Число одиночных крупных включений на любом участке сварного '
+            'соединения длиной 100,0 мм, шт.'
+        ),
+        initial=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'placeholder': '0',
+        }),
+        help_text=(
+            'Наибольшее число одиночных крупных включений на любом '
+            'участке шва длиной 100,0 мм (табл. 4.8 НП-105-18).'
+        ),
     )
 
 
@@ -101,17 +136,14 @@ class DefectEntryForm(forms.Form):
     )
     count = forms.IntegerField(
         min_value=1, max_value=999,
-        label=COUNT_PER_100MM_LABEL,
+        label='Количество',
         initial=1,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '1',
             'placeholder': '1',
         }),
-        help_text=(
-            'Наибольшее число дефектов данного типа на любом участке шва '
-            'длиной 100,0 мм (табл. 4.8 НП-105-18).'
-        ),
+        help_text='Число одинаковых дефектов данного типа и размера (для условной записи по ГОСТ 7512).',
     )
 
     def clean_defect_type(self):

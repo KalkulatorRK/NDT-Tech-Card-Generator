@@ -77,7 +77,7 @@
             <th>Фактический<br>размер, мм</th>
             <th>Доп. размер,<br>мм</th>
             <th>Норма<br>(макс.), мм</th>
-            <th>Наибольшее количество на любом участке сварного соединения длиной 100,0&nbsp;мм, шт.</th>
+            <th>Кол-во,<br>шт.</th>
             <th>Результат</th>
             <th>Ссылка на НД</th>
           </tr>
@@ -136,10 +136,7 @@
     <div class="info-box mt-3">
       <strong>{{ agg.group_label }}:</strong>
       {{ agg.total_count }} шт.
-      (допустимо на 100,0 мм: {{ agg.max_count_100mm }} шт.
-      {% if agg.allowed_count and assessment_data.weld_length and assessment_data.weld_length > 100 %}
-      , на длине {{ assessment_data.weld_length|floatformat:0 }} мм: {{ agg.allowed_count|floatformat:0 }} шт.
-      {% endif %})
+      (допустимо на участке 100,0 мм: {{ agg.max_count_100mm }} шт.)
       {% if agg.is_acceptable %}
       <span class="text-success"> — в норме</span>
       {% else %}

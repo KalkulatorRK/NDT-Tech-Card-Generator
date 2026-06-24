@@ -224,46 +224,61 @@ class QualityAssessmentLogicTests(TestCase):
         self.assertEqual(get_required_sensitivity('III', 150.0), 2.50)
 
     def test_pore_count_exceeds_max_per_100mm(self):
-        """Пора допустима по размеру, но превышает число на 100 мм (табл. 4.8)."""
-        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=15)
+        """Превышение числа включений на участке 100 мм (табл. 4.8)."""
+        result = assess_multiple_defects(
+            [{'type': 'pore', 'size_1': 0.5, 'count': 1}],
+            'I', 10,
+            inclusion_cluster_count_100mm=15,
+        )
         self.assertFalse(result['is_acceptable'])
-        self.assertEqual(result['max_allowed_count'], 12)
+        self.assertTrue(result['count_exceeded'])
 
     def test_pore_count_within_max_per_100mm(self):
-        """15 пор по размеру, но 12 шт. — в пределах нормы на 100 мм."""
-        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=12)
+        """Число включений на участке 100 мм в пределах нормы."""
+        result = assess_multiple_defects(
+            [{'type': 'pore', 'size_1': 0.5, 'count': 1}],
+            'I', 10,
+            inclusion_cluster_count_100mm=12,
+        )
         self.assertTrue(result['is_acceptable'])
 
     def test_aggregate_inclusion_count_exceeded(self):
-        """Суммарное число включений и скоплений на 100 мм превышает норму."""
-        defects = [
-            {'type': 'pore', 'size_1': 0.5, 'count': 7},
-            {'type': 'slag', 'size_1': 0.8, 'count': 6},
-        ]
-        result = assess_multiple_defects(defects, 'I', 10)
+        """Число включений на участке 100 мм превышает норму."""
+        result = assess_multiple_defects(
+            [
+                {'type': 'pore', 'size_1': 0.5, 'count': 1},
+                {'type': 'slag', 'size_1': 0.8, 'count': 1},
+            ],
+            'I', 10,
+            inclusion_cluster_count_100mm=13,
+        )
         self.assertFalse(result['is_acceptable'])
         self.assertTrue(result['count_exceeded'])
         self.assertEqual(result['total_inclusion_count'], 13)
 
     def test_aggregate_inclusion_count_ok(self):
-        """Суммарное число включений на 100 мм в пределах нормы."""
-        defects = [
-            {'type': 'pore', 'size_1': 0.5, 'count': 6},
-            {'type': 'slag', 'size_1': 0.8, 'count': 6},
-        ]
-        result = assess_multiple_defects(defects, 'I', 10)
+        """Число включений на участке 100 мм в пределах нормы."""
+        result = assess_multiple_defects(
+            [
+                {'type': 'pore', 'size_1': 0.5, 'count': 1},
+                {'type': 'slag', 'size_1': 0.8, 'count': 1},
+            ],
+            'I', 10,
+            inclusion_cluster_count_100mm=12,
+        )
         self.assertTrue(result['is_acceptable'])
         self.assertFalse(result['count_exceeded'])
 
-    def test_aggregate_scales_with_weld_length(self):
-        """При длине шва > 100 мм допустимое суммарное число масштабируется."""
-        defects = [
-            {'type': 'pore', 'size_1': 0.5, 'count': 10},
-            {'type': 'slag', 'size_1': 0.8, 'count': 10},
-        ]
-        result = assess_multiple_defects(defects, 'I', 10, weld_length_mm=200)
+    def test_segment_count_not_scaled_by_weld_length(self):
+        """Длина шва не увеличивает допустимое число на участке 100 мм."""
+        result = assess_multiple_defects(
+            [{'type': 'pore', 'size_1': 0.5, 'count': 1}],
+            'III', 10,
+            weld_length_mm=300,
+            inclusion_cluster_count_100mm=9,
+        )
         self.assertTrue(result['is_acceptable'])
-        self.assertEqual(result['max_inclusion_count_allowed'], 24)
+        self.assertEqual(result['max_inclusion_count_allowed'], 14)
 
     def test_large_inclusion_classified_by_size(self):
         """Пора 2,0 мм (кат. I, S=10) относится к крупным включениям."""
@@ -273,37 +288,44 @@ class QualityAssessmentLogicTests(TestCase):
         self.assertTrue(result['is_acceptable'])
 
     def test_large_inclusion_count_exceeds_limit(self):
-        """Крупное включение: не более 1 шт. на 100,0 мм."""
-        result = assess_defect('pore', 'I', 10, size_1_mm=2.0, count=2)
+        """Крупные включения: не более 1 шт. на участке 100,0 мм."""
+        result = assess_multiple_defects(
+            [{'type': 'pore', 'size_1': 2.0, 'count': 1}],
+            'I', 10,
+            large_inclusion_count_100mm=2,
+        )
         self.assertFalse(result['is_acceptable'])
-        self.assertEqual(result['max_allowed_count'], 1)
+        self.assertTrue(result['count_exceeded'])
 
     def test_regular_inclusion_uses_regular_count_limit(self):
-        """Мелкая пора оценивается по лимиту одиночных включений и скоплений."""
+        """Мелкая пора допустима по размеру; число проверяется отдельным полем."""
         result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=12)
         self.assertEqual(result['inclusion_group'], 'regular')
         self.assertTrue(result['is_acceptable'])
 
     def test_aggregate_large_inclusions_separate(self):
-        """Крупные включения суммируются отдельно от обычных."""
-        defects = [
-            {'type': 'pore', 'size_1': 0.5, 'count': 6},
-            {'type': 'pore', 'size_1': 2.0, 'count': 1},
-            {'type': 'pore', 'size_1': 2.5, 'count': 1},
-        ]
-        result = assess_multiple_defects(defects, 'I', 10)
+        """Крупные включения оцениваются отдельным полем ввода."""
+        result = assess_multiple_defects(
+            [
+                {'type': 'pore', 'size_1': 0.5, 'count': 1},
+                {'type': 'pore', 'size_1': 2.0, 'count': 1},
+            ],
+            'I', 10,
+            inclusion_cluster_count_100mm=6,
+            large_inclusion_count_100mm=2,
+        )
         self.assertFalse(result['is_acceptable'])
         self.assertTrue(result['count_exceeded'])
-        self.assertEqual(result['total_inclusion_count'], 6)
         self.assertEqual(result['total_large_inclusion_count'], 2)
 
     def test_aggregate_regular_and_large_both_ok(self):
         """Обычные и крупные включения в пределах нормы — ГОДЕН."""
-        defects = [
-            {'type': 'pore', 'size_1': 0.5, 'count': 6},
-            {'type': 'pore', 'size_1': 2.0, 'count': 1},
-        ]
-        result = assess_multiple_defects(defects, 'I', 10)
+        result = assess_multiple_defects(
+            [{'type': 'pore', 'size_1': 0.5, 'count': 1}],
+            'I', 10,
+            inclusion_cluster_count_100mm=6,
+            large_inclusion_count_100mm=1,
+        )
         self.assertTrue(result['is_acceptable'])
         self.assertEqual(len(result['aggregates']), 2)
 

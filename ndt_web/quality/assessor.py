@@ -49,6 +49,8 @@ def perform_assessment(form_data: dict, defects_data: list) -> dict:
         category=weld_category,
         thickness_mm=wall_thickness,
         weld_length_mm=weld_length,
+        inclusion_cluster_count_100mm=form_data.get('inclusion_cluster_count_100mm'),
+        large_inclusion_count_100mm=form_data.get('large_inclusion_count_100mm'),
     )
 
     return {
@@ -56,6 +58,8 @@ def perform_assessment(form_data: dict, defects_data: list) -> dict:
         'weld_category': weld_category,
         'wall_thickness': wall_thickness,
         'weld_length': weld_length,
+        'inclusion_cluster_count_100mm': form_data.get('inclusion_cluster_count_100mm'),
+        'large_inclusion_count_100mm': form_data.get('large_inclusion_count_100mm'),
         'defects_count': len(defects),
         **summary,
     }

@@ -57,6 +57,20 @@
           <div class="form-text">{{ form.weld_length.help_text }}</div>
           {% endif %}
         </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.inclusion_cluster_count_100mm.label }}</label>
+          {{ form.inclusion_cluster_count_100mm }}
+          {% if form.inclusion_cluster_count_100mm.help_text %}
+          <div class="form-text">{{ form.inclusion_cluster_count_100mm.help_text }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ form.large_inclusion_count_100mm.label }}</label>
+          {{ form.large_inclusion_count_100mm }}
+          {% if form.large_inclusion_count_100mm.help_text %}
+          <div class="form-text">{{ form.large_inclusion_count_100mm.help_text }}</div>
+          {% endif %}
+        </div>
       </div>
     </div>
 
@@ -88,9 +102,7 @@
               {{ initial_defect_form.size_2 }}
             </div>
             <div class="col-md-2">
-              <label class="form-label" style="font-size:0.72rem;line-height:1.2;">
-                Наибольшее количество на любом участке сварного соединения длиной 100,0&nbsp;мм, шт.
-              </label>
+              <label class="form-label">Кол-во</label>
               {{ initial_defect_form.count }}
             </div>
           </div>

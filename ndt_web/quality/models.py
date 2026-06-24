@@ -39,6 +39,14 @@ class QualityAssessment(models.Model):
     weld_length = models.FloatField(
         null=True, blank=True, verbose_name='Длина шва, мм',
     )
+    inclusion_cluster_count_100mm = models.IntegerField(
+        null=True, blank=True,
+        verbose_name='Число включений и скоплений на 100,0 мм',
+    )
+    large_inclusion_count_100mm = models.IntegerField(
+        null=True, blank=True,
+        verbose_name='Число крупных включений на 100,0 мм',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата')
     verdict = models.CharField(
         max_length=10, blank=True,

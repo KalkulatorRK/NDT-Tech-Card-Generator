@@ -18,6 +18,7 @@
 При внесении изменений в стандарт необходимо актуализировать этот модуль.
 """
 
+import math
 from math import sqrt
 
 # ------------------------------------------------------------------
@@ -71,6 +72,37 @@ def get_sensitivity_mm(thickness_mm: float, category_or_class: str) -> float:
 # Источники ионизирующего излучения
 # ------------------------------------------------------------------
 XRAY_SOURCE_CODES = ['X-100kV', 'X-200kV', 'X-300kV', 'X-400kV']
+
+# Номинальное максимальное напряжение рентгеновского аппарата, кВ
+XRAY_RATED_KV = {
+    'X-100kV': 100,
+    'X-200kV': 200,
+    'X-300kV': 300,
+    'X-400kV': 400,
+}
+
+# Рисунок 6, п. 6.3.2 — макс. напряжение U (кВ) от просвечиваемой толщины w (мм)
+# Кривые: 1 — сталь, 2 — титан, 3 — алюминий (логарифмическая шкала)
+FIG6_NOMOGRAM_KV = {
+    'steel': [
+        (1, 65), (2, 80), (3, 95), (5, 110), (8, 130), (10, 150),
+        (12, 165), (15, 185), (20, 210), (25, 240), (30, 270), (40, 320),
+        (50, 350), (60, 400), (80, 450), (100, 500), (150, 650),
+        (200, 700), (300, 850), (400, 1000),
+    ],
+    'titanium': [
+        (1, 45), (2, 55), (3, 65), (5, 75), (8, 90), (10, 100),
+        (12, 115), (15, 125), (20, 140), (25, 165), (30, 190), (40, 220),
+        (50, 230), (60, 280), (80, 310), (100, 330), (150, 420),
+        (200, 480), (300, 620), (500, 800),
+    ],
+    'aluminum': [
+        (1, 25), (2, 30), (3, 38), (5, 45), (8, 52), (10, 60),
+        (12, 68), (15, 75), (20, 85), (25, 100), (30, 115), (40, 130),
+        (50, 140), (60, 165), (80, 185), (100, 200), (150, 280),
+        (200, 300), (300, 400), (500, 500), (1000, 750),
+    ],
+}
 
 # Плёнки для выбора в форме (ГОСТ Р 50.05.07-2018, табл. Б.1–Б.3)
 FILM_NAMES = [
@@ -351,6 +383,94 @@ def _source_codes_for_material_thickness(material_type: str, thickness_mm: float
     return codes
 
 
+def _interp_log_log(points: list[tuple[float, float]], thickness_mm: float) -> float:
+    """Линейная интерполяция на логарифмической шкале (номограмма рис. 6)."""
+    if thickness_mm <= 0:
+        return points[0][1]
+    if thickness_mm <= points[0][0]:
+        return points[0][1]
+    if thickness_mm >= points[-1][0]:
+        return points[-1][1]
+
+    log_w = math.log10(thickness_mm)
+    for (w1, u1), (w2, u2) in zip(points, points[1:]):
+        if w1 <= thickness_mm <= w2:
+            t = (log_w - math.log10(w1)) / (math.log10(w2) - math.log10(w1))
+            log_u = math.log10(u1) + t * (math.log10(u2) - math.log10(u1))
+            return 10 ** log_u
+    return points[-1][1]
+
+
+def get_max_xray_voltage_kv(thickness_mm: float, material_type: str = 'steel') -> dict:
+    """
+    Максимально допустимое напряжение на трубке по рисунку 6, п. 6.3.2.
+
+    :param thickness_mm: просвечиваемая толщина w, мм
+    :param material_type: steel / titanium / aluminum
+    """
+    if material_type not in FIG6_NOMOGRAM_KV:
+        material_type = 'steel'
+    points = FIG6_NOMOGRAM_KV[material_type]
+    u_max = _interp_log_log(points, thickness_mm)
+    curve_no = {'steel': 1, 'titanium': 2, 'aluminum': 3}.get(material_type, 1)
+    return {
+        'max_voltage_kv': round(u_max, 0),
+        'thickness_mm': thickness_mm,
+        'material_type': material_type,
+        'curve_no': curve_no,
+        'normative_ref': 'ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6',
+    }
+
+
+def get_recommended_xray_source(
+    thickness_mm: float,
+    material_type: str = 'steel',
+    allowed_codes: set | list | None = None,
+) -> dict | None:
+    """
+    Один рентгеновский аппарат с макс. допустимым напряжением по рис. 6.
+
+    Выбирается типоразмер аппарата, номинальное напряжение которого
+    не превышает Uмакс с номограммы (ближайший снизу).
+    """
+    nomogram = get_max_xray_voltage_kv(thickness_mm, material_type)
+    u_max = nomogram['max_voltage_kv']
+
+    codes = set(allowed_codes or XRAY_SOURCE_CODES) & set(XRAY_SOURCE_CODES)
+    if not codes:
+        return None
+
+    best_code = None
+    best_rated = -1
+    for code in sorted(codes, key=lambda c: XRAY_RATED_KV.get(c, 0)):
+        rated = XRAY_RATED_KV.get(code, 0)
+        if rated <= u_max and rated > best_rated:
+            best_rated = rated
+            best_code = code
+
+    if best_code is None:
+        # Тонкий объект: Uмакс < 100 кВ — аппарат до 100 кВ с ограничением по рис. 6
+        if 'X-100kV' in codes:
+            best_code = 'X-100kV'
+            best_rated = 100
+        else:
+            return None
+
+    base = next(s for s in RADIATION_SOURCES if s['code'] == best_code)
+    source = dict(base)
+    source['recommended_max_kv'] = u_max
+    source['nomogram_ref'] = nomogram['normative_ref']
+    source['energy_display'] = (
+        f'U ≤ {u_max:.0f} кВ (макс. по рис. 6; аппарат до {best_rated} кВ)'
+    )
+    source['notes'] = (
+        f'Рекомендуемое макс. напряжение {u_max:.0f} кВ по рис. 6 '
+        f'(кривая {nomogram["curve_no"]}, w = {thickness_mm} мм). '
+        'Снижение напряжения повышает контраст снимка.'
+    )
+    return source
+
+
 def get_suitable_sources(thickness_mm: float, material_type: str = 'steel') -> list:
     """
     Возвращает список источников излучения, применимых для заданной толщины
@@ -368,14 +488,27 @@ def get_suitable_sources(thickness_mm: float, material_type: str = 'steel') -> l
 
     applicable_codes = _source_codes_for_material_thickness(material_type, thickness_mm)
     table_info = get_table_b_selection_info(thickness_mm, material_type)
+
+    isotope_codes = applicable_codes - set(XRAY_SOURCE_CODES)
+    xray_allowed = applicable_codes & set(XRAY_SOURCE_CODES)
+
     suitable = []
     for source in RADIATION_SOURCES:
-        if source['code'] not in applicable_codes:
+        if source['code'] not in isotope_codes:
             continue
         source_copy = dict(source)
         source_copy['table_ref'] = table_info['table_ref']
         source_copy['table_range_label'] = table_info['range_label']
         suitable.append(source_copy)
+
+    xray = get_recommended_xray_source(
+        thickness_mm, material_type, allowed_codes=xray_allowed,
+    )
+    if xray:
+        xray['table_ref'] = table_info['table_ref']
+        xray['table_range_label'] = table_info['range_label']
+        suitable.append(xray)
+
     return suitable
 
 

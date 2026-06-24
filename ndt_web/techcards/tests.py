@@ -281,6 +281,35 @@ class TechCardCalculatorTests(TestCase):
         self.assertNotIn('thickness_min', sources[0])
         self.assertNotIn('is_optimal', sources[0])
 
+    def test_single_xray_source_by_nomogram(self):
+        """Рекомендуется один рентгеновский аппарат по рис. 6, п. 6.3.2."""
+        from normative.gost_50_05_07 import (
+            get_suitable_sources, get_max_xray_voltage_kv,
+        )
+        sources = get_suitable_sources(25, 'steel')
+        xray = [s for s in sources if s.get('type') == 'xray']
+        self.assertEqual(len(xray), 1)
+        nomogram = get_max_xray_voltage_kv(25, 'steel')
+        self.assertGreater(nomogram['max_voltage_kv'], 200)
+        self.assertLessEqual(xray[0]['recommended_max_kv'], nomogram['max_voltage_kv'] + 1)
+        self.assertIn('рис. 6', xray[0]['energy_display'])
+
+    def test_iqi_wire_marking_two_digits(self):
+        """Маркировка проволочного ИКИ: материал + номер эталона (ГОСТ 7512, п. 2.13)."""
+        from normative.gost_7512 import get_wire_iqi, format_iqi_marking
+        self.assertEqual(format_iqi_marking(1, 2), '12')
+        iqi = get_wire_iqi(11.0, 0.20, material_type='steel')
+        self.assertEqual(iqi['material_code'], 1)
+        self.assertRegex(iqi['marking'], r'^1[1-4]$')
+        self.assertIn('проволочный эталон', iqi['label'])
+
+    def test_generator_uses_wire_iqi_marking(self):
+        """Генератор заполняет маркировку проволочного ИКИ."""
+        calc = RadiographicTechCardCalculator(self.base_input)
+        params = calc.calculate()
+        self.assertRegex(params.get('iqi_marking', ''), r'^\d{2,3}$')
+        self.assertEqual(params['recommended_iqi']['code'], 'wire')
+
     def test_sensitivity_value_filled(self):
         """Значение чувствительности в % рассчитывается."""
         calc = RadiographicTechCardCalculator(self.base_input)

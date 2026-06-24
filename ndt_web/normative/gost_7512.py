@@ -2,12 +2,10 @@
 ГОСТ 7512-82 — проволочные эталоны чувствительности (ИКИ).
 
 Таблица 2: четыре типоразмера эталонов, в каждом семь проволок.
-Номер проволоки 1 — наибольший диаметр, 7 — наименьший.
+Маркировка (п. 2.13): первая цифра — материал, следующие 1–2 цифры — номер эталона.
 """
 
 from __future__ import annotations
-
-from typing import Optional
 
 # Таблица 2 ГОСТ 7512-82: {номер_эталона: [(номер_проволоки, d_мм), ...]}
 WIRE_IQI_SETS: dict[int, list[tuple[int, float]]] = {
@@ -37,16 +35,46 @@ SET_THICKNESS_MAX_MM = {
     4: 400.0,
 }
 
+# п. 2.13: условные обозначения материала эталона
+IQI_MATERIAL_CODES = {
+    'steel': 1,      # сплавы на основе железа
+    'aluminum': 2,   # алюминий и магний
+    'titanium': 3,   # титан
+    'copper': 4,     # медь
+    'nickel': 5,     # никель
+}
+
+IQI_MATERIAL_LABELS = {
+    1: 'сплавы на основе железа',
+    2: 'алюминий и магний',
+    3: 'титан',
+    4: 'медь',
+    5: 'никель',
+}
+
 SIDE_SOURCE = 'source'
 SIDE_FILM = 'film'
 
+WIRE_IQI_TYPE = {
+    'code': 'wire',
+    'name': 'Проволочный эталон',
+    'standard': 'ГОСТ 7512-82',
+}
 
-def _all_wires() -> list[tuple[int, int, float]]:
-    wires: list[tuple[int, int, float]] = []
-    for set_no, items in WIRE_IQI_SETS.items():
-        for wire_no, diameter in items:
-            wires.append((set_no, wire_no, diameter))
-    return wires
+
+def map_material_to_iqi_code(material_type: str) -> int:
+    """Код материала эталона (1–5) по типу контролируемого материала."""
+    return IQI_MATERIAL_CODES.get(material_type, 1)
+
+
+def format_iqi_marking(material_code: int, set_number: int) -> str:
+    """
+    Маркировка проволочного ИКИ: 2–3 цифры.
+
+    Первая цифра — материал, следующие — номер эталона (1–4).
+    Примеры: 11, 12, 14.
+    """
+    return f'{material_code}{set_number}'
 
 
 def select_iqi_set_number(radiation_thickness_mm: float) -> int:
@@ -60,23 +88,21 @@ def select_iqi_set_number(radiation_thickness_mm: float) -> int:
 def get_wire_iqi(
     radiation_thickness_mm: float,
     k_mm: float,
+    material_type: str = 'steel',
     shift_steps: int = 0,
 ) -> dict:
     """
-    Определяет типоразмер эталона и номер проволоки по ГОСТ 7512-82.
-
-    Требуемая чувствительность K — наименьший диаметр проволоки, который
-    должен быть виден на снимке. Выбирается проволока с d ≤ K; при сдвиге
-    на одну ступень жёстче берётся следующая (более тонкая) проволока.
+    Определяет проволочный ИКИ по ГОСТ 7512-82.
 
     :param radiation_thickness_mm: радиационная толщина в месте установки ИКИ
     :param k_mm: требуемая чувствительность K, мм (НП-105-18)
-    :param shift_steps: сдвиг на N ступеней жёстче (для ИКИ со стороны плёнки)
+    :param material_type: steel / aluminum / titanium (→ код материала 1–3)
+    :param shift_steps: сдвиг на N ступеней жёстче (ИКИ со стороны плёнки)
     """
+    material_code = map_material_to_iqi_code(material_type)
     set_no = select_iqi_set_number(radiation_thickness_mm)
     wires = WIRE_IQI_SETS[set_no]
 
-    # Проволока с d ≤ K, начиная с наименьшего диаметра в наборе.
     candidates = [w for w in wires if w[1] <= k_mm + 1e-9]
     if not candidates:
         wire_no, diameter = wires[-1]
@@ -88,12 +114,22 @@ def get_wire_iqi(
         idx = min(idx + shift_steps, len(wires) - 1)
         wire_no, diameter = wires[idx]
 
+    marking = format_iqi_marking(material_code, set_no)
+    material_label = IQI_MATERIAL_LABELS.get(material_code, '')
+
     return {
+        'type': 'wire',
+        'material_code': material_code,
+        'material_label': material_label,
         'set_number': set_no,
         'wire_number': wire_no,
         'wire_diameter_mm': diameter,
-        'label': f'№{set_no}, проволока {wire_no} (Ø {diameter:g} мм)',
-        'standard': 'ГОСТ 7512-82, табл. 2',
+        'marking': marking,
+        'label': (
+            f'проволочный эталон {marking}, проволока {wire_no} '
+            f'(Ø {diameter:g} мм)'
+        ),
+        'standard': 'ГОСТ 7512-82, п. 2.10, табл. 2; маркировка п. 2.13',
     }
 
 
@@ -104,11 +140,6 @@ def resolve_iqi_placement(
 ) -> dict:
     """
     Сторона установки ИКИ по ГОСТ Р 50.05.07-2018, п. 6.1.11.
-
-  - По умолчанию — со стороны источника.
-  - Для трубопроводов при просвечивании через две стенки (схемы 3в, 3г, 3д)
-    допускается установка со стороны плёнки; чувствительность сдвигается
-    на одну ступень жёстче.
     """
     two_wall_outside_film = wall_count == 2 and scheme_code in ('5v', '5g', '5d')
 

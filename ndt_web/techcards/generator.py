@@ -420,15 +420,14 @@ class RadiographicTechCardCalculator:
         self.params['screens'] = screens
 
     def _calc_iqi(self):
-        from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement
+        from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement, WIRE_IQI_TYPE
         from normative.calculations import SCHEME_WALL_COUNT
 
-        weld_cat = self.params['weld_category']
-        preferred = [iqi for iqi in IQI_TYPES if weld_cat in iqi['preferred_for']]
-        self.params['recommended_iqi'] = preferred[0] if preferred else IQI_TYPES[0]
+        self.params['recommended_iqi'] = dict(WIRE_IQI_TYPE)
 
         mm_val = self.params.get('required_sensitivity_mm', 0)
         scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
+        material_type = self.params.get('material_type', 'steel')
         wall_count = (self.params.get('rad_thickness') or {}).get(
             'wall_count', SCHEME_WALL_COUNT.get(scheme, 1),
         )
@@ -437,8 +436,14 @@ class RadiographicTechCardCalculator:
         placement = resolve_iqi_placement(scheme, wall_count)
         self.params['iqi_placement'] = placement
 
-        iqi_wire = get_wire_iqi(rad_f, mm_val, shift_steps=placement['shift_steps'])
+        iqi_wire = get_wire_iqi(
+            rad_f, mm_val,
+            material_type=material_type,
+            shift_steps=placement['shift_steps'],
+        )
         self.params['iqi_wire'] = iqi_wire
+        self.params['iqi_marking'] = iqi_wire['marking']
+        self.params['iqi_material_code'] = iqi_wire['material_code']
         self.params['iqi_set_number'] = iqi_wire['set_number']
         self.params['iqi_wire_number'] = iqi_wire['wire_number']
         self.params['iqi_wire_diameter_mm'] = iqi_wire['wire_diameter_mm']
@@ -633,8 +638,9 @@ def _build_value_map(params: dict) -> dict:
         '5.1': src.get('name', ''),
         '5.2': focal_field,
         '5.3': (
-            f"{iqi.get('name', '')} {params.get('iqi_label', '')} "
-            f"({placement.get('side_label', 'со стороны источника')})"
+            f"Проволочный ИКИ {params.get('iqi_marking', '')} "
+            f"({params.get('iqi_label', '')}, "
+            f"{placement.get('side_label', 'со стороны источника')})"
         ),
         '5.4': params.get('film_name', film_info.get('examples', '')),
         '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
@@ -1272,7 +1278,8 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('5.2 Размер фокусного пятна (d), мм', params.get('source_focal_spot_mm')),
         ('Активность / мощность', params.get('source_activity') or 'по паспорту источника'),
         ('5.3 Тип и номер ИКИ', (
-            f"{iqi.get('name', '')} — {params.get('iqi_label', '')} "
+            f"Проволочный эталон {params.get('iqi_marking', '')} — "
+            f"{params.get('iqi_label', '')} "
             f"({(params.get('iqi_placement') or {}).get('side_label', '')})"
         )),
         ('Диаметр контрольной проволоки, мм', params.get('iqi_wire_diameter_mm')),

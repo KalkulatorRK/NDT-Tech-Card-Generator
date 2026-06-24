@@ -20,7 +20,7 @@ from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
 from .generator import generate_tech_card, regenerate_techcard_files, get_default_template_path
 from .calculation_reference import generate_calculation_reference_docx
-from .scheme_display import get_scheme_user_label, get_scheme_ui_data, SCHEME_CHOICES
+from .scheme_display import get_scheme_user_label, get_scheme_ui_data, SCHEME_CHOICES, get_schemes_for_object_type
 from accounts.models import UserBalance
 from normative.calculations import resolve_table_b_thickness_mm
 from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
@@ -132,6 +132,7 @@ def build_step3_scheme_data(
     material_type: str,
     joint_designation: str = '',
     welding_process: str = '30',
+    object_type: str = 'pipe',
 ) -> dict:
     """
     Предрасчёт радиационной толщины, источников и плёнок для каждой схемы.
@@ -142,8 +143,10 @@ def build_step3_scheme_data(
     sources_by_scheme = {}
     films_by_scheme = {}
 
+    allowed_schemes = get_schemes_for_object_type(object_type)
+
     for code, _label in SCHEME_CHOICES:
-        if not code:
+        if not code or code not in allowed_schemes:
             continue
         rad = resolve_table_b_thickness_mm(
             wall_thickness, code, joint_designation, welding_process,
@@ -289,6 +292,8 @@ def create_step3_view(request, doc_code):
         session_data.get('material_custom', ''),
     )
 
+    object_type = session_data.get('object_type', 'pipe')
+
     if request.method == 'POST':
         form = TechCardStep3Form(
             request.POST,
@@ -296,6 +301,7 @@ def create_step3_view(request, doc_code):
             material_type=material_type,
             joint_designation=joint_designation,
             welding_process=welding_process,
+            object_type=object_type,
         )
         if form.is_valid():
             data = form.cleaned_data
@@ -307,11 +313,13 @@ def create_step3_view(request, doc_code):
             material_type=material_type,
             joint_designation=joint_designation,
             welding_process=welding_process,
+            object_type=object_type,
         )
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
     scheme_data = build_step3_scheme_data(
         wall_thickness, material_type, joint_designation, welding_process,
+        object_type=object_type,
     )
     from normative.gost_59023_2 import get_joint_info, WELDING_PROCESSES
     joint_info = get_joint_info(joint_designation) if joint_designation else {}
@@ -334,6 +342,7 @@ def create_step3_view(request, doc_code):
         'joint_info': joint_info,
         'welding_process': welding_process,
         'welding_label': welding_label,
+        'object_type': object_type,
         'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
         'sources_by_scheme_json': json.dumps(
             scheme_data['sources_by_scheme'], ensure_ascii=False,
@@ -422,6 +431,7 @@ def _build_human_readable_summary(data: dict) -> list:
         'focal_spot_mm':      'Размер фокусного пятна (Φ), мм',
         'source_activity':    'Активность источника',
         'scheme_type':        'Схема просвечивания',
+        'iqi_side':           'Положение ИКИ (эталона)',
         'ofd_mm':             'Расстояние объект–детектор (b), мм',
         'film_name':          'Тип радиографической плёнки',
     }
@@ -439,7 +449,7 @@ def _build_human_readable_summary(data: dict) -> list:
         ]),
         ('3. Параметры просвечивания', [
             'source_code', 'focal_spot_mm', 'source_activity',
-            'scheme_type', 'ofd_mm', 'film_name',
+            'scheme_type', 'iqi_side', 'ofd_mm', 'film_name',
         ]),
     ]
 
@@ -458,6 +468,11 @@ def _build_human_readable_summary(data: dict) -> list:
             return WELD_CATS.get(val, val)
         if key == 'scheme_type':
             return SCHEME_LABELS.get(val, val)
+        if key == 'iqi_side':
+            return {
+                'source': 'Со стороны источника (эталона)',
+                'film': 'Со стороны плёнки',
+            }.get(val, val)
         if key == 'welding_process':
             proc = WELDING_PROCESSES.get(str(val), {})
             name = proc.get('name', val)

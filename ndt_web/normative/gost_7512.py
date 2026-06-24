@@ -134,23 +134,23 @@ def get_wire_iqi(
 
 
 def resolve_iqi_placement(
-    scheme_code: str,
-    wall_count: int,
-    film_side_decode: bool = True,
+    scheme_code: str = '',
+    wall_count: int = 1,
+    iqi_side: str = SIDE_SOURCE,
 ) -> dict:
     """
     Сторона установки ИКИ по ГОСТ Р 50.05.07-2018, п. 6.1.11.
-    """
-    two_wall_outside_film = wall_count == 2 and scheme_code in ('5v', '5g', '5d')
 
-    if two_wall_outside_film and film_side_decode:
+    :param iqi_side: выбор пользователя — ``source`` (по умолчанию) или ``film``
+    """
+    if iqi_side == SIDE_FILM:
         return {
             'side': SIDE_FILM,
             'side_label': 'со стороны плёнки',
             'shift_steps': 1,
             'note': (
-                'Просвечивание через две стенки: ИКИ со стороны плёнки; '
-                'чувствительность на одну ступень жёстче (п. 6.1.11).'
+                'ИКИ со стороны плёнки: проволочный эталон на одну ступень '
+                'жёстче относительно требуемой чувствительности K (п. 6.1.11).'
             ),
         }
 

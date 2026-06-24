@@ -10,7 +10,10 @@ from normative.gost_50_05_07 import (
     get_film_choices, get_iqi_choices,
     get_suitable_films, get_suitable_sources,
 )
-from .scheme_display import SCHEME_CHOICES, SCHEME_HELP_TEXT
+from .scheme_display import (
+    SCHEME_CHOICES, SCHEME_HELP_TEXT, get_scheme_choices_for_object_type,
+    get_schemes_for_object_type,
+)
 from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices,
     get_welding_process_choices_for_joint,
@@ -18,7 +21,7 @@ from normative.gost_59023_2 import (
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
 )
-from normative.np_104_18 import get_choices as get_category_choices
+from normative.np_105_18 import get_weld_category_choices
 
 
 class TechCardStep1Form(forms.Form):
@@ -141,14 +144,9 @@ class TechCardStep2Form(forms.Form):
         }),
     )
     weld_category = forms.ChoiceField(
-        choices=get_category_choices(),
-        label='Категория сварного соединения (по НП-104-18) *',
+        choices=get_weld_category_choices(),
+        label='Категория сварного соединения (по НП-105-18) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_weld_category'}),
-        help_text=(
-            'Категория I — первый контур АЭУ. '
-            'Категория II — вспомогательные системы. '
-            'Категория III — прочее оборудование.'
-        ),
     )
 
     def __init__(self, *args, **kwargs):
@@ -215,13 +213,24 @@ class TechCardStep2Form(forms.Form):
 class TechCardStep3Form(forms.Form):
     """Шаг 3: Источник излучения, схема и геометрия просвечивания."""
 
+    IQI_SIDE_CHOICES = [
+        ('source', 'Со стороны источника (эталона)'),
+        ('film', 'Со стороны плёнки'),
+    ]
+
     def __init__(self, *args, wall_thickness=None, material_type='steel',
-                 joint_designation='', welding_process='30', **kwargs):
+                 joint_designation='', welding_process='30', object_type='pipe',
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self._wall_thickness = wall_thickness
         self._material_type = material_type
         self._joint_designation = joint_designation
         self._welding_process = welding_process
+        self._object_type = object_type
+        self._allowed_schemes = set(get_schemes_for_object_type(object_type))
+        self.fields['scheme_type'].choices = get_scheme_choices_for_object_type(object_type)
+        if len(self._allowed_schemes) == 1 and not self.is_bound:
+            self.fields['scheme_type'].initial = next(iter(self._allowed_schemes))
         self._allowed_films = []
         self._allowed_source_codes = set()
         self._table_b_thickness = None
@@ -261,6 +270,17 @@ class TechCardStep3Form(forms.Form):
         label='Схема просвечивания *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_scheme_type'}),
         help_text=SCHEME_HELP_TEXT,
+    )
+    iqi_side = forms.ChoiceField(
+        choices=IQI_SIDE_CHOICES,
+        initial='source',
+        label='Положение ИКИ (эталона)',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        help_text=(
+            'При установке ИКИ со стороны плёнки проволочный эталон подбирается '
+            'на одну ступень жёстче относительно требуемой чувствительности K '
+            '(ГОСТ Р 50.05.07-2018, п. 6.1.11).'
+        ),
     )
     source_code = forms.CharField(
         required=True,
@@ -320,6 +340,13 @@ class TechCardStep3Form(forms.Form):
 
         if not scheme:
             self.add_error('scheme_type', 'Выберите схему просвечивания.')
+            return cleaned
+
+        if scheme not in self._allowed_schemes:
+            self.add_error(
+                'scheme_type',
+                'Выбранная схема не соответствует типу объекта контроля.',
+            )
             return cleaned
 
         if not source:

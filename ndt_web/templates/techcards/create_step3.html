@@ -69,6 +69,25 @@
               {% endif %}
             </div>
 
+            <!-- Положение ИКИ -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">{{ form.iqi_side.label }}</label>
+              <div class="d-flex flex-wrap gap-3">
+                {% for radio in form.iqi_side %}
+                <div class="form-check">
+                  {{ radio.tag }}
+                  <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              {% if form.iqi_side.help_text %}
+              <div class="form-text">{{ form.iqi_side.help_text }}</div>
+              {% endif %}
+              {% if form.iqi_side.errors %}
+              <div class="text-danger small">{{ form.iqi_side.errors.0 }}</div>
+              {% endif %}
+            </div>
+
             <!-- Изображение выбранной схемы -->
             <div class="col-12" id="scheme-image-block" style="display:none;">
               <div class="border rounded p-3 bg-light text-center">

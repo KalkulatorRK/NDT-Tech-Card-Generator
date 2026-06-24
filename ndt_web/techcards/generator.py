@@ -170,6 +170,7 @@ class RadiographicTechCardCalculator:
             'sfd_mm': float(d.get('sfd_mm', 0) or 0),
             'ofd_mm': float(d.get('ofd_mm', 5) or 5),
             'film_name': d.get('film_name', ''),
+            'iqi_side': d.get('iqi_side', 'source') or 'source',
             'inspector_name': d.get('inspector_name', ''),
             'develop_date': d.get('develop_date', datetime.now().strftime('%d.%m.%Y')),
         })
@@ -421,20 +422,18 @@ class RadiographicTechCardCalculator:
 
     def _calc_iqi(self):
         from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement, WIRE_IQI_TYPE
-        from normative.calculations import SCHEME_WALL_COUNT
 
         self.params['recommended_iqi'] = dict(WIRE_IQI_TYPE)
 
         mm_val = self.params.get('required_sensitivity_mm', 0)
         scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
         material_type = self.params.get('material_type', 'steel')
-        wall_count = (self.params.get('rad_thickness') or {}).get(
-            'wall_count', SCHEME_WALL_COUNT.get(scheme, 1),
-        )
+        iqi_side = self.params.get('iqi_side', 'source')
         rad_f = self.params.get('s_rad_f_mm', self.params['wall_thickness'])
 
-        placement = resolve_iqi_placement(scheme, wall_count)
+        placement = resolve_iqi_placement(scheme, wall_count=0, iqi_side=iqi_side)
         self.params['iqi_placement'] = placement
+        self.params['iqi_side'] = iqi_side
 
         iqi_wire = get_wire_iqi(
             rad_f, mm_val,
@@ -448,6 +447,13 @@ class RadiographicTechCardCalculator:
         self.params['iqi_wire_number'] = iqi_wire['wire_number']
         self.params['iqi_wire_diameter_mm'] = iqi_wire['wire_diameter_mm']
         self.params['iqi_label'] = iqi_wire['label']
+
+        if placement['shift_steps']:
+            base_desc = self.params.get('sensitivity_desc', '')
+            self.params['sensitivity_desc'] = (
+                f'{base_desc}; ИКИ со стороны плёнки — проволока Ø '
+                f'{iqi_wire["wire_diameter_mm"]:g} мм (на 1 ступень жёстче K)'
+            )
 
     def _fill_processing(self):
         self.params['film_processing'] = FILM_PROCESSING

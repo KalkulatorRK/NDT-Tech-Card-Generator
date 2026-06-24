@@ -627,3 +627,12 @@ def assess_multiple_defects(
         'required_sensitivity_K': required_sensitivity,
         'criteria_table': criteria_row,
     }
+
+
+def get_weld_category_choices():
+    """Категории I–III для полей выбора (НП-105-18, табл. 4.8)."""
+    return [
+        ('I', 'I'),
+        ('II', 'II'),
+        ('III', 'III'),
+    ]

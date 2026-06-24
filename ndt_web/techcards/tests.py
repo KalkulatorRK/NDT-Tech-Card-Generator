@@ -352,6 +352,14 @@ class TechCardCalculatorTests(TestCase):
         # При SFD=100, OFD=50, d=5: Ug = 5*50/(100-50) = 5 >> 0.3 мм
         self.assertTrue(len(calc.warnings) > 0)
 
+    def test_generator_iqi_film_side_in_sensitivity_desc(self):
+        """Выбор стороны плёнки отражается в описании чувствительности K."""
+        data = dict(self.base_input, scheme_type='5g', joint_designation='C1', iqi_side='film')
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['iqi_placement']['side'], 'film')
+        self.assertIn('стороны плёнки', params['sensitivity_desc'])
+
 
 class SchemeDisplayTests(TestCase):
     """Тесты пользовательских названий схем и расчётных правил."""
@@ -393,10 +401,10 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(rad['s_rad_k_mm'], 8.0)
         self.assertEqual(get_sensitivity(rad['s_rad_k_mm'], 'II'), 0.20)
 
-    def test_iqi_film_side_two_wall_pipe(self):
-        """Для схем 3в/3г/3д ИКИ со стороны плёнки со сдвигом на 1 ступень."""
+    def test_iqi_film_side_user_choice(self):
+        """При выборе «со стороны плёнки» ИКИ сдвигается на 1 ступень жёстче."""
         from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement
-        placement = resolve_iqi_placement('5g', 2)
+        placement = resolve_iqi_placement(iqi_side='film')
         self.assertEqual(placement['side'], 'film')
         self.assertEqual(placement['shift_steps'], 1)
         base = get_wire_iqi(11.0, 0.20, shift_steps=0)
@@ -554,6 +562,41 @@ class Step3AjaxTests(TestCase):
         )
         self.assertIn('Ir-192', data['films_by_scheme']['5a'])
 
+    def test_build_step3_scheme_data_filtered_by_object_type(self):
+        from techcards.views import build_step3_scheme_data
+        flat_data = build_step3_scheme_data(10, 'steel', 'C1', '30', object_type='flat')
+        self.assertIn('4_6', flat_data['sources_by_scheme'])
+        self.assertNotIn('5a', flat_data['sources_by_scheme'])
+        pipe_data = build_step3_scheme_data(10, 'steel', 'C1', '30', object_type='pipe')
+        self.assertIn('5a', pipe_data['sources_by_scheme'])
+        self.assertNotIn('4_6', pipe_data['sources_by_scheme'])
+
+    def test_step3_form_scheme_limited_by_object_type(self):
+        from techcards.forms import TechCardStep3Form
+        flat_form = TechCardStep3Form(object_type='flat', wall_thickness=10)
+        flat_codes = {c for c, _ in flat_form.fields['scheme_type'].choices if c}
+        self.assertEqual(flat_codes, {'4_6'})
+        pipe_form = TechCardStep3Form(object_type='pipe', wall_thickness=10)
+        pipe_codes = {c for c, _ in pipe_form.fields['scheme_type'].choices if c}
+        self.assertIn('5a', pipe_codes)
+        self.assertNotIn('4_6', pipe_codes)
+
+    def test_step3_form_rejects_pipe_scheme_for_flat_object(self):
+        from techcards.forms import TechCardStep3Form
+        form = TechCardStep3Form(
+            {
+                'scheme_type': '5a',
+                'source_code': 'Ir-192',
+                'focal_spot_mm': '2',
+                'ofd_mm': '5',
+                'iqi_side': 'source',
+            },
+            object_type='flat',
+            wall_thickness=10,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('scheme_type', form.errors)
+
     def test_scheme_5b_label_has_no_ellipse_method(self):
         from techcards.scheme_display import SCHEME_CHOICES, SCHEME_DESCRIPTIONS
         label_5b = dict(SCHEME_CHOICES).get('5b', '')
@@ -581,6 +624,12 @@ class WeldingProcessFilterTests(TestCase):
         })
         self.assertFalse(form.is_valid())
         self.assertIn('welding_process', form.errors)
+
+    def test_weld_category_label_np105(self):
+        from techcards.forms import TechCardStep2Form
+        field = TechCardStep2Form().fields['weld_category']
+        self.assertIn('НП-105-18', field.label)
+        self.assertFalse(field.help_text)
 
 
 class DocumentKindTests(TestCase):

@@ -26,6 +26,31 @@ SCHEME_HELP_TEXT = (
     'Для трубопроводов — чертежи 3а–3и. Для плоских деталей — Чертёж 2.'
 )
 
+# Схемы по типу объекта (шаг 2 → шаг 3)
+FLAT_OBJECT_SCHEMES = ('4_6',)
+PIPE_OBJECT_SCHEMES = ('5a', '5b', '5v', '5g', '5d', '5zh', '5z')
+
+_SCHEME_LABELS = dict(SCHEME_CHOICES)
+
+
+def get_schemes_for_object_type(object_type: str) -> tuple[str, ...]:
+    """Внутренние коды схем, допустимых для типа объекта контроля."""
+    if object_type == 'pipe':
+        return PIPE_OBJECT_SCHEMES
+    if object_type in ('flat', 'vessel'):
+        return FLAT_OBJECT_SCHEMES
+    return tuple(code for code, _ in SCHEME_CHOICES if code)
+
+
+def get_scheme_choices_for_object_type(object_type: str) -> list[tuple[str, str]]:
+    """Выпадающий список схем просвечивания с учётом типа объекта."""
+    codes = get_schemes_for_object_type(object_type)
+    choices = [('', '— Выберите схему просвечивания —')]
+    for code in codes:
+        label = _SCHEME_LABELS.get(code, code)
+        choices.append((code, label))
+    return choices
+
 # Краткое название для сводки и техкарты
 SCHEME_USER_LABELS = {
     '4_6': 'Чертёж 2 — плоские детали',

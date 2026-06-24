@@ -160,15 +160,25 @@ def download_assessment_pdf_view(request, pk):
         'count': d.count,
     } for d in defects]
 
-    results_data = [{
-        'defect_name': r.defect.get_defect_type_display(),
-        'is_acceptable': r.is_acceptable,
-        'criterion': r.criterion,
-        'reason': r.reason,
-        'reference': r.reference,
-        'max_allowed_mm': r.max_allowed_mm,
-    } for r in results]
+    results_data = []
+    for d, r in zip(defects, results):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        gost_notation = format_gost_7512_defect_notation(
+            d.defect_type, d.size_1, d.size_2, d.count,
+            morphology='cluster' if d.defect_type == 'cluster' else 'single',
+            elongated=d.defect_type in ('pore', 'slag', 'tungsten') and d.size_2 > 0,
+        )
+        results_data.append({
+            'defect_name': d.get_defect_type_display(),
+            'is_acceptable': r.is_acceptable,
+            'criterion': r.criterion,
+            'reason': r.reason,
+            'reference': r.reference,
+            'max_allowed_mm': r.max_allowed_mm,
+            'gost_notation': gost_notation,
+        })
 
+    from normative.gost_7512 import format_gost_7512_notation_list
     assessment_data = {
         'normative_doc': assessment.normative_doc,
         'weld_category': assessment.weld_category,
@@ -177,6 +187,9 @@ def download_assessment_pdf_view(request, pk):
         'is_acceptable': assessment.verdict == 'ГОДЕН',
         'verdict': assessment.verdict,
         'results': results_data,
+        'combined_gost_notation': format_gost_7512_notation_list(
+            [item['gost_notation'] for item in results_data],
+        ),
     }
 
     # Генерируем PDF

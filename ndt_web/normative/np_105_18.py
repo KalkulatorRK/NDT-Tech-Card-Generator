@@ -621,6 +621,30 @@ def _check_aggregate_inclusion_count(
     }
 
 
+def _attach_gost_notation(
+    result: dict,
+    defect_type: str,
+    size_1_mm: float,
+    size_2_mm: float,
+    count: int,
+) -> dict:
+    """Добавляет условную запись дефекта по ГОСТ 7512-82, приложение 5."""
+    from normative.gost_7512 import format_gost_7512_defect_notation, NOTATION_REFERENCE
+
+    morphology = 'cluster' if defect_type == 'cluster' else 'single'
+    elongated = defect_type in ('pore', 'slag', 'tungsten') and size_2_mm > 0
+    result['gost_notation'] = format_gost_7512_defect_notation(
+        defect_type,
+        size_1_mm,
+        size_2_mm,
+        count,
+        morphology=morphology,
+        elongated=elongated,
+    )
+    result['gost_notation_ref'] = NOTATION_REFERENCE
+    return result
+
+
 def assess_defect(
     defect_type: str,
     category: str,
@@ -646,7 +670,7 @@ def assess_defect(
 
     # Абсолютно недопустимые дефекты
     if defect_info.get('always_reject'):
-        return {
+        result = {
             'defect_type': defect_type,
             'defect_name': defect_info.get('name', defect_type),
             'is_acceptable': False,
@@ -655,6 +679,7 @@ def assess_defect(
             'reference': 'НП-105-18, п. 14',
             'max_allowed_mm': 0,
         }
+        return _attach_gost_notation(result, defect_type, size_1_mm, size_2_mm, count)
 
     base = {
         'defect_type': defect_type,
@@ -698,7 +723,7 @@ def assess_defect(
             'max_allowed_mm': 0,
         })
 
-    return base
+    return _attach_gost_notation(base, defect_type, size_1_mm, size_2_mm, count)
 
 
 def assess_multiple_defects(
@@ -757,6 +782,14 @@ def assess_multiple_defects(
 
     count_exceeded = aggregate is not None and not aggregate['is_acceptable']
 
+    from normative.gost_7512 import format_gost_7512_notation_list
+    notations = [
+        r.get('gost_notation', '')
+        for r in results
+        if r.get('gost_notation') and r.get('defect_type') != '_aggregate_inclusions'
+    ]
+    combined_notation = format_gost_7512_notation_list(notations)
+
     return {
         'is_acceptable': all_ok,
         'verdict': 'ГОДЕН' if all_ok else 'БРАК',
@@ -770,6 +803,8 @@ def assess_multiple_defects(
         'count_reason': aggregate['reason'] if count_exceeded else '',
         'score_exceeded': count_exceeded,
         'score_reason': aggregate['reason'] if count_exceeded else '',
+        'combined_gost_notation': combined_notation,
+        'gost_notation_ref': 'ГОСТ 7512-82, приложение 5',
     }
 
 

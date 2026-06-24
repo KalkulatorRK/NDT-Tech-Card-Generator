@@ -265,6 +265,65 @@ class QualityAssessmentLogicTests(TestCase):
         self.assertEqual(result['max_inclusion_count_allowed'], 24)
 
 
+class Gost7512DefectNotationTests(TestCase):
+    """Условная запись дефектов по ГОСТ 7512-82, приложения 5–6."""
+
+    def test_five_spherical_pores(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(format_gost_7512_defect_notation('pore', 3, 0, 5), '5П3')
+
+    def test_single_spherical_pore(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(format_gost_7512_defect_notation('pore', 3, 0, 1), 'П3')
+
+    def test_elongated_slag(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(format_gost_7512_defect_notation('slag', 15, 2, 1), 'Ш15x2')
+
+    def test_crack_length(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(format_gost_7512_defect_notation('crack', 40, 0, 1), 'Т40')
+
+    def test_two_incomplete_penetrations(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(
+            format_gost_7512_defect_notation('incomplete_penetration', 15, 0, 2),
+            '2Н15',
+        )
+
+    def test_chain_notation_example(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(
+            format_gost_7512_defect_notation(
+                'pore', 30, 0, 1,
+                morphology='chain',
+                max_inclusion_l=5,
+                max_inclusion_w=3,
+            ),
+            'Ц30П5x3',
+        )
+
+    def test_cluster_notation_example(self):
+        from normative.gost_7512 import format_gost_7512_defect_notation
+        self.assertEqual(
+            format_gost_7512_defect_notation('pore', 10, 0.5, 2, morphology='cluster'),
+            '2С10П0,5',
+        )
+
+    def test_assess_defect_includes_notation(self):
+        result = assess_defect('pore', 'I', 10, size_1_mm=0.5, count=5)
+        self.assertEqual(result.get('gost_notation'), '5П0,5')
+
+    def test_combined_notation_in_multiple_defects(self):
+        defects = [
+            {'type': 'pore', 'size_1': 3, 'size_2': 0, 'count': 5},
+            {'type': 'slag', 'size_1': 15, 'size_2': 2, 'count': 1},
+        ]
+        result = assess_multiple_defects(defects, 'I', 10)
+        self.assertIn('5П3', result['combined_gost_notation'])
+        self.assertIn('Ш15x2', result['combined_gost_notation'])
+
+
 class TechCardCalculatorTests(TestCase):
     """Тесты вычислительного ядра генератора техкарт."""
 

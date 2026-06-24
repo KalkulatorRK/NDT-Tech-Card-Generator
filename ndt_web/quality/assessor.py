@@ -128,8 +128,8 @@ def generate_assessment_pdf(assessment_data: dict, defects_data: list, output_pa
     # Результаты оценки дефектов
     results = assessment_data.get('results', [])
     table_data = [[
-        '№', 'Тип дефекта', 'Размер, мм',
-        'Доп. размер\n(мм)', 'Доп. размер\n(норма)', 'Результат', 'Ссылка',
+        '№', 'Тип дефекта', 'Усл. запись',
+        'Размер, мм', 'Доп. размер\n(мм)', 'Доп. размер\n(норма)', 'Результат', 'Ссылка',
     ]]
 
     for i, r in enumerate(results, 1):
@@ -139,6 +139,7 @@ def generate_assessment_pdf(assessment_data: dict, defects_data: list, output_pa
         table_data.append([
             str(i),
             r.get('defect_name', ''),
+            r.get('gost_notation', '') or '—',
             f'{s1:.2f}',
             f'{r.get("max_allowed_mm", 0):.2f}',
             '',
@@ -148,7 +149,7 @@ def generate_assessment_pdf(assessment_data: dict, defects_data: list, output_pa
 
     results_table = Table(
         table_data,
-        colWidths=[8 * mm, 40 * mm, 20 * mm, 22 * mm, 22 * mm, 20 * mm, 30 * mm],
+        colWidths=[8 * mm, 32 * mm, 24 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm, 26 * mm],
     )
     results_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.24, 0.47, 0.85)),
@@ -195,6 +196,14 @@ def generate_assessment_pdf(assessment_data: dict, defects_data: list, output_pa
         spaceAfter=5,
     )
     story.append(Paragraph(f'ЗАКЛЮЧЕНИЕ: {verdict}', verdict_style))
+
+    if assessment_data.get('combined_gost_notation'):
+        story.append(Paragraph(
+            f'Условная запись дефектов (ГОСТ 7512-82, приложение 5): '
+            f'<b>{assessment_data["combined_gost_notation"]}</b>',
+            normal,
+        ))
+        story.append(Spacer(1, 3 * mm))
 
     if assessment_data.get('score_exceeded'):
         story.append(Paragraph(assessment_data.get('score_reason', ''), normal))

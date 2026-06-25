@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load credit_words %}
+{% load credit_words static %}
 {% block title %}Главная{% endblock %}
 
 {% block content %}
@@ -55,12 +55,12 @@
     <i class="bi bi-stars me-2" style="color:var(--primary);"></i>Ключевые возможности
   </h2>
 
-  <div class="row g-4 mb-5">
+  <div class="row g-4 mb-5 feature-grid">
     <div class="col-md-3">
-      <a href="{% url 'method_select' %}" class="text-decoration-none">
-        <div class="feature-card h-100">
-          <div class="feature-icon">
-            <i class="bi bi-file-earmark-text" style="color:var(--primary);"></i>
+      <a href="{% url 'method_select' %}" class="text-decoration-none feature-link">
+        <div class="feature-card feature-card--blue h-100">
+          <div class="feature-icon" aria-hidden="true">
+            <img src="{% static 'img/features/feature-techcard.svg' %}" alt="" width="88" height="88" loading="lazy">
           </div>
           <h4>Генерация техкарт</h4>
           <p>Автоматический расчёт параметров контроля по методическому документу ГОСТ Р 50.05.07-2018. Готовая техкарта в DOCX и PDF.</p>
@@ -68,10 +68,10 @@
       </a>
     </div>
     <div class="col-md-3">
-      <a href="{% url 'quality_form' %}" class="text-decoration-none">
-        <div class="feature-card h-100">
-          <div class="feature-icon">
-            <i class="bi bi-check2-circle" style="color:var(--success);"></i>
+      <a href="{% url 'quality_form' %}" class="text-decoration-none feature-link">
+        <div class="feature-card feature-card--teal h-100">
+          <div class="feature-icon" aria-hidden="true">
+            <img src="{% static 'img/features/feature-quality.svg' %}" alt="" width="88" height="88" loading="lazy">
           </div>
           <h4>Оценка качества</h4>
           <p>Проверьте допустимость дефектов по нормативному документу НП-105-18. Заключение «ГОДЕН/БРАК» с обоснованием и скачиванием PDF.</p>
@@ -79,10 +79,10 @@
       </a>
     </div>
     <div class="col-md-3">
-      <a href="{% url 'cabinet' %}" class="text-decoration-none">
-        <div class="feature-card h-100">
-          <div class="feature-icon">
-            <i class="bi bi-folder2-open" style="color:var(--warning);"></i>
+      <a href="{% url 'cabinet' %}" class="text-decoration-none feature-link">
+        <div class="feature-card feature-card--amber h-100">
+          <div class="feature-icon" aria-hidden="true">
+            <img src="{% static 'img/features/feature-cabinet.svg' %}" alt="" width="88" height="88" loading="lazy">
           </div>
           <h4>Личный кабинет</h4>
           <p>Все созданные карты в одном месте. Управление, история и скачивание в любое время.</p>
@@ -90,10 +90,10 @@
       </a>
     </div>
     <div class="col-md-3">
-      <a href="{% url 'forum_index' %}" class="text-decoration-none">
-        <div class="feature-card h-100">
-          <div class="feature-icon">
-            <i class="bi bi-chat-dots" style="color:var(--secondary);"></i>
+      <a href="{% url 'forum_index' %}" class="text-decoration-none feature-link">
+        <div class="feature-card feature-card--violet h-100">
+          <div class="feature-icon" aria-hidden="true">
+            <img src="{% static 'img/features/feature-forum.svg' %}" alt="" width="88" height="88" loading="lazy">
           </div>
           <h4>Форум</h4>
           <p>Общайтесь с коллегами, задавайте вопросы администратору. Тематические чаты по методам НК.</p>

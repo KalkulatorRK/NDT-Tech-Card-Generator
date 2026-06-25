@@ -199,7 +199,7 @@ def _create_yookassa_payment(payment: Payment, tariff: TariffPlan, return_url: s
                 'return_url': return_url,
             },
             'capture': True,
-            'description': f'НК-Карта: {format_credits(tariff.cards_count)} ({tariff.price} руб.)',
+            'description': f'Карта-НК: {format_credits(tariff.cards_count)} ({tariff.price} руб.)',
             'metadata': {
                 'payment_db_id': str(payment.pk),
                 'user_id': str(payment.user.pk),

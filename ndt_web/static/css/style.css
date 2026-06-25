@@ -1,5 +1,5 @@
 /* ===========================================================
-   НК-Карта — основные стили
+   Карта-НК — основные стили
    Мягкие цвета, сглаженные формы, профессиональный вид
    =========================================================== */
 
@@ -62,6 +62,12 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   background: linear-gradient(135deg, var(--primary) 0%, #2563b8 100%) !important;
   box-shadow: 0 2px 10px rgba(0,0,0,0.15);
   padding: 0.6rem 0;
+}
+
+.navbar-logo {
+  height: 40px;
+  width: auto;
+  display: block;
 }
 
 .navbar-brand {

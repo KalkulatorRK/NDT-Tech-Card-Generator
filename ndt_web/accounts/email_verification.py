@@ -86,9 +86,9 @@ def send_verification_email(user: CustomUser) -> None:
     context = {
         'user': user,
         'verification_url': verification_url,
-        'site_name': 'НК-Карта',
+        'site_name': 'Карта-НК',
     }
-    subject = 'Подтверждение регистрации на НК-Карта'
+    subject = 'Подтверждение регистрации на Карта-НК'
     message = render_to_string('accounts/email/verification_email.txt', context)
     html_message = render_to_string('accounts/email/verification_email.html', context)
 

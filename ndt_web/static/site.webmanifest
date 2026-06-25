@@ -1,11 +1,11 @@
 {
-  "name": "НК-Карта — Автоматизация НК",
-  "short_name": "НК-Карта",
+  "name": "Карта-НК — Автоматизация НК",
+  "short_name": "Карта-НК",
   "description": "Автоматизация разработки технологических карт неразрушающего контроля",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0B1730",
+  "background_color": "#0D2240",
   "theme_color": "#3A7BD5",
   "lang": "ru",
   "icons": [

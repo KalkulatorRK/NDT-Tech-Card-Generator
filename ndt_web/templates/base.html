@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="НК-Карта — автоматизация разработки технологических карт неразрушающего контроля">
+  <meta name="description" content="Карта-НК — автоматизация разработки технологических карт неразрушающего контроля">
   <meta name="theme-color" content="#3A7BD5">
-  <meta name="application-name" content="НК-Карта">
-  <meta name="apple-mobile-web-app-title" content="НК-Карта">
+  <meta name="application-name" content="Карта-НК">
+  <meta name="apple-mobile-web-app-title" content="Карта-НК">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>{% block title %}НК-Карта{% endblock %} — Автоматизация НК</title>
+  <title>{% block title %}Карта-НК{% endblock %} — Автоматизация НК</title>
 
   {% load static %}
   <link rel="icon" href="{% static 'img/brand/favicon.ico' %}" sizes="any">
@@ -30,8 +30,8 @@
 <!-- ===== Навигационная панель ===== -->
 <nav class="navbar navbar-expand-lg" role="navigation">
   <div class="container">
-    <a class="navbar-brand" href="{% url 'home' %}">
-      <i class="bi bi-clipboard2-check me-2"></i>НК<span class="accent">-Карта</span>
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'home' %}">
+      <img src="{% static 'img/brand/logo-navbar.svg' %}" alt="Карта-НК" class="navbar-logo" width="180" height="40">
     </a>
     <button class="navbar-toggler" type="button"
             data-bs-toggle="collapse" data-bs-target="#navMain"
@@ -166,7 +166,7 @@
     <div class="row">
       <div class="col-md-4 mb-3">
         <div class="footer-title">
-          <i class="bi bi-clipboard2-check me-1"></i>НК-Карта
+          <i class="bi bi-clipboard2-check me-1"></i>Карта-НК
         </div>
         <p style="font-size:0.85rem;">
           Автоматизированная система разработки технологических карт
@@ -208,7 +208,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      &copy; 2025 НК-Карта. Все права защищены. |
+      &copy; 2025 Карта-НК. Все права защищены. |
       Разработано для специалистов неразрушающего контроля АЭУ.
     </div>
   </div>

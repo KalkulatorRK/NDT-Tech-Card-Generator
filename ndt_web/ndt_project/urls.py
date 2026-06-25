@@ -1,5 +1,5 @@
 """
-Главная конфигурация URL-маршрутов приложения «НК-Карта».
+Главная конфигурация URL-маршрутов приложения «Карта-НК».
 """
 
 from django.contrib import admin
@@ -9,8 +9,8 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 
 # Настройка заголовка административного сайта
-admin.site.site_header = 'НК-Карта — Администрирование'
-admin.site.site_title = 'НК-Карта'
+admin.site.site_header = 'Карта-НК — Администрирование'
+admin.site.site_title = 'Карта-НК'
 admin.site.index_title = 'Панель управления'
 
 urlpatterns = [

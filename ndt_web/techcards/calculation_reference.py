@@ -509,7 +509,7 @@ def generate_calculation_reference_docx(
     footer_para = doc.add_paragraph()
     footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     footer_para.add_run(
-        f'Документ сформирован автоматически системой НК-Карта.\n'
+        f'Документ сформирован автоматически системой Карта-НК.\n'
         f'{DOCUMENT_FULL_NAME}'
     ).font.size = Pt(8)
 

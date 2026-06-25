@@ -18,7 +18,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('recipient', help='Адрес получателя')
         parser.add_argument(
-            '--subject', default='НК-Карта: тест почты', help='Тема письма',
+            '--subject', default='Карта-НК: тест почты', help='Тема письма',
         )
 
     def handle(self, *args, **options):
@@ -50,7 +50,7 @@ class Command(BaseCommand):
         try:
             sent = send_mail(
                 options['subject'],
-                'Тестовое письмо НК-Карта. Если вы его получили — почта настроена верно.',
+                'Тестовое письмо Карта-НК. Если вы его получили — почта настроена верно.',
                 settings.DEFAULT_FROM_EMAIL,
                 [recipient],
                 fail_silently=False,

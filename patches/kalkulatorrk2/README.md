@@ -1,23 +1,38 @@
 # Синхронизация KalkulatorRK2
 
-Патч рефакторинга калькулятора (коммит `ae50203`):
+## Быстрое исправление деплоя на Vercel
+
+Если приложение не запускается после рефакторинга, примените патч **0002** поверх актуального `main`:
 
 ```bash
 git clone https://github.com/KalkulatorRK/KalkulatorRK2.git
 cd KalkulatorRK2
 git checkout main
-git am /path/to/patches/kalkulatorrk2/0001-lib-Tailwind-CI-UX.patch
+git pull origin main
+git am /path/to/patches/kalkulatorrk2/0002-vercel-deploy-fix.patch
+npm ci && npm run build && npm test
 git push origin main
 ```
 
-Или из репозитория Карта-НК:
+Vercel пересоберёт проект автоматически после push.
+
+### Что исправляет патч 0002
+
+- **`vercel.json`** — `outputDirectory: dist`, SPA rewrites
+- **`HashRouter`** вместо `BrowserRouter` (как было до рефакторинга)
+- **`npm run build`** — только `vite build` (без `tsc`, который мог ломать сборку на Vercel)
+- Полный рефакторинг `lib/`, Tailwind в бандле, тесты
+
+### Проверка локально
 
 ```bash
-git am patches/kalkulatorrk2/0001-lib-Tailwind-CI-UX.patch
+npm ci
+npm run build
+npx vite preview
 ```
 
-Проверка после применения:
+Откройте http://localhost:4173
 
-```bash
-npm ci && npm run build && npm test
-```
+## Полный рефакторинг (патч 0001)
+
+Устарел — не применять на текущий `main`. Используйте только **0002**.

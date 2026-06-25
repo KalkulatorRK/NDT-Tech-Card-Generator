@@ -64,6 +64,13 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   padding: 0.6rem 0;
 }
 
+.navbar-logo-icon {
+  width: 40px;
+  height: 40px;
+  display: block;
+  flex-shrink: 0;
+}
+
 .navbar-logo {
   height: 40px;
   width: auto;
@@ -445,21 +452,6 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   pointer-events: none;
 }
 
-.feature-card::after {
-  content: '';
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: -18px;
-  height: 28px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.08;
-  filter: blur(10px);
-  pointer-events: none;
-  transition: opacity 0.28s ease, transform 0.28s ease;
-}
-
 .feature-card--blue { color: #2F7FE8; }
 .feature-card--teal { color: #18A894; }
 .feature-card--amber { color: #E8891D; }
@@ -470,11 +462,6 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   box-shadow:
     0 18px 40px rgba(58, 123, 213, 0.16),
     0 1px 0 rgba(255, 255, 255, 0.95) inset;
-}
-
-.feature-card:hover::after {
-  opacity: 0.16;
-  transform: scale(1.05);
 }
 
 .feature-icon {

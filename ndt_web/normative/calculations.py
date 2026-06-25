@@ -321,12 +321,17 @@ def calc_scheme_5a(focal_spot_mm: float, d_outer_mm: float,
     C = _get_C(focal_spot_mm, sensitivity_mm)
     f = 0.7 * C * (1 - m) * d_outer_mm
 
-    # Определяем N по таблице (находим ближайшее m)
-    m_rounded = round(m * 20) / 20  # округляем до 0.05
+    # Определяем N по таблице: минимальное N, при котором f/D ≥ порога
+    m_rounded = round(m * 20) / 20
     n_table = TABLE_DATA_5A.get(m_rounded) or TABLE_DATA_5A.get(
         min(TABLE_DATA_5A.keys(), key=lambda k: abs(k - m))
     ) or {}
-    N_min = min(n_table.keys()) if n_table else 8
+    f_over_d = f / d_outer_mm
+    N_min = max(n_table.keys()) if n_table else 10
+    for exposures, min_f_over_d in sorted(n_table.items(), key=lambda item: int(item[0])):
+        if f_over_d >= min_f_over_d:
+            N_min = int(exposures)
+            break
     L = math.pi * d_outer_mm / N_min if N_min > 0 else None
 
     return {

@@ -160,18 +160,24 @@
 
             <!-- Предпросмотр схемы и расчётных параметров (HTMX) -->
             <div class="col-12">
-              <div id="scheme-preview-panel"
-                   class="htmx-preview-host"
-                   hx-get="{% url 'ajax_scheme_preview' %}"
-                   hx-trigger="change from:#id_scheme_type, change from:#id_focal_spot_mm, change from:#id_ofd_mm, change from:#id_film_name, change from:input[name='iqi_side'], sourceChanged from:#step3-form, load"
-                   hx-include="#step3-form"
-                   hx-target="this"
-                   hx-swap="innerHTML">
-                <div class="scheme-preview-panel htmx-request">
-                  <div class="scheme-preview-placeholder">
-                    <span class="htmx-spinner"></span>
-                    <p class="mb-0 text-muted">Загрузка предпросмотра…</p>
+              <div class="htmx-preview-host">
+                <div id="scheme-preview-content"
+                     hx-get="{% url 'ajax_scheme_preview' %}"
+                     hx-trigger="change from:#id_scheme_type, change from:#id_focal_spot_mm, change from:#id_ofd_mm, change from:#id_film_name, change from:input[name='iqi_side'], sourceChanged from:#step3-form, load"
+                     hx-include="#step3-form"
+                     hx-target="this"
+                     hx-swap="innerHTML"
+                     hx-indicator="#scheme-preview-spinner">
+                  <div class="scheme-preview-panel">
+                    <div class="scheme-preview-placeholder">
+                      <i class="bi bi-calculator text-muted"></i>
+                      <p class="mb-0">Выберите схему просвечивания.</p>
+                    </div>
                   </div>
+                </div>
+                <div id="scheme-preview-spinner" class="scheme-preview-loading htmx-indicator">
+                  <span class="htmx-spinner"></span>
+                  <span class="text-muted small">Обновление расчёта…</span>
                 </div>
               </div>
             </div>

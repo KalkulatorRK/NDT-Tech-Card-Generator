@@ -277,8 +277,21 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   min-height: 120px;
 }
 
-.htmx-preview-host.htmx-request .scheme-preview-panel {
-  opacity: 0.65;
+.scheme-preview-loading {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.scheme-preview-loading.htmx-request {
+  display: flex;
+}
+
+.htmx-preview-host.htmx-request .scheme-preview-panel,
+.htmx-preview-host .htmx-request .scheme-preview-panel {
+  opacity: 0.7;
 }
 
 .scheme-preview-panel {

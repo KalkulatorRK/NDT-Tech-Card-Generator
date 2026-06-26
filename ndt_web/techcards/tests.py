@@ -855,6 +855,75 @@ class Step3AjaxTests(TestCase):
         self.assertIsNotNone(context.get('k_mm'))
 
 
+class DocxToPdfTests(TestCase):
+    """Тесты конвертации DOCX → PDF (mammoth + xhtml2pdf)."""
+
+    def setUp(self):
+        self.input_data = {
+            'organization': 'АО Тест',
+            'object_name': 'Трубопровод',
+            'wall_thickness': 10,
+            'outer_diameter': 219.1,
+            'joint_designation': 'C1',
+            'weld_category': 'II',
+            'welding_process': '30',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 2.0,
+            'ofd_mm': 5,
+            'scheme_type': '5a',
+            'card_number': 'TC-PDF-TEST',
+            'material': '08Х18Н10Т',
+        }
+        calc = RadiographicTechCardCalculator(self.input_data)
+        self.params = calc.calculate()
+
+    def test_convert_docx_to_pdf_creates_valid_pdf(self):
+        """DOCX конвертируется в валидный PDF с кириллицей."""
+        import tempfile
+        from common.docx_to_pdf import convert_docx_to_pdf
+        from techcards.generator import _generate_docx_fallback
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'card.docx')
+            pdf_path = os.path.join(tmpdir, 'card.pdf')
+            _generate_docx_fallback(self.params, docx_path)
+            convert_docx_to_pdf(docx_path, pdf_path)
+            self.assertTrue(os.path.isfile(pdf_path))
+            self.assertGreater(os.path.getsize(pdf_path), 1000)
+            with open(pdf_path, 'rb') as pdf_file:
+                self.assertTrue(pdf_file.read(4).startswith(b'%PDF'))
+
+    def test_generate_pdf_for_techcard_from_docx(self):
+        """generate_pdf_for_techcard создаёт PDF из готового DOCX."""
+        import tempfile
+        from techcards.generator import _generate_docx_fallback, generate_pdf_for_techcard
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'card.docx')
+            pdf_path = os.path.join(tmpdir, 'card.pdf')
+            _generate_docx_fallback(self.params, docx_path)
+            generate_pdf_for_techcard(self.params, pdf_path, docx_path)
+            self.assertTrue(os.path.isfile(pdf_path))
+            self.assertGreater(os.path.getsize(pdf_path), 1000)
+            with open(pdf_path, 'rb') as pdf_file:
+                self.assertTrue(pdf_file.read(4).startswith(b'%PDF'))
+
+    def test_generate_pdf_fallback_on_corrupt_docx(self):
+        """При битом DOCX используется ReportLab fallback."""
+        import tempfile
+        from techcards.generator import generate_pdf_for_techcard
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'bad.docx')
+            pdf_path = os.path.join(tmpdir, 'card.pdf')
+            with open(docx_path, 'wb') as bad_file:
+                bad_file.write(b'not a docx')
+            generate_pdf_for_techcard(self.params, pdf_path, docx_path)
+            self.assertTrue(os.path.isfile(pdf_path))
+            with open(pdf_path, 'rb') as pdf_file:
+                self.assertTrue(pdf_file.read(4).startswith(b'%PDF'))
+
+
 class WeldingProcessFilterTests(TestCase):
     """Фильтрация способов сварки по типу соединения (ГОСТ Р 59023.2-2020)."""
 

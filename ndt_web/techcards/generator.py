@@ -12,6 +12,8 @@ import io
 import os
 import uuid
 import copy
+import tempfile
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +32,8 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from common.pdf_fonts import register_cyrillic_fonts, FONT_REGULAR, FONT_BOLD
+
+logger = logging.getLogger(__name__)
 
 from normative.gost_50_05_07 import (
     get_sensitivity, get_sensitivity_mm, get_suitable_sources,
@@ -1328,6 +1332,48 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     return output_path
 
 
+def generate_pdf_for_techcard(
+    params: dict,
+    pdf_abs: str,
+    docx_abs: str | None = None,
+    *,
+    template_path: str | None = None,
+    static_root: str = '',
+) -> str:
+    """
+    Создаёт PDF техкарты: DOCX → HTML → PDF (mammoth + xhtml2pdf).
+
+    При ошибке конвертации использует ReportLab как резервный путь.
+    """
+    docx_for_pdf = docx_abs
+    temp_docx: str | None = None
+
+    try:
+        if not docx_for_pdf or not os.path.isfile(docx_for_pdf):
+            fd, temp_docx = tempfile.mkstemp(suffix='.docx')
+            os.close(fd)
+            docx_for_pdf = temp_docx
+            if template_path and os.path.exists(template_path):
+                generate_from_template(
+                    params, template_path, docx_for_pdf, static_root=static_root,
+                )
+            else:
+                _generate_docx_fallback(params, docx_for_pdf)
+
+        from common.docx_to_pdf import convert_docx_to_pdf
+        convert_docx_to_pdf(docx_for_pdf, pdf_abs)
+        logger.info('PDF создан из DOCX: %s', pdf_abs)
+        return pdf_abs
+    except Exception as exc:
+        logger.warning(
+            'DOCX→PDF не удался (%s), используем ReportLab fallback', exc,
+        )
+        return generate_radiographic_pdf(params, pdf_abs)
+    finally:
+        if temp_docx and os.path.isfile(temp_docx):
+            os.remove(temp_docx)
+
+
 # ---------------------------------------------------------------
 # Главная функция генерации
 # ---------------------------------------------------------------
@@ -1340,7 +1386,7 @@ def generate_tech_card(input_data: dict, media_root: str,
     1. Рассчитывает параметры.
     2. Если шаблон доступен — заполняет его данными (DOCX).
     3. Если шаблона нет — создаёт DOCX программно (fallback).
-    4. В обоих случаях создаёт PDF.
+    4. В обоих случаях создаёт PDF из DOCX (mammoth + xhtml2pdf, fallback ReportLab).
 
     :param input_data: данные из формы пользователя
     :param media_root: путь к медиа-директории Django
@@ -1373,8 +1419,11 @@ def generate_tech_card(input_data: dict, media_root: str,
     else:
         _generate_docx_fallback(params, docx_abs)
 
-    # PDF всегда создаём программно
-    generate_radiographic_pdf(params, pdf_abs)
+    # PDF из DOCX (mammoth + xhtml2pdf), при ошибке — ReportLab
+    generate_pdf_for_techcard(
+        params, pdf_abs, docx_abs,
+        template_path=template_path, static_root=static_root,
+    )
 
     return {
         'params': params,
@@ -1450,7 +1499,17 @@ def regenerate_techcard_files(
             techcard.pdf_file = pdf_rel
         pdf_abs = os.path.join(media_root, pdf_rel)
         os.makedirs(os.path.dirname(pdf_abs), exist_ok=True)
-        generate_radiographic_pdf(params, pdf_abs)
+        docx_abs_for_pdf = None
+        if docx:
+            docx_abs_for_pdf = os.path.join(media_root, str(techcard.docx_file))
+        elif techcard.docx_file:
+            candidate = os.path.join(media_root, str(techcard.docx_file))
+            if os.path.isfile(candidate):
+                docx_abs_for_pdf = candidate
+        generate_pdf_for_techcard(
+            params, pdf_abs, docx_abs_for_pdf,
+            template_path=template_path, static_root=static_root,
+        )
 
     update_fields = []
     if docx and techcard.docx_file:

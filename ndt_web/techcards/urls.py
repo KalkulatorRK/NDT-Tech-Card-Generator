@@ -32,4 +32,5 @@ urlpatterns = [
     path('ajax/sources/', views.get_sources_ajax, name='ajax_sources'),
     path('ajax/films/', views.get_films_ajax, name='ajax_films'),
     path('ajax/joint-zones/', views.get_joint_zones_ajax, name='ajax_joint_zones'),
+    path('ajax/scheme-preview/', views.get_scheme_preview_ajax, name='ajax_scheme_preview'),
 ]

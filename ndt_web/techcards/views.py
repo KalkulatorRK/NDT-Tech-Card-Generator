@@ -18,7 +18,12 @@ from django.utils import timezone
 
 from .models import TechCard, NormativeDocument
 from .forms import TechCardStep1Form, TechCardStep2Form, TechCardStep3Form, TechCardConfirmForm
-from .generator import generate_tech_card, regenerate_techcard_files, get_default_template_path
+from .generator import (
+    generate_tech_card,
+    regenerate_techcard_files,
+    get_default_template_path,
+    RadiographicTechCardCalculator,
+)
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data, SCHEME_CHOICES, get_schemes_for_object_type
 from accounts.models import UserBalance
@@ -740,3 +745,80 @@ def get_joint_zones_ajax(request):
     from normative.gost_59023_2 import get_inspection_zone
     result = get_inspection_zone(joint_code, thickness, method)
     return JsonResponse(result)
+
+
+def build_scheme_preview_context(request) -> dict:
+    """
+    Собирает данные для предпросмотра расчётов на шаге 3.
+
+    Объединяет сессионные данные (шаги 1–2) с полями формы шага 3 из GET.
+    """
+    session_data = _get_session_data(request)
+    scheme = (request.GET.get('scheme_type') or '').strip()
+    source_code = (request.GET.get('source_code') or '').strip()
+    scheme_info = get_scheme_ui_data().get(scheme, {})
+
+    if not scheme:
+        return {
+            'ready': False,
+            'scheme_selected': False,
+            'message': 'Выберите схему просвечивания.',
+        }
+
+    if not source_code:
+        return {
+            'ready': False,
+            'scheme_selected': True,
+            'scheme': scheme,
+            'scheme_label': get_scheme_user_label(scheme),
+            'scheme_img': scheme_info.get('img', ''),
+            'scheme_desc': scheme_info.get('desc', ''),
+            'message': 'Выберите источник излучения из рекомендованного списка.',
+        }
+
+    input_data = {
+        **session_data,
+        'scheme_type': scheme,
+        'source_code': source_code,
+        'focal_spot_mm': request.GET.get('focal_spot_mm') or session_data.get('focal_spot_mm', '2.0'),
+        'ofd_mm': request.GET.get('ofd_mm') or session_data.get('ofd_mm', '5'),
+        'film_name': request.GET.get('film_name') or session_data.get('film_name', ''),
+        'iqi_side': request.GET.get('iqi_side') or session_data.get('iqi_side', 'source'),
+    }
+
+    calc = RadiographicTechCardCalculator(input_data)
+    params = calc.calculate()
+
+    exposure = params.get('exposure_scheme') or {}
+
+    return {
+        'ready': True,
+        'scheme_selected': True,
+        'scheme': scheme,
+        'scheme_label': get_scheme_user_label(scheme),
+        'scheme_img': scheme_info.get('img', ''),
+        'scheme_desc': scheme_info.get('desc', ''),
+        'f_mm': params.get('f_calculated_mm'),
+        'N': params.get('N_calculated'),
+        'L_mm': params.get('L_calculated_mm'),
+        'film_size': params.get('film_size_label', ''),
+        'ug_mm': params.get('geometric_unsharpness_mm'),
+        'ug_ok': params.get('geometric_unsharpness_ok', True),
+        'k_mm': params.get('required_sensitivity_mm'),
+        'k_pct': params.get('required_sensitivity_pct'),
+        'sfd_used_mm': params.get('sfd_used_mm'),
+        'source_name': (params.get('selected_source') or {}).get('name', source_code),
+        'formula': params.get('scheme_formula', ''),
+        'is_empirical': params.get('is_empirical', False),
+        'empirical_reason': params.get('empirical_reason', ''),
+        'warnings': calc.warnings,
+        'errors': calc.errors,
+        'exposure': exposure,
+    }
+
+
+@login_required
+def get_scheme_preview_ajax(request):
+    """HTMX: предпросмотр схемы и расчётных параметров f, N, L, Ug, K."""
+    context = build_scheme_preview_context(request)
+    return render(request, 'techcards/partials/scheme_preview.html', context)

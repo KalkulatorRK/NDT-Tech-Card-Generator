@@ -14,7 +14,7 @@
           Шаг 3: Схема просвечивания, источник излучения и геометрия
         </div>
 
-        <form method="post" novalidate>
+        <form method="post" novalidate id="step3-form">
           {% csrf_token %}
           <div class="row g-4">
 
@@ -88,15 +88,6 @@
               {% endif %}
             </div>
 
-            <!-- Изображение выбранной схемы -->
-            <div class="col-12" id="scheme-image-block" style="display:none;">
-              <div class="border rounded p-3 bg-light text-center">
-                <img id="scheme-image" src="" alt="Схема просвечивания"
-                     style="max-height:260px; max-width:100%; object-fit:contain;">
-                <div id="scheme-description" class="mt-2 text-muted" style="font-size:0.85rem;"></div>
-              </div>
-            </div>
-
             <!-- 2. Радиационная толщина -->
             <div class="col-12" id="radiation-thickness-block" style="display:none;">
               <div class="info-box mb-0">
@@ -167,20 +158,24 @@
               {% endif %}
             </div>
 
-          </div>
+            <!-- Предпросмотр схемы и расчётных параметров (HTMX) -->
+            <div class="col-12">
+              <div id="scheme-preview-panel"
+                   class="htmx-preview-host"
+                   hx-get="{% url 'ajax_scheme_preview' %}"
+                   hx-trigger="change from:#id_scheme_type, change from:#id_focal_spot_mm, change from:#id_ofd_mm, change from:#id_film_name, change from:input[name='iqi_side'], sourceChanged from:#step3-form, load"
+                   hx-include="#step3-form"
+                   hx-target="this"
+                   hx-swap="innerHTML">
+                <div class="scheme-preview-panel htmx-request">
+                  <div class="scheme-preview-placeholder">
+                    <span class="htmx-spinner"></span>
+                    <p class="mb-0 text-muted">Загрузка предпросмотра…</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <!-- Инфо-блок: что будет рассчитано автоматически -->
-          <div class="info-box mt-4">
-            <i class="bi bi-calculator me-2"></i>
-            <strong>Будет рассчитано автоматически</strong> по выбранной схеме и источнику:
-            <ul class="mb-0 mt-1" style="font-size:0.88rem;">
-              <li><strong>f</strong> — минимальное расстояние от источника до объекта (мм)</li>
-              <li><strong>N</strong> — минимальное число экспозиций (шт.)</li>
-              <li><strong>L</strong> — длина контролируемого участка за 1 экспозицию (мм)</li>
-              <li><strong>Размер плёнки</strong> — подбирается автоматически по L (120×100, 240×100 или 480×100 мм)</li>
-              <li><strong>Ug</strong> — геометрическая нерезкость (мм)</li>
-              <li><strong>K</strong> — требуемая чувствительность контроля (мм)</li>
-            </ul>
           </div>
 
           <div class="warning-box mt-3">
@@ -213,31 +208,23 @@
 
 {% block extra_js %}
 <script>
-var SCHEME_DATA = {{ scheme_ui_json|safe }};
 var SOURCES_BY_SCHEME = {{ sources_by_scheme_json|safe }};
 var RADIATION_BY_SCHEME = {{ radiation_by_scheme_json|safe }};
 var FILMS_BY_SCHEME = {{ films_by_scheme_json|safe }};
 var SELECTED_SOURCE = '{{ form.source_code.value|default_if_none:""|escapejs }}';
 
 var schemeSelect = document.getElementById('id_scheme_type');
-var schemeImageBlock = document.getElementById('scheme-image-block');
-var schemeImage = document.getElementById('scheme-image');
-var schemeDesc = document.getElementById('scheme-description');
 var radiationBlock = document.getElementById('radiation-thickness-block');
 var sourcesBlock = document.getElementById('sources-block');
 var sourcesList = document.getElementById('sources-list');
 var sourcesEmpty = document.getElementById('sources-empty');
 var sourceHidden = document.getElementById('id_source_code');
 var filmSelect = document.getElementById('id_film_name');
-var step3Form = document.querySelector('form');
+var step3Form = document.getElementById('step3-form');
 
-function updateSchemeUI(val) {
-  if (val && SCHEME_DATA[val]) {
-    schemeImage.src = SCHEME_DATA[val].img;
-    schemeDesc.textContent = SCHEME_DATA[val].desc;
-    schemeImageBlock.style.display = '';
-  } else {
-    schemeImageBlock.style.display = 'none';
+function triggerSchemePreview() {
+  if (typeof htmx !== 'undefined' && step3Form) {
+    htmx.trigger(step3Form, 'sourceChanged');
   }
 }
 
@@ -248,6 +235,7 @@ function selectSource(code) {
     cb.checked = (cb.value === code);
   });
   updateFilmChoices();
+  triggerSchemePreview();
 }
 
 function renderSources(sources) {
@@ -266,8 +254,7 @@ function renderSources(sources) {
     var col = document.createElement('div');
     col.className = 'col-md-6';
     col.innerHTML =
-      '<label class="d-flex align-items-start gap-2 p-2 rounded border h-100" '
-      + 'style="font-size:0.83rem; background:#f8fafc; cursor:pointer;">'
+      '<label class="source-option-card d-flex align-items-start gap-2 p-2 rounded border h-100">'
       + '<input type="checkbox" class="form-check-input mt-1 source-checkbox" value="' + src.code + '">'
       + '<span><strong>' + src.name + '</strong><br>'
       + '<span class="text-muted">' + src.energy_display + '</span></span>'
@@ -349,10 +336,9 @@ function updateFilmChoices() {
 if (schemeSelect) {
   schemeSelect.addEventListener('change', function() {
     SELECTED_SOURCE = '';
-    updateSchemeUI(this.value);
     updateSources();
+    triggerSchemePreview();
   });
-  updateSchemeUI(schemeSelect.value);
   if (schemeSelect.value) {
     updateSources();
   }

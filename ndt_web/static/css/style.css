@@ -269,6 +269,189 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 
 .step-item.active .step-label { color: var(--primary); font-weight: 600; }
 
+.step-item.done .step-label { color: var(--success); }
+
+/* ---- Предпросмотр расчётов (шаг 3, HTMX) ---- */
+.htmx-preview-host {
+  position: relative;
+  min-height: 120px;
+}
+
+.htmx-preview-host.htmx-request .scheme-preview-panel {
+  opacity: 0.65;
+}
+
+.scheme-preview-panel {
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4fc 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  transition: opacity 0.2s ease;
+}
+
+.scheme-preview-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--primary);
+  margin-bottom: 0.9rem;
+  font-size: 0.95rem;
+}
+
+.scheme-preview-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 0.15rem 0.55rem;
+  border-radius: 20px;
+}
+
+.scheme-preview-image {
+  max-height: 220px;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+}
+
+.scheme-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1.5rem 1rem;
+}
+
+.scheme-preview-placeholder--inline {
+  align-items: flex-start;
+  text-align: left;
+  padding: 0.5rem 0;
+}
+
+.preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.preview-metric {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.65rem;
+  text-align: center;
+}
+
+.preview-metric--warn {
+  border-color: var(--warning);
+  background: #fffbf0;
+}
+
+.preview-metric-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+}
+
+.preview-metric-value {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+  margin: 0.15rem 0;
+}
+
+.preview-metric-value small {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.preview-metric-hint {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.25;
+}
+
+.preview-source-line {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.preview-formula {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  word-break: break-word;
+}
+
+.htmx-spinner {
+  display: inline-block;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: htmx-spin 0.7s linear infinite;
+}
+
+@keyframes htmx-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Карточки выбора источника ---- */
+.source-option-card {
+  font-size: 0.83rem;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  margin-bottom: 0;
+}
+
+.source-option-card:hover {
+  border-color: var(--primary) !important;
+  background: var(--primary-light);
+}
+
+.source-option-card:has(.source-checkbox:checked) {
+  border-color: var(--primary) !important;
+  background: var(--primary-light);
+  box-shadow: 0 0 0 2px rgba(58, 123, 213, 0.15);
+}
+
+/* ---- Улучшенные карточки мастера ---- */
+.card.wizard-card {
+  overflow: hidden;
+}
+
+.card .card-header-section i {
+  opacity: 0.85;
+}
+
+.btn-primary {
+  box-shadow: 0 2px 6px rgba(58, 123, 213, 0.25);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(58, 123, 213, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-outline-secondary:hover {
+  transform: translateY(-1px);
+}
+
 .step-progress-text {
   text-align: center;
   font-size: 0.85rem;
@@ -767,6 +950,14 @@ footer .footer-bottom {
     width: 76px;
     height: 76px;
   }
+
+  .preview-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .scheme-preview-image {
+    max-height: 180px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -780,5 +971,13 @@ footer .footer-bottom {
 
   .form-actions-sticky .btn-lg .bi-lightning-fill {
     display: none;
+  }
+
+  .preview-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .preview-metric-value {
+    font-size: 1rem;
   }
 }

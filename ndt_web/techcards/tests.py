@@ -769,6 +769,91 @@ class Step3AjaxTests(TestCase):
         self.assertNotIn('эллипс', label_5b.lower())
         self.assertNotIn('эллипс', SCHEME_DESCRIPTIONS.get('5b', '').lower())
 
+    def test_scheme_preview_requires_login(self):
+        response = self.client.get('/ajax/scheme-preview/?scheme_type=5a&source_code=Ir-192')
+        self.assertEqual(response.status_code, 302)
+
+    def test_scheme_preview_without_scheme(self):
+        user = User.objects.create_user(
+            'preview1', email='p1@test.com', password='pass123', email_verified=True,
+        )
+        self.client.login(username='preview1', password='pass123')
+        response = self.client.get('/ajax/scheme-preview/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Выберите схему просвечивания')
+
+    def test_scheme_preview_without_source_shows_scheme_image(self):
+        user = User.objects.create_user(
+            'preview2', email='p2@test.com', password='pass123', email_verified=True,
+        )
+        self.client.login(username='preview2', password='pass123')
+        session = self.client.session
+        session['techcard_data'] = {
+            'wall_thickness': 10,
+            'outer_diameter': 219.1,
+            'material': '08Х18Н10Т',
+            'joint_designation': 'C1',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'object_type': 'pipe',
+        }
+        session.save()
+        response = self.client.get('/ajax/scheme-preview/?scheme_type=5a')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Выберите источник излучения')
+        self.assertContains(response, 'scheme_5a')
+
+    def test_scheme_preview_returns_calculated_values(self):
+        user = User.objects.create_user(
+            'preview3', email='p3@test.com', password='pass123', email_verified=True,
+        )
+        self.client.login(username='preview3', password='pass123')
+        session = self.client.session
+        session['techcard_data'] = {
+            'wall_thickness': 10,
+            'outer_diameter': 219.1,
+            'material': '08Х18Н10Т',
+            'joint_designation': 'C1',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'object_type': 'pipe',
+        }
+        session.save()
+        response = self.client.get(
+            '/ajax/scheme-preview/?scheme_type=5a&source_code=Ir-192'
+            '&focal_spot_mm=2.0&ofd_mm=5&iqi_side=source',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Предпросмотр расчёта')
+        self.assertContains(response, 'preview-metric-label')
+        self.assertContains(response, 'Ir-192')
+
+    def test_build_scheme_preview_context_ready(self):
+        from techcards.views import build_scheme_preview_context
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.get(
+            '/ajax/scheme-preview/?scheme_type=5a&source_code=Ir-192'
+            '&focal_spot_mm=2.0&ofd_mm=5',
+        )
+        request.session = self.client.session
+        request.session['techcard_data'] = {
+            'wall_thickness': 10,
+            'outer_diameter': 219.1,
+            'material': '08Х18Н10Т',
+            'joint_designation': 'C1',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'object_type': 'pipe',
+        }
+        context = build_scheme_preview_context(request)
+        self.assertTrue(context['ready'])
+        self.assertIsNotNone(context.get('f_mm'))
+        self.assertIsNotNone(context.get('N'))
+        self.assertIsNotNone(context.get('L_mm'))
+        self.assertIsNotNone(context.get('k_mm'))
+
 
 class WeldingProcessFilterTests(TestCase):
     """Фильтрация способов сварки по типу соединения (ГОСТ Р 59023.2-2020)."""

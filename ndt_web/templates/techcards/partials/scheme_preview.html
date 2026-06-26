@@ -1,0 +1,118 @@
+{% load static %}
+<div class="scheme-preview-panel">
+  {% if not ready %}
+  <div class="scheme-preview-header">
+    <i class="bi bi-calculator me-1"></i>
+    <strong>Расчётные параметры</strong>
+  </div>
+  <div class="row g-3 align-items-center">
+    {% if scheme_selected and scheme_img %}
+    <div class="col-md-5 text-center">
+      <img src="{{ scheme_img }}" alt="{{ scheme_label }}"
+           class="scheme-preview-image">
+      {% if scheme_desc %}
+      <div class="text-muted small mt-2">{{ scheme_desc }}</div>
+      {% endif %}
+    </div>
+    <div class="col-md-7">
+      <div class="scheme-preview-placeholder scheme-preview-placeholder--inline">
+        <p class="mb-0">{{ message }}</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+      <div class="scheme-preview-placeholder">
+        <i class="bi bi-calculator text-muted"></i>
+        <p class="mb-0">{{ message }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="scheme-preview-header">
+    <i class="bi bi-lightning-charge-fill me-1"></i>
+    <strong>Предпросмотр расчёта</strong>
+    <span class="scheme-preview-badge">{{ scheme_label }}</span>
+  </div>
+
+  <div class="row g-3 align-items-start">
+    {% if scheme_img %}
+    <div class="col-md-5 text-center">
+      <img src="{{ scheme_img }}" alt="{{ scheme_label }}"
+           class="scheme-preview-image">
+      {% if scheme_desc %}
+      <div class="text-muted small mt-2">{{ scheme_desc }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="col-md-{% if scheme_img %}7{% else %}12{% endif %}">
+      <div class="preview-metrics">
+        <div class="preview-metric">
+          <span class="preview-metric-label">f</span>
+          <span class="preview-metric-value">{{ f_mm|default:"—" }} <small>мм</small></span>
+          <span class="preview-metric-hint">мин. расстояние источник–объект</span>
+        </div>
+        <div class="preview-metric">
+          <span class="preview-metric-label">N</span>
+          <span class="preview-metric-value">{{ N|default:"—" }} <small>шт.</small></span>
+          <span class="preview-metric-hint">число экспозиций</span>
+        </div>
+        <div class="preview-metric">
+          <span class="preview-metric-label">L</span>
+          <span class="preview-metric-value">{{ L_mm|default:"—" }} <small>мм</small></span>
+          <span class="preview-metric-hint">длина участка за 1 экспозицию</span>
+        </div>
+        <div class="preview-metric">
+          <span class="preview-metric-label">Плёнка</span>
+          <span class="preview-metric-value">{{ film_size|default:"—" }} <small>мм</small></span>
+          <span class="preview-metric-hint">подбор по L</span>
+        </div>
+        <div class="preview-metric {% if not ug_ok %}preview-metric--warn{% endif %}">
+          <span class="preview-metric-label">Ug</span>
+          <span class="preview-metric-value">
+            {% if ug_mm is not None %}{{ ug_mm|floatformat:3 }}{% else %}—{% endif %}
+            <small>мм</small>
+          </span>
+          <span class="preview-metric-hint">геометрическая нерезкость</span>
+        </div>
+        <div class="preview-metric">
+          <span class="preview-metric-label">K</span>
+          <span class="preview-metric-value">
+            {% if k_mm is not None %}{{ k_mm|floatformat:3 }}{% else %}—{% endif %}
+            <small>мм</small>
+          </span>
+          <span class="preview-metric-hint">
+            {% if k_pct %}≤ {{ k_pct|floatformat:2 }}%{% else %}чувствительность{% endif %}
+          </span>
+        </div>
+      </div>
+
+      {% if source_name %}
+      <div class="preview-source-line">
+        <i class="bi bi-radioactive me-1"></i>
+        Источник: <strong>{{ source_name }}</strong>
+        {% if sfd_used_mm %}<span class="text-muted">· SFD = {{ sfd_used_mm }} мм</span>{% endif %}
+      </div>
+      {% endif %}
+
+      {% if formula %}
+      <div class="preview-formula text-muted small mt-2">{{ formula }}</div>
+      {% endif %}
+
+      {% if is_empirical and empirical_reason %}
+      <div class="warning-box mt-2 mb-0 py-2" style="font-size:0.82rem;">
+        <i class="bi bi-exclamation-triangle me-1"></i>{{ empirical_reason }}
+      </div>
+      {% endif %}
+
+      {% for warning in warnings %}
+      <div class="warning-box mt-2 mb-0 py-2" style="font-size:0.82rem;">{{ warning }}</div>
+      {% endfor %}
+      {% for error in errors %}
+      <div class="danger-box mt-2 mb-0 py-2" style="font-size:0.82rem;">{{ error }}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

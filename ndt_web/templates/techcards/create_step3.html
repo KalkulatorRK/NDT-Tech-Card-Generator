@@ -350,6 +350,10 @@ if (schemeSelect) {
   }
 }
 
+document.querySelectorAll('input[name="iqi_side"]').forEach(function(radio) {
+  radio.addEventListener('change', triggerSchemePreview);
+});
+
 if (step3Form) {
   step3Form.addEventListener('submit', function(e) {
     if (!schemeSelect || !schemeSelect.value) {

@@ -399,6 +399,12 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   line-height: 1.25;
 }
 
+.preview-metric-sub {
+  display: block;
+  font-size: 0.65rem;
+  margin-top: 0.15rem;
+}
+
 .preview-source-line {
   margin-top: 0.75rem;
   font-size: 0.85rem;

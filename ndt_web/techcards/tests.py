@@ -854,6 +854,35 @@ class Step3AjaxTests(TestCase):
         self.assertIsNotNone(context.get('L_mm'))
         self.assertIsNotNone(context.get('k_mm'))
 
+    def test_scheme_preview_k_changes_with_iqi_film_side(self):
+        """K в предпросмотре отражает диаметр проволоки ИКИ при стороне плёнки."""
+        user = User.objects.create_user(
+            'preview4', email='p4@test.com', password='pass123', email_verified=True,
+        )
+        self.client.login(username='preview4', password='pass123')
+        session = self.client.session
+        session['techcard_data'] = {
+            'wall_thickness': 12,
+            'outer_diameter': 344,
+            'material': '08Х17Н15М3Т',
+            'joint_designation': 'C1',
+            'welding_process': '30',
+            'weld_category': 'III',
+            'object_type': 'pipe',
+        }
+        session.save()
+        base_qs = (
+            'scheme_type=5v&source_code=Ir-192'
+            '&focal_spot_mm=3.0&ofd_mm=5'
+        )
+        src = self.client.get(f'/ajax/scheme-preview/?{base_qs}&iqi_side=source')
+        film = self.client.get(f'/ajax/scheme-preview/?{base_qs}&iqi_side=film')
+        self.assertEqual(src.status_code, 200)
+        self.assertEqual(film.status_code, 200)
+        self.assertContains(src, '0,500')
+        self.assertContains(film, '0,400')
+        self.assertContains(film, 'жёстче на 1 ступень')
+
 
 class DocxToPdfTests(TestCase):
     """Тесты конвертации DOCX → PDF (mammoth + xhtml2pdf)."""

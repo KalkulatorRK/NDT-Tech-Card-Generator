@@ -790,6 +790,10 @@ def build_scheme_preview_context(request) -> dict:
     params = calc.calculate()
 
     exposure = params.get('exposure_scheme') or {}
+    iqi_side = input_data.get('iqi_side', 'source')
+    k_required_mm = params.get('required_sensitivity_mm')
+    iqi_wire_diameter_mm = params.get('iqi_wire_diameter_mm')
+    iqi_wire_number = params.get('iqi_wire_number')
 
     return {
         'ready': True,
@@ -804,8 +808,13 @@ def build_scheme_preview_context(request) -> dict:
         'film_size': params.get('film_size_label', ''),
         'ug_mm': params.get('geometric_unsharpness_mm'),
         'ug_ok': params.get('geometric_unsharpness_ok', True),
-        'k_mm': params.get('required_sensitivity_mm'),
+        'k_mm': iqi_wire_diameter_mm if iqi_wire_diameter_mm is not None else k_required_mm,
+        'k_required_mm': k_required_mm,
         'k_pct': params.get('required_sensitivity_pct'),
+        'iqi_side': iqi_side,
+        'iqi_wire_number': iqi_wire_number,
+        'iqi_wire_diameter_mm': iqi_wire_diameter_mm,
+        'iqi_shifted': iqi_side == 'film',
         'sfd_used_mm': params.get('sfd_used_mm'),
         'source_name': (params.get('selected_source') or {}).get('name', source_code),
         'formula': params.get('scheme_formula', ''),

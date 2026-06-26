@@ -83,8 +83,15 @@
             <small>мм</small>
           </span>
           <span class="preview-metric-hint">
-            {% if k_pct %}≤ {{ k_pct|floatformat:2 }}%{% else %}чувствительность{% endif %}
+            {% if iqi_shifted and iqi_wire_number %}
+            проволока {{ iqi_wire_number }} ИКИ (жёстче на 1 ступень)
+            {% elif k_pct %}≤ {{ k_pct|floatformat:2 }}%{% else %}чувствительность{% endif %}
           </span>
+          {% if iqi_shifted and k_required_mm is not None %}
+          <span class="preview-metric-sub text-muted">
+            норма K ≤ {{ k_required_mm|floatformat:3 }} мм
+          </span>
+          {% endif %}
         </div>
       </div>
 

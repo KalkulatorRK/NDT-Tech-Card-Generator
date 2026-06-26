@@ -519,12 +519,43 @@ class TechCardCalculatorTests(TestCase):
         self.assertTrue(len(calc.warnings) > 0)
 
     def test_generator_iqi_film_side_in_sensitivity_desc(self):
-        """Выбор стороны плёнки отражается в описании чувствительности K."""
-        data = dict(self.base_input, scheme_type='5g', joint_designation='C1', iqi_side='film')
+        """Выбор стороны плёнки снижает K в п. 6.3 на одну ступень."""
+        from techcards.generator import _build_value_map
+
+        data = dict(
+            self.base_input,
+            scheme_type='5v',
+            wall_thickness='12',
+            outer_diameter='344',
+            weld_category='III',
+            iqi_side='film',
+        )
         calc = RadiographicTechCardCalculator(data)
         params = calc.calculate()
         self.assertEqual(params['iqi_placement']['side'], 'film')
+        self.assertEqual(params['required_sensitivity_norm_mm'], 0.5)
+        self.assertEqual(params['sensitivity_k_display_mm'], 0.4)
         self.assertIn('стороны плёнки', params['sensitivity_desc'])
+        vm = _build_value_map(params)
+        self.assertIn('0,400', vm['6.3'].replace('.', ','))
+        self.assertIn('0,500', params['sensitivity_desc'].replace('.', ','))
+
+    def test_field_6_3_k_unchanged_on_source_side(self):
+        """При ИКИ со стороны источника п. 6.3 содержит нормативное K."""
+        from techcards.generator import _build_value_map
+
+        data = dict(
+            self.base_input,
+            scheme_type='5v',
+            wall_thickness='12',
+            outer_diameter='344',
+            weld_category='III',
+            iqi_side='source',
+        )
+        params = RadiographicTechCardCalculator(data).calculate()
+        vm = _build_value_map(params)
+        self.assertEqual(params['sensitivity_k_display_mm'], params['required_sensitivity_norm_mm'])
+        self.assertIn('0,500', vm['6.3'].replace('.', ','))
 
 
 class SchemeDisplayTests(TestCase):

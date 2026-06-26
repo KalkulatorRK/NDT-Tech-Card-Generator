@@ -791,9 +791,10 @@ def build_scheme_preview_context(request) -> dict:
 
     exposure = params.get('exposure_scheme') or {}
     iqi_side = input_data.get('iqi_side', 'source')
-    k_required_mm = params.get('required_sensitivity_mm')
+    k_required_mm = params.get('required_sensitivity_norm_mm', params.get('required_sensitivity_mm'))
     iqi_wire_diameter_mm = params.get('iqi_wire_diameter_mm')
     iqi_wire_number = params.get('iqi_wire_number')
+    k_display_mm = params.get('sensitivity_k_display_mm', k_required_mm)
 
     return {
         'ready': True,
@@ -808,7 +809,7 @@ def build_scheme_preview_context(request) -> dict:
         'film_size': params.get('film_size_label', ''),
         'ug_mm': params.get('geometric_unsharpness_mm'),
         'ug_ok': params.get('geometric_unsharpness_ok', True),
-        'k_mm': iqi_wire_diameter_mm if iqi_wire_diameter_mm is not None else k_required_mm,
+        'k_mm': k_display_mm,
         'k_required_mm': k_required_mm,
         'k_pct': params.get('required_sensitivity_pct'),
         'iqi_side': iqi_side,

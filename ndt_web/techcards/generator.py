@@ -112,6 +112,33 @@ def _find_row_by_label(table, label_fragment: str) -> int:
     return -1
 
 
+def _format_sensitivity_desc(
+    display_k_mm: float,
+    sk_desc: str,
+    weld_category: str,
+    *,
+    norm_k_mm: float | None = None,
+    film_side: bool = False,
+) -> str:
+    """
+    Текст для п. 6.3 техкарты «Требуемая чувствительность K, не более, мм».
+
+    При ИКИ со стороны плёнки указывается K на одну ступень жёстче
+    нормативного значения (диаметр проволоки ИКИ).
+    """
+    if film_side and norm_k_mm is not None:
+        return (
+            f'K ≤ {display_k_mm:.3f} мм '
+            f'(ИКИ со стороны плёнки, на 1 ступень жёстче нормативного '
+            f'K ≤ {norm_k_mm:.3f} мм; НП-105-18, Табл. 4.8: {sk_desc}, '
+            f'кат. {weld_category})'
+        )
+    return (
+        f'K ≤ {display_k_mm:.3f} мм '
+        f'(НП-105-18, Табл. 4.8: {sk_desc}, кат. {weld_category})'
+    )
+
+
 # ---------------------------------------------------------------
 # Расчётное ядро (без изменений)
 # ---------------------------------------------------------------
@@ -242,6 +269,7 @@ class RadiographicTechCardCalculator:
 
         self.params['required_sensitivity_pct'] = K
         self.params['required_sensitivity_mm'] = mm_val
+        self.params['required_sensitivity_norm_mm'] = mm_val
         self.params['s_k_mm'] = s_k
         self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
 
@@ -252,10 +280,10 @@ class RadiographicTechCardCalculator:
         else:
             sk_desc = f'S_K = S + g_min = {S} + {g_min} = {s_k} мм'
 
-        self.params['sensitivity_desc'] = (
-            f'K ≤ {mm_val:.3f} мм '
-            f'(НП-105-18, Табл. 4.8: {sk_desc}, '
-            f'кат. {self.params.get("weld_category", "")})'
+        self.params['sk_desc'] = sk_desc
+        self.params['sensitivity_k_display_mm'] = mm_val
+        self.params['sensitivity_desc'] = _format_sensitivity_desc(
+            mm_val, sk_desc, self.params.get('weld_category', ''),
         )
 
     def _select_sources(self):
@@ -454,12 +482,20 @@ class RadiographicTechCardCalculator:
         self.params['iqi_wire_diameter_mm'] = iqi_wire['wire_diameter_mm']
         self.params['iqi_label'] = iqi_wire['label']
 
-        if placement['shift_steps']:
-            base_desc = self.params.get('sensitivity_desc', '')
-            self.params['sensitivity_desc'] = (
-                f'{base_desc}; ИКИ со стороны плёнки — проволока Ø '
-                f'{iqi_wire["wire_diameter_mm"]:g} мм (на 1 ступень жёстче K)'
+        norm_k = self.params.get('required_sensitivity_norm_mm', mm_val)
+        sk_desc = self.params.get('sk_desc', '')
+        weld_cat = self.params.get('weld_category', '')
+        film_side = bool(placement.get('shift_steps'))
+
+        if film_side:
+            display_k = iqi_wire['wire_diameter_mm']
+            self.params['sensitivity_k_display_mm'] = display_k
+            self.params['sensitivity_desc'] = _format_sensitivity_desc(
+                display_k, sk_desc, weld_cat,
+                norm_k_mm=norm_k, film_side=True,
             )
+        else:
+            self.params['sensitivity_k_display_mm'] = norm_k
 
     def _fill_processing(self):
         self.params['film_processing'] = FILM_PROCESSING
@@ -673,11 +709,15 @@ def _build_value_map(params: dict) -> dict:
         '6.1': src.get('energy_display', ''),
         '6.2': (
             f'S_K = {params.get("s_k_mm", "—")} мм → '
-            f'K ≤ {params.get("required_sensitivity_mm", "—"):.3f} мм '
+            f'K ≤ {params.get("required_sensitivity_norm_mm", params.get("required_sensitivity_mm", "—")):.3f} мм '
             f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category", "")});  '
             f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
         ),
-        '6.3': params.get('sensitivity_desc', ''),
+        '6.3': (
+            f'K ≤ {params.get("sensitivity_k_display_mm", params.get("required_sensitivity_mm", "—")):.3f} мм'
+            if params.get('sensitivity_k_display_mm') is not None
+            else params.get('sensitivity_desc', '')
+        ),
         '6.4': angle,
         '6.5': f_field,    # ← РАССЧИТАННОЕ расстояние f
         '6.6': N_str,      # ← РАССЧИТАННОЕ число экспозиций N

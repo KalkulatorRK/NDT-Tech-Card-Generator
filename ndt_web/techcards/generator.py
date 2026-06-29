@@ -124,21 +124,86 @@ def _match_value_for_label(label_text: str, value_map: dict):
     return None
 
 
-def _set_cell_text(cell, text: str, bold: bool = False, font_size: int = 9):
-    """Устанавливает текст в ячейке таблицы, сохраняя стиль."""
+def _reference_run_in_cell(cell):
+    """Первый непустой run ячейки — эталон шрифта шаблона."""
     for para in cell.paragraphs:
         for run in para.runs:
-            run.text = ''
-    if not cell.paragraphs:
-        cell.add_paragraph('')
-    para = cell.paragraphs[0]
-    # Очищаем параграф
+            if (run.text or '').strip():
+                return run
+    for para in cell.paragraphs:
+        if para.runs:
+            return para.runs[0]
+    return None
+
+
+def _reference_run_in_paragraph(para):
+    """Первый непустой run параграфа — эталон шрифта шаблона."""
     for run in para.runs:
-        run.clear()
-    para.clear()
-    run = para.add_run(str(text) if text is not None else '')
-    run.bold = bold
-    run.font.size = Pt(font_size)
+        if (run.text or '').strip():
+            return run
+    return para.runs[0] if para.runs else None
+
+
+def _copy_run_font(source, target):
+    """Копирует оформление run без изменения текста."""
+    if source is None or target is None:
+        return
+    target.bold = source.bold
+    target.italic = source.italic
+    target.underline = source.underline
+    if source.font.size:
+        target.font.size = source.font.size
+    if source.font.name:
+        target.font.name = source.font.name
+    for attr in ('name_ascii', 'name_hansi', 'name_cs', 'name_east_asia'):
+        value = getattr(source.font, attr, None)
+        if value:
+            setattr(target.font, attr, value)
+
+
+BODY_TABLE_FONT_PT = 12
+
+
+def _set_cell_text(
+    cell,
+    text: str,
+    bold: bool | None = None,
+    font_size: int | None = None,
+):
+    """
+    Устанавливает текст в ячейке, сохраняя шрифт и отступы шаблона.
+    По умолчанию — 12 pt (как в эталонной техкарте), а не 9 pt.
+    """
+    ref = _reference_run_in_cell(cell)
+    para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+    if para.runs:
+        run = para.runs[0]
+        run.text = str(text) if text is not None else ''
+        for extra in para.runs[1:]:
+            extra.text = ''
+    else:
+        run = para.add_run(str(text) if text is not None else '')
+    for extra_para in cell.paragraphs[1:]:
+        for extra_run in extra_para.runs:
+            extra_run.text = ''
+    if bold is not None:
+        run.bold = bold
+    elif ref is not None:
+        run.bold = ref.bold
+    if font_size is not None:
+        run.font.size = Pt(font_size)
+    elif ref is not None and ref.font.size:
+        run.font.size = ref.font.size
+    else:
+        run.font.size = Pt(12)
+    if ref is not None:
+        _copy_run_font(ref, run)
+        if bold is not None:
+            run.bold = bold
+        if font_size is not None:
+            run.font.size = Pt(font_size)
+    if font_size is None and (run.font.size is None or run.font.size.pt < BODY_TABLE_FONT_PT):
+        run.font.size = Pt(BODY_TABLE_FONT_PT)
 
 
 def _fill_row_value(table, row_idx: int, value: str):
@@ -904,17 +969,38 @@ def _build_value_map(params: dict) -> dict:
     }
 
 
-def _set_paragraph_text(para, text: str, *, font_size: int = 9, bold: bool = False):
-    """Заменяет текст параграфа, сохраняя стиль."""
-    for run in para.runs:
-        run.text = ''
+def _set_paragraph_text(
+    para,
+    text: str,
+    *,
+    font_size: int | None = None,
+    bold: bool | None = None,
+):
+    """Заменяет текст параграфа, сохраняя оформление шаблона."""
+    ref = _reference_run_in_paragraph(para)
     if para.runs:
         run = para.runs[0]
+        run.text = str(text) if text is not None else ''
+        for extra in para.runs[1:]:
+            extra.text = ''
     else:
-        run = para.add_run()
-    run.text = str(text) if text is not None else ''
-    run.bold = bold
-    run.font.size = Pt(font_size)
+        run = para.add_run(str(text) if text is not None else '')
+    if bold is not None:
+        run.bold = bold
+    elif ref is not None:
+        run.bold = ref.bold
+    if font_size is not None:
+        run.font.size = Pt(font_size)
+    elif ref is not None and ref.font.size:
+        run.font.size = ref.font.size
+    else:
+        run.font.size = Pt(12)
+    if ref is not None:
+        _copy_run_font(ref, run)
+        if bold is not None:
+            run.bold = bold
+        if font_size is not None:
+            run.font.size = Pt(font_size)
 
 
 def _paragraph_has_drawing(para) -> bool:
@@ -1142,14 +1228,11 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     _fill_body_title_page(doc, params)
     _fill_template_headers_footers(doc, params)
 
-    # --- Раздел 10 «Оценка качества» на отдельном листе ---
-    _insert_page_break_before_section10(doc)
-
-    # --- Компактизация документа ---
+    # Служебные заголовки-образцы (без удаления пустых абзацев-отступов)
     _compact_document(doc)
 
-    # Титул — только обложка; таблицы техкарты со 2-й страницы
-    _insert_page_break_before_first_table(doc)
+    # Разрывы страниц: титул, п. 4.3, 6.9, разделы 7–10
+    _apply_reference_page_breaks(doc)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
@@ -1259,7 +1342,7 @@ def _insert_page_number_field(para):
 
     para.add_run('Страница ')
     _field_run(' PAGE ')
-    para.add_run('    ')
+    para.add_run(' ')
     _field_run(' NUMPAGES ')
     para.add_run(' страниц')
 
@@ -1322,9 +1405,35 @@ def _replace_in_paragraph_runs(para, mapping: dict[str, str]):
         run.text = text
 
 
+def _replace_in_paragraph(para, mapping: dict[str, str]):
+    """
+    Замена по всему тексту параграфа (в т.ч. если фраза разбита на run-элементы).
+    Сохраняет оформление первого run.
+    """
+    if not mapping:
+        return
+    full = para.text
+    new_full = full
+    for old, new in mapping.items():
+        if old and old in new_full:
+            new_full = new_full.replace(old, new)
+    if new_full == full:
+        return
+    ref = _reference_run_in_paragraph(para)
+    if para.runs:
+        run = para.runs[0]
+        run.text = new_full
+        for extra in para.runs[1:]:
+            extra.text = ''
+    else:
+        run = para.add_run(new_full)
+    if ref is not None:
+        _copy_run_font(ref, run)
+
+
 def _replace_in_cell(cell, mapping: dict[str, str]):
     for para in cell.paragraphs:
-        _replace_in_paragraph_runs(para, mapping)
+        _replace_in_paragraph(para, mapping)
 
 
 def _replace_in_table(table, mapping: dict[str, str]):
@@ -1346,13 +1455,16 @@ def _replace_certificate_in_cell(cell, certificate: str):
     if not certificate:
         return
     for para in cell.paragraphs:
-        for run in para.runs:
-            if 'Удостоверение' in run.text:
-                run.text = re.sub(
-                    r'Удостоверение №[.\s…]+',
-                    f'Удостоверение № {certificate}',
-                    run.text,
-                )
+        if 'Удостоверение' not in para.text:
+            continue
+        new_text = re.sub(
+            r'(Удостоверение №)\s*[^\n]*',
+            rf'\1 {certificate}',
+            para.text,
+            count=1,
+        )
+        if new_text != para.text:
+            _replace_in_paragraph(para, {para.text: new_text})
 
 
 def _fill_header_card_number_cell(cell, card_num: str):
@@ -1374,21 +1486,34 @@ def _fill_header_card_number_cell(cell, card_num: str):
 def _fill_body_title_page(doc: Document, params: dict):
     """
     Титульный лист в теле документа оставляем как в шаблоне:
-    крупный заголовок и отдельная строка «№» (номер — в шапке).
+    крупный заголовок и строка «№ …» (номер дублируется в шапке).
     """
     card_num = (params.get('card_number') or '').strip()
     if not card_num:
         return
     for para in doc.paragraphs:
         stripped = para.text.strip()
-        if stripped not in ('№', '№ '):
+        if not stripped.startswith('№'):
             continue
-        if len(para.runs) >= 2:
-            para.runs[1].text = f' {card_num}'
-        elif para.runs:
-            para.runs[0].text = f'№ {card_num}'
+        if stripped in ('№', '№ '):
+            if len(para.runs) >= 2:
+                para.runs[1].text = f' {card_num}'
+            elif para.runs:
+                para.runs[0].text = f'№ {card_num}'
+            else:
+                para.add_run(f'№ {card_num}')
         else:
-            para.add_run(f'№ {card_num}')
+            _replace_in_paragraph_runs(para, {
+                stripped: f'№ {card_num}',
+                '№': f'№ {card_num}',
+            })
+            if card_num not in para.text:
+                if para.runs:
+                    para.runs[0].text = f'№ {card_num}'
+                    for run in para.runs[1:]:
+                        run.text = ''
+                else:
+                    para.add_run(f'№ {card_num}')
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         return
 
@@ -1431,9 +1556,12 @@ def _fill_default_footer_table(table, params: dict):
 
     mapping = {
         'Ведущий инженер технолог': dev_pos,
+        'Инженер-технолог': dev_pos,
         'Начальник лаборатории НК': chk_pos,
         'Иванов Н.Н.': dev_name,
+        'Коровушкин Андрей Витальевич': dev_name,
         'Сидоров И.Н.': chk_name,
+        'Andrey Kovlech': chk_name,
     }
     _replace_in_table(table, mapping)
     if dev_cert and len(table.rows) >= 3:
@@ -1457,15 +1585,22 @@ def _fill_first_page_footer_table(table, params: dict):
     if len(table.rows) < 3:
         return
 
-    _replace_in_cell(table.rows[1].cells[0], {'Ведущий инженер': dev_pos})
+    _replace_in_cell(table.rows[1].cells[0], {
+        'Ведущий инженер': dev_pos,
+        'Инженер-технолог': dev_pos,
+    })
     _replace_in_cell(table.rows[1].cells[1], {'Начальник лаборатории': chk_pos})
     _replace_in_cell(table.rows[2].cells[0], {
         'Иванов Н.Н.': dev_name,
+        'Коровушкин Андрей Витальевич': dev_name,
         '21.06.2026': dev_date,
+        '29.06.2026': dev_date,
     })
     _replace_in_cell(table.rows[2].cells[1], {
         'Сидоров И.Н.': chk_name,
+        'Andrey Kovlech': chk_name,
         '21.06.2026': check_date,
+        '29.06.2026': check_date,
     })
     if dev_cert:
         _replace_certificate_in_cell(table.rows[2].cells[0], dev_cert)
@@ -1520,10 +1655,124 @@ def _find_footer_table(part):
 
 def _fill_page_number_cell(cell):
     """Заменяет статичную нумерацию шаблона полями PAGE / NUMPAGES."""
-    for para in cell.paragraphs:
-        _clear_paragraph_content(para)
     para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+    ref = _reference_run_in_paragraph(para)
+    for extra in cell.paragraphs[1:]:
+        _clear_paragraph_content(extra)
+    _clear_paragraph_content(para)
     _insert_page_number_field(para)
+    for run in para.runs:
+        if ref is not None:
+            _copy_run_font(ref, run)
+        elif not run.font.size:
+            run.font.size = Pt(12)
+
+
+def _insert_page_break_paragraph_before(element):
+    """Вставляет параграф с разрывом страницы непосредственно перед элементом body."""
+    parent = element.getparent()
+    if parent is None:
+        return
+    idx = list(parent).index(element)
+    if idx > 0 and _element_has_page_break(list(parent)[idx - 1]):
+        return
+    p_el = OxmlElement('w:p')
+    r_el = OxmlElement('w:r')
+    br_el = OxmlElement('w:br')
+    br_el.set(qn('w:type'), 'page')
+    r_el.append(br_el)
+    p_el.append(r_el)
+    parent.insert(idx, p_el)
+
+
+def _element_has_page_break(el) -> bool:
+    """True, если в элементе уже есть разрыв страницы."""
+    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    if el.tag.split('}')[-1] != 'p':
+        return False
+    for br in el.findall(f'.//{ns}br'):
+        if br.get(qn('w:type')) == 'page':
+            return True
+    p_pr = el.find(f'{ns}pPr')
+    if p_pr is not None and p_pr.find(f'{ns}pageBreakBefore') is not None:
+        return True
+    return False
+
+
+def _body_has_page_break_before(element) -> bool:
+    """Проверяет, есть ли разрыв страницы непосредственно перед элементом."""
+    parent = element.getparent()
+    if parent is None:
+        return False
+    idx = list(parent).index(element)
+    if idx == 0:
+        return False
+    return _element_has_page_break(list(parent)[idx - 1])
+
+
+def _ensure_page_break_before(element):
+    """Гарантирует разрыв страницы перед элементом (без дублирования)."""
+    if _body_has_page_break_before(element):
+        return
+    p_pr = element.find(qn('w:pPr'))
+    if p_pr is not None and p_pr.find(qn('w:pageBreakBefore')) is not None:
+        return
+    _insert_page_break_paragraph_before(element)
+
+
+def _find_body_paragraph(doc: Document, *needles: str):
+    """Ищет параграф тела документа, содержащий все фрагменты."""
+    for para in doc.paragraphs:
+        lower = para.text.lower()
+        if all(n.lower() in lower for n in needles):
+            return para
+    return None
+
+
+def _table_starts_with_section(table, section_num: str) -> bool:
+    """True, если первая ячейка таблицы — заголовок раздела N."""
+    if not table.rows:
+        return False
+    text = table.rows[0].cells[0].text.strip().lstrip('\ufeff')
+    prefixes = (f'{section_num}.', f'{section_num}\xa0', f'{section_num} ')
+    return any(text.startswith(p) for p in prefixes)
+
+
+def _apply_reference_page_breaks(doc: Document):
+    """
+    Разрывы страниц по эталонному шаблону card_templates:
+    - титул отдельно от таблиц (если в шаблоне ещё нет);
+    - п. 4.3, 6.9;
+    - таблицы разделов 7, 8, 9, 10 — каждая с нового листа.
+    """
+    body = doc.element.body
+    children = list(body)
+
+    first_tbl = next(
+        (c for c in children if c.tag.split('}')[-1] == 'tbl'),
+        None,
+    )
+    if first_tbl is not None and not _body_has_page_break_before(first_tbl):
+        has_break_before_table = any(
+            child.tag.split('}')[-1] == 'p' and _element_has_page_break(child)
+            for child in children[:children.index(first_tbl)]
+        )
+        if not has_break_before_table:
+            _ensure_page_break_before(first_tbl)
+
+    para_43 = _find_body_paragraph(doc, '4.3', 'эскиз')
+    if para_43 is not None:
+        _ensure_page_break_before(para_43._element)
+
+    para_69 = _find_body_paragraph(doc, '6.9', 'схема')
+    if para_69 is not None:
+        _ensure_page_break_before(para_69._element)
+
+    for section_num in ('7', '8', '9', '10'):
+        for table in doc.tables:
+            if _table_starts_with_section(table, section_num):
+                _ensure_page_break_before(table._tbl)
+                break
 
 
 def _insert_page_break_before_first_table(doc: Document):
@@ -1686,119 +1935,23 @@ def _insert_page_break_before_section10(doc: Document):
 
 def _compact_document(doc: Document):
     """
-    Делает документ компактным:
-    1. Удаляет заголовок-образец «Пример технологической карты...»
-    2. Убирает все пустые параграфы между таблицами
-    3. Уменьшает отступы в ячейках таблиц
-    4. Уменьшает межстрочный интервал
-
-    :param doc: объект DOCX документа
+    Удаляет только служебный заголовок-образец.
+    Пустые абзацы-отступы между блоками и от колонтитулов сохраняются.
     """
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
-
-    body = doc.element.body
-    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-
-    # 1. Удаляем заголовочные параграфы (Heading 1 и подобные,
-    #    а также параграф "Пример технологической карты...")
     paras_to_remove = []
     for para in doc.paragraphs:
         text = para.text.strip()
         style_name = para.style.name if para.style else ''
-        # Убираем: заголовок-образец, служебные надписи
         if (
             'Пример технологической карты' in text
             or 'Heading' in style_name
         ):
             paras_to_remove.append(para._element)
 
-    # 2. Убираем пустые параграфы — сохраняем отступы титульного листа
-    title_para_idx = next(
-        (
-            i for i, p in enumerate(doc.paragraphs)
-            if p.text.strip().startswith('Технологическая карта')
-        ),
-        None,
-    )
-    title_spacing_ids = set()
-    if title_para_idx is not None:
-        for p in doc.paragraphs[:title_para_idx]:
-            title_spacing_ids.add(p._element)
-
-    wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
-    for para_el in body.findall(f'{ns}p'):
-        if para_el in paras_to_remove:
-            continue
-        if para_el in title_spacing_ids:
-            continue
-        has_drawing = bool(
-            para_el.findall(f'.//{wp_ns}inline')
-            or para_el.findall(f'.//{wp_ns}anchor')
-        )
-        text = ''.join(
-            t.text or '' for t in para_el.findall(f'.//{ns}t')
-        ).strip()
-        if not text and not has_drawing:
-            paras_to_remove.append(para_el)
-
     for el in paras_to_remove:
         parent = el.getparent()
         if parent is not None:
             parent.remove(el)
-
-    # 3. Уменьшаем отступы ячеек и межстрочный интервал в таблицах
-    _minimize_cell_padding = Pt(1)
-    for table in doc.tables:
-        # Минимальные отступы на уровне таблицы
-        tbl_el = table._tbl
-        tblPr = tbl_el.find(qn('w:tblPr'))
-        if tblPr is None:
-            tblPr = OxmlElement('w:tblPr')
-            tbl_el.insert(0, tblPr)
-
-        # Убираем лишние пробелы после таблицы
-        tblLook = tblPr.find(qn('w:tblLook'))
-        if tblLook is None:
-            tblLook = OxmlElement('w:tblLook')
-            tblPr.append(tblLook)
-
-        # Клеточные поля: минимальные
-        tblCellMar = tblPr.find(qn('w:tblCellMar'))
-        if tblCellMar is not None:
-            tblPr.remove(tblCellMar)
-        tblCellMar = OxmlElement('w:tblCellMar')
-        for side in ('top', 'left', 'bottom', 'right'):
-            mar = OxmlElement(f'w:{side}')
-            mar.set(qn('w:w'), '40')    # 40 twips ≈ 0.7 мм
-            mar.set(qn('w:type'), 'dxa')
-            tblCellMar.append(mar)
-        tblPr.append(tblCellMar)
-
-        # Уменьшаем интервал в каждом параграфе ячеек
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    pPr = para._p.find(qn('w:pPr'))
-                    if pPr is None:
-                        pPr = OxmlElement('w:pPr')
-                        para._p.insert(0, pPr)
-                    # Убираем отступ до/после абзаца
-                    spacing = pPr.find(qn('w:spacing'))
-                    if spacing is None:
-                        spacing = OxmlElement('w:spacing')
-                        pPr.append(spacing)
-                    spacing.set(qn('w:before'), '0')
-                    spacing.set(qn('w:after'), '0')
-                    spacing.set(qn('w:line'), '240')     # одинарный
-                    spacing.set(qn('w:lineRule'), 'auto')
-
-    # 4. Устанавливаем узкие поля страницы (15 мм со всех сторон)
-    for section in doc.sections:
-        section.top_margin = Mm(15)
-        section.bottom_margin = Mm(15)
-        section.left_margin = Mm(20)
-        section.right_margin = Mm(10)
 
 
 def generate_radiographic_pdf(params: dict, output_path: str) -> str:
@@ -2037,16 +2190,27 @@ def generate_tech_card(input_data: dict, media_root: str,
 
 
 def get_default_template_path() -> str | None:
-    """Путь к шаблону DOCX техкарты (эталон — normative_docs/)."""
+    """Путь к шаблону DOCX техкарты (эталон — card_templates/)."""
     from django.conf import settings as django_settings
+    base = django_settings.BASE_DIR
+    card_dir = os.path.join(base, 'card_templates')
+
+    # Откорректированный образец с отступами и разрывами блоков
+    if os.path.isdir(card_dir):
+        for name in sorted(os.listdir(card_dir)):
+            if name.startswith('TC_') and name.endswith('.docx'):
+                path = os.path.join(card_dir, name)
+                if os.path.isfile(path):
+                    return path
+
     candidates = [
         os.path.join(
-            django_settings.BASE_DIR, 'normative_docs',
-            'Пример_технологической_карты_радиографического_контроля  с комментариями.docx',
+            card_dir,
+            'Пример технологической карты радиографического контроля.docx',
         ),
         os.path.join(
-            django_settings.BASE_DIR, 'card_templates',
-            'Пример технологической карты радиографического контроля.docx',
+            base, 'normative_docs',
+            'Пример_технологической_карты_радиографического_контроля  с комментариями.docx',
         ),
     ]
     for template_path in candidates:

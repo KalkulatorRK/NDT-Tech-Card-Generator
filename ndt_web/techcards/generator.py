@@ -1101,8 +1101,8 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     _insert_joint_sketch_into_docx(doc, params, static_root)
     _insert_scheme_section_into_docx(doc, params, static_root)
 
-    # Колонтитулы — заполняем структуру нового шаблона, не пересобираем заново
-    _remove_duplicate_body_title(doc)
+    # Титульный лист и колонтитулы — по структуре шаблона normative_docs
+    _fill_body_title_page(doc, params)
     _fill_template_headers_footers(doc, params)
 
     # --- Раздел 10 «Оценка качества» на отдельном листе ---
@@ -1255,26 +1255,81 @@ def _clear_section_headers_footers(section):
             _clear_header_footer_part(part)
 
 
-def _remove_duplicate_body_title(doc: Document):
+def _fill_body_title_page(doc: Document, params: dict):
     """
-    Удаляет из тела документа дублирующий титул «Технологическая карта…»,
-    который в шаблоне продублирован вне колонтитула.
+    Заполняет титульный лист в теле документа: параграфы
+    «Технологическая карта / радиографического контроля / № …».
     """
-    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-    paras_to_remove = []
+    card_num = params.get('card_number', '___')
     for para in doc.paragraphs:
         text = para.text.strip()
-        if (
-            text.startswith('Технологическая карта')
-            or text == 'радиографического контроля'
-            or text == '№'
-        ):
-            paras_to_remove.append(para._element)
+        if text == '№' or (text.startswith('№') and len(text) <= 3):
+            for run in para.runs:
+                run.text = ''
+            run = para.runs[0] if para.runs else para.add_run()
+            run.text = f'№ {card_num}'
+            run.bold = True
+            run.font.size = Pt(14)
+            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            return
 
-    for el in paras_to_remove:
-        parent = el.getparent()
-        if parent is not None:
-            parent.remove(el)
+
+def _short_position_for_title_page(position: str) -> str:
+    """Краткая должность для нижнего колонтитула титульного листа."""
+    lower = (position or '').lower()
+    if 'инженер' in lower:
+        return 'Ведущий инженер'
+    if 'начальник' in lower and 'лаборатор' in lower:
+        return 'Начальник лаборатории'
+    return position or ''
+
+
+def _ensure_cell_paragraphs(cell, count: int):
+    """Гарантирует нужное число параграфов в ячейке таблицы."""
+    while len(cell.paragraphs) < count:
+        cell.add_paragraph()
+
+
+_DATE_SIGN_LABEL_DEV = (
+    '                                (дата)                                (подпись)'
+)
+_DATE_SIGN_LABEL_CHK = (
+    '                                                              (дата)                                (подпись)'
+)
+
+
+def _fill_first_page_signature_cell(
+    cell,
+    name: str,
+    date_str: str,
+    *,
+    certificate: str = '',
+    include_certificate: bool = False,
+    leading_space_on_date: bool = False,
+):
+    """Заполняет ячейку подписи титульного листа (многострочная вёрстка шаблона)."""
+    para_count = 4 if include_certificate else 3
+    _ensure_cell_paragraphs(cell, para_count)
+    _set_paragraph_text(cell.paragraphs[0], name or '', font_size=9)
+    date_line = f'«{date_str}» _________________'
+    if leading_space_on_date:
+        date_line = f' {date_line}'
+    _set_paragraph_text(cell.paragraphs[1], date_line, font_size=9)
+    label = _DATE_SIGN_LABEL_DEV if include_certificate else _DATE_SIGN_LABEL_CHK
+    _set_paragraph_text(cell.paragraphs[2], label, font_size=9)
+    if include_certificate:
+        cert_text = (
+            f'Удостоверение № {certificate}'
+            if certificate else 'Удостоверение №…………………………………'
+        )
+        _set_paragraph_text(cell.paragraphs[3], cert_text, font_size=9)
+
+
+def _fill_first_page_position_cell(cell, position: str):
+    """Первая строка должности в колонтитуле титула (пустая строка + должность)."""
+    _ensure_cell_paragraphs(cell, 2)
+    _set_paragraph_text(cell.paragraphs[0], '', font_size=9)
+    _set_paragraph_text(cell.paragraphs[1], position, font_size=9)
 
 
 def _add_table_borders(table):
@@ -1295,24 +1350,81 @@ def _add_table_borders(table):
     tblPr.append(tblBorders)
 
 
-def _unlink_first_page_headers_footers(section):
-    """
-    Отключает отдельные колонтитулы первой страницы шаблона.
-    Новый шаблон содержит header1/header2 и footer1/footer2 — без
-    отвязки first-ссылок Word может показывать оба варианта.
+def _fill_default_footer_table(table, params: dict):
+    """Нижний колонтитул со 2-й и далее страниц (3×2, без дат)."""
+    dev_pos = params.get('developed_by_position', '') or 'Ведущий инженер технолог'
+    chk_pos = params.get('checked_by_position', '') or 'Начальник лаборатории НК'
+    dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
+    chk_name = params.get('checked_by_name', '')
+    dev_cert = params.get('developed_by_certificate', '')
 
-    Нельзя обращаться к section.first_page_header/footer: python-docx
-    заново создаёт first-ссылки при доступе к этим свойствам.
+    if len(table.rows) < 3:
+        return
+    _set_cell_text(table.rows[1].cells[0], dev_pos, font_size=9)
+    _set_cell_text(table.rows[1].cells[1], chk_pos, font_size=9)
+    dev_lines = []
+    if dev_name:
+        dev_lines.append(dev_name)
+    if dev_cert:
+        dev_lines.append(f'Удостоверение № {dev_cert}')
+    _set_cell_text(table.rows[2].cells[0], '\n'.join(dev_lines), font_size=9)
+    _set_cell_text(table.rows[2].cells[1], chk_name or '', font_size=9)
+
+
+def _fill_first_page_footer_table(table, params: dict):
+    """Нижний колонтитул титульного листа (3×3, с датами и подписями)."""
+    dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
+    check_date = params.get('check_date', dev_date)
+    dev_pos = _short_position_for_title_page(
+        params.get('developed_by_position', '') or 'Ведущий инженер технолог',
+    )
+    chk_pos = _short_position_for_title_page(
+        params.get('checked_by_position', '') or 'Начальник лаборатории НК',
+    )
+    dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
+    chk_name = params.get('checked_by_name', '')
+    dev_cert = params.get('developed_by_certificate', '')
+
+    if len(table.rows) < 3:
+        return
+    _fill_first_page_position_cell(table.rows[1].cells[0], dev_pos)
+    _fill_first_page_position_cell(table.rows[1].cells[1], chk_pos)
+    _fill_first_page_signature_cell(
+        table.rows[2].cells[0], dev_name, dev_date,
+        certificate=dev_cert, include_certificate=True, leading_space_on_date=True,
+    )
+    _fill_first_page_signature_cell(
+        table.rows[2].cells[1], chk_name, check_date,
+        include_certificate=False,
+    )
+
+
+def _fill_template_headers_footers(doc: Document, params: dict):
     """
-    section.different_first_page_header_footer = False
-    sect_pr = section._sectPr
-    title_pg = sect_pr.find(qn('w:titlePg'))
-    if title_pg is not None:
-        sect_pr.remove(title_pg)
-    for ref_tag in ('headerReference', 'footerReference'):
-        for ref in list(sect_pr.findall(qn(f'w:{ref_tag}'))):
-            if ref.get(qn('w:type')) == 'first':
-                sect_pr.remove(ref)
+    Заполняет колонтитулы шаблона техкарты данными пользователя.
+
+    Шаблон normative_docs использует:
+    - одинаковую шапку на всех страницах (header + first_page_header);
+    - разные нижние колонтитулы: титул (3×3, даты/подписи) и остальные (3×2).
+    """
+    for section in doc.sections:
+        section.different_first_page_header_footer = True
+        sect_pr = section._sectPr
+        if sect_pr.find(qn('w:titlePg')) is None:
+            sect_pr.insert(0, OxmlElement('w:titlePg'))
+
+        for header_part in (section.header, section.first_page_header):
+            header_table = _find_header_table(header_part)
+            if header_table is not None:
+                _fill_template_header_table(header_table, params)
+
+        default_footer = _find_footer_table(section.footer)
+        if default_footer is not None:
+            _fill_default_footer_table(default_footer, params)
+
+        first_footer = _find_footer_table(section.first_page_footer)
+        if first_footer is not None:
+            _fill_first_page_footer_table(first_footer, params)
 
 
 def _find_header_table(part):
@@ -1356,53 +1468,6 @@ def _fill_template_header_table(table, params: dict):
         r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
     if len(r1.cells) > 2:
         _fill_page_number_cell(r1.cells[2])
-
-
-def _fill_template_footer_table(table, params: dict):
-    """Заполняет блок подписей в структуре нового шаблона DOCX."""
-    dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
-    check_date = params.get('check_date', dev_date)
-    dev_pos = params.get('developed_by_position', '') or 'Ведущий инженер технолог'
-    chk_pos = params.get('checked_by_position', '') or 'Начальник лаборатории НК'
-    dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
-    chk_name = params.get('checked_by_name', '')
-    dev_cert = params.get('developed_by_certificate', '')
-    chk_cert = params.get('checked_by_certificate', '')
-
-    dev_line3 = dev_name
-    if dev_cert:
-        dev_line3 += f'\nУдостоверение № {dev_cert}'
-    dev_line3 += f'\n«{dev_date}» ___________'
-    chk_line3 = chk_name
-    if chk_cert:
-        chk_line3 += f'\nУдостоверение № {chk_cert}'
-    chk_line3 += f'\n«{check_date}» ___________'
-
-    if len(table.rows) >= 3:
-        _set_cell_text(table.rows[1].cells[0], dev_pos, font_size=9)
-        _set_cell_text(table.rows[1].cells[1], chk_pos, font_size=9)
-        _set_cell_text(table.rows[2].cells[0], dev_line3.strip(), font_size=9)
-        _set_cell_text(table.rows[2].cells[1], chk_line3.strip(), font_size=9)
-
-
-def _fill_template_headers_footers(doc: Document, params: dict):
-    """
-    Заполняет колонтитулы нового шаблона техкарты данными пользователя.
-    Структура таблиц берётся из шаблона normative_docs — ничего не
-    пересобирается программно.
-    """
-    for section in doc.sections:
-        section.header_distance = Mm(8)
-        section.footer_distance = Mm(10)
-        _unlink_first_page_headers_footers(section)
-
-        header_table = _find_header_table(section.header)
-        if header_table is not None:
-            _fill_template_header_table(header_table, params)
-
-        footer_table = _find_footer_table(section.footer)
-        if footer_table is not None:
-            _fill_template_footer_table(footer_table, params)
 
 
 def _build_headers_footers_scratch(doc: Document, params: dict):

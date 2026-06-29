@@ -1199,17 +1199,26 @@ class TemplateCommentsTests(TestCase):
             self.assertIsNotNone(caption)
             self.assertTrue(any(_paragraph_has_drawing(p) for p in doc.paragraphs))
 
-    def test_no_duplicate_legacy_headers_footers(self):
-        """Старые колонтитулы шаблона (ФГУП МАРКС, Иванов) не дублируются."""
+    def test_template_title_page_and_footers(self):
+        """Титульный лист и разные колонтитулы по шаблону normative_docs."""
         from techcards.generator import (
             generate_from_template, get_default_template_path,
         )
         import tempfile
+        import zipfile
+        import re
         from docx import Document
+
         template = get_default_template_path()
         if not template:
             self.skipTest('Шаблон DOCX не найден')
-        calc = RadiographicTechCardCalculator(self.pipe_input)
+        data = dict(
+            self.pipe_input,
+            developed_by_name='Петров П.П.',
+            checked_by_name='Сидоров С.С.',
+            developed_by_certificate='12345',
+        )
+        calc = RadiographicTechCardCalculator(data)
         params = calc.calculate()
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, 'card.docx')
@@ -1218,35 +1227,50 @@ class TemplateCommentsTests(TestCase):
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)
             section = doc.sections[0]
-            self.assertFalse(section.different_first_page_header_footer)
-            for attr in (
-                'header', 'footer',
-                'first_page_header', 'first_page_footer',
-            ):
-                part = getattr(section, attr)
-                part_text = ' '.join(
-                    cell.text
-                    for table in part.tables
-                    for row in table.rows
-                    for cell in row.cells
-                )
-                part_text += ' '.join(p.text for p in part.paragraphs)
-                self.assertNotIn('ФГУП МАРКС', part_text, attr)
-                self.assertNotIn('Иванов', part_text, attr)
-            import zipfile
-            import re
+            self.assertTrue(section.different_first_page_header_footer)
+
+            body_title = [
+                p.text.strip() for p in doc.paragraphs
+                if p.text.strip().startswith('Технологическая карта')
+                or p.text.strip() == 'радиографического контроля'
+                or p.text.strip().startswith('№')
+            ]
+            self.assertIn('Технологическая карта', body_title[0])
+            self.assertIn('радиографического контроля', body_title)
+            self.assertTrue(any(t.startswith('№ ТК-001') for t in body_title))
+
+            header_text = ' '.join(
+                cell.text for table in section.header.tables
+                for row in table.rows for cell in row.cells
+            )
+            self.assertIn('ТестОрг', header_text)
+            self.assertNotIn('ФГУП МАРКС', header_text)
+            self.assertNotIn('Иванов', header_text)
+
+            default_footer = ' '.join(
+                cell.text for table in section.footer.tables
+                for row in table.rows for cell in row.cells
+            )
+            self.assertIn('Ведущий инженер технолог', default_footer)
+            self.assertIn('Петров П.П.', default_footer)
+            self.assertNotIn('(дата)', default_footer)
+
+            first_footer = ' '.join(
+                cell.text for table in section.first_page_footer.tables
+                for row in table.rows for cell in row.cells
+            )
+            self.assertIn('(дата)', first_footer)
+            self.assertIn('(подпись)', first_footer)
+            self.assertIn('Петров П.П.', first_footer)
+            self.assertIn('Сидоров С.С.', first_footer)
+            self.assertIn('Ведущий инженер', first_footer)
+            self.assertNotIn('Ведущий инженер технолог', first_footer)
+
             with zipfile.ZipFile(out) as zf:
                 sect_xml = re.search(
                     r'<w:sectPr.*?</w:sectPr>',
                     zf.read('word/document.xml').decode('utf-8'),
                     re.DOTALL,
                 ).group(0)
-            self.assertNotIn('titlePg', sect_xml)
-            self.assertNotIn('w:type="first"', sect_xml)
-            header_text = ' '.join(
-                cell.text for table in section.header.tables
-                for row in table.rows for cell in row.cells
-            )
-            self.assertIn('ТестОрг', header_text)
-            self.assertEqual(len(section.header.tables), 1)
-            self.assertEqual(len(section.footer.tables), 1)
+            self.assertIn('titlePg', sect_xml)
+            self.assertIn('w:type="first"', sect_xml)

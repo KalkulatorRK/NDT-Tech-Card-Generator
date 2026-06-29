@@ -240,6 +240,14 @@ function selectSource(code) {
   document.querySelectorAll('.source-checkbox').forEach(function(cb) {
     cb.checked = (cb.value === code);
   });
+  var focalInput = document.getElementById('id_focal_spot_mm');
+  if (focalInput && code) {
+    var src = (SOURCES_BY_SCHEME[schemeSelect ? schemeSelect.value : ''] || [])
+      .find(function(s) { return s.code === code; });
+    if (src && src.type === 'isotope') {
+      focalInput.value = '3.0';
+    }
+  }
   updateFilmChoices();
   triggerSchemePreview();
 }

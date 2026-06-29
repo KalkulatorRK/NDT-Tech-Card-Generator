@@ -736,14 +736,29 @@ def get_joint_zones_ajax(request):
     joint_code = request.GET.get('joint', '')
     thickness = request.GET.get('thickness', 10)
     method = request.GET.get('method', '30')
+    reinforcement_removed = request.GET.get('reinforcement_removed', '0') in ('1', 'true', 'on')
+    has_backing_ring = request.GET.get('has_backing_ring', '0') in ('1', 'true', 'on')
+    backing_raw = request.GET.get('backing_ring_thickness_mm', '')
 
     try:
         thickness = float(thickness)
     except (ValueError, TypeError):
         thickness = 10.0
 
+    backing_thickness = None
+    try:
+        if backing_raw:
+            backing_thickness = float(backing_raw)
+    except (ValueError, TypeError):
+        backing_thickness = None
+
     from normative.gost_59023_2 import get_inspection_zone
-    result = get_inspection_zone(joint_code, thickness, method)
+    result = get_inspection_zone(
+        joint_code, thickness, method,
+        reinforcement_removed=reinforcement_removed,
+        has_backing_ring=has_backing_ring,
+        backing_ring_thickness_mm=backing_thickness,
+    )
     return JsonResponse(result)
 
 

@@ -566,6 +566,23 @@ def get_joint_info(joint_code: str) -> dict:
 # Ширина шва (e) — по таблицам ГОСТ Р 59023.2-2020
 # ------------------------------------------------------------------
 
+def _default_e_tolerance_mm(e_mm: float) -> float:
+    """Типовой допуск ширины валика по таблицам ГОСТ Р 59023.2-2020."""
+    if e_mm >= 10:
+        return 4.0
+    if e_mm >= 6:
+        return 2.0
+    return 1.5
+
+
+def format_dimension_with_tolerance(value_mm: float, tolerance_mm: float) -> str:
+    """Форматирует размер для техкарты: «15,0 ±4,0»."""
+    return (
+        f'{value_mm:.1f}'.replace('.', ',')
+        + f' ±{tolerance_mm:.1f}'.replace('.', ',')
+    )
+
+
 def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
     """
     Возвращает ширину шва (e), высоту усиления (g_nom, g_min, g_max)
@@ -607,16 +624,25 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
         }
 
     e = match_row[2]
-    g_nom = match_row[3]
-
-    if len(match_row) >= 6:
-        # Точные значения из таблицы (новый формат)
+    # e1 — ширина валика на внутренней поверхности; по умолчанию = e
+    if len(match_row) >= 7:
+        e1 = match_row[3]
+        g_nom = match_row[4]
+        g_min = match_row[5]
+        g_max = match_row[6]
+    elif len(match_row) >= 6:
+        e1 = e
+        g_nom = match_row[3]
         g_min = match_row[4]
         g_max = match_row[5]
     else:
-        # Типовые допуски: ±1.5 мм для усиления, минимум 0.5 мм
+        e1 = e
+        g_nom = match_row[3]
         g_min = max(0.0, g_nom - 1.5)
         g_max = g_nom + 1.5
+
+    e_tol = _default_e_tolerance_mm(e)
+    e1_tol = _default_e_tolerance_mm(e1)
 
     note = f'По Таблице ГОСТ Р 59023.2-2020 для {joint_code}, S={thickness_mm} мм'
     if match_row[0] > thickness_mm or match_row[1] < thickness_mm:
@@ -627,9 +653,19 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
 
     return {
         'e_mm': e,
+        'e1_mm': e1,
+        'e_tol_mm': e_tol,
+        'e1_tol_mm': e1_tol,
+        'e_display': format_dimension_with_tolerance(e, e_tol),
+        'e1_display': format_dimension_with_tolerance(e1, e1_tol),
         'g_nom': g_nom,
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
+        'g_display': (
+            f'{g_nom:g}±{g_max - g_nom:g}'.replace('.', ',')
+            if abs((g_max - g_nom) - (g_nom - g_min)) < 0.05 and g_nom > 0 else
+            f'{g_nom:.1f} ({g_min:.1f}–{g_max:.1f})'.replace('.', ',')
+        ),
         'note': note,
     }
 
@@ -666,6 +702,10 @@ def get_inspection_zone(
     joint_code: str,
     thickness_mm: float,
     welding_method: str = '30',
+    *,
+    reinforcement_removed: bool = False,
+    has_backing_ring: bool | None = None,
+    backing_ring_thickness_mm: float | None = None,
 ) -> dict:
     """
     Рассчитывает геометрические параметры контролируемой зоны
@@ -680,9 +720,15 @@ def get_inspection_zone(
     """
     weld = get_weld_width(joint_code, thickness_mm)
     e = weld.get('e_mm') or (thickness_mm * 1.5)
+    e1 = weld.get('e1_mm', e)
     g_nom = weld.get('g_nom') or 2.0
     g_min = weld.get('g_min_mm', max(0.0, g_nom - 1.5))
     g_max = weld.get('g_max_mm', g_nom + 1.5)
+
+    if reinforcement_removed:
+        g_nom = 0.0
+        g_min = 0.0
+        g_max = 0.0
 
     # Ширина валика усиления
     bead_width_surface = e
@@ -712,17 +758,31 @@ def get_inspection_zone(
     else:
         film_width_min = e + 40
 
-  # Толщина подкладки Sпк для расчёта S_K (НП-105-18, п. 46)
-    backing_thickness = thickness_mm if joint_uses_backing(joint_code, welding_method) else 0.0
+    auto_backing = joint_uses_backing(joint_code, welding_method)
+    user_backing = bool(has_backing_ring)
+    has_backing = user_backing or auto_backing
+
+    if has_backing:
+        if backing_ring_thickness_mm and backing_ring_thickness_mm > 0:
+            backing_thickness = float(backing_ring_thickness_mm)
+        else:
+            backing_thickness = thickness_mm
+    else:
+        backing_thickness = 0.0
 
     return {
         # 4.2.2 — ширина валика и высота усиления
         'bead_width_mm': round(bead_width_surface, 1),
+        'bead_width_inner_mm': round(e1, 1),
+        'e_display': weld.get('e_display', format_dimension_with_tolerance(e, weld.get('e_tol_mm', 1.5))),
+        'e1_display': weld.get('e1_display', format_dimension_with_tolerance(e1, weld.get('e1_tol_mm', 1.5))),
         'bead_height_mm': round(g_nom, 1),
+        'g_display': weld.get('g_display', f'{g_nom:.1f}'.replace('.', ',')),
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
+        'reinforcement_removed': reinforcement_removed,
         'backing_thickness_mm': round(backing_thickness, 1),
-        'has_backing': backing_thickness > 0,
+        'has_backing': has_backing,
         # 4.2.4 — ширина ОШЗ
         'haz_width_mm': haz_width,
         # 4.2.5 — ширина контролируемой зоны
@@ -841,3 +901,23 @@ def get_material_display_name(material: str, material_grade: str = '') -> str:
 def get_material_choices():
     """Список марок сталей для выпадающего списка."""
     return [(g, g) for g in sorted(ALL_STEEL_GRADES)]
+
+
+def get_welding_material_choices():
+    """Список марок сварочных материалов для п. 1.10 техкарты."""
+    return [('', '— Как основной металл (п. 1.9) —')] + get_material_choices()
+
+
+def resolve_welding_material(
+    welding_material: str,
+    welding_material_custom: str,
+    base_material_display: str,
+) -> str:
+    """Определяет марку сварочного материала для техкарты."""
+    custom = (welding_material_custom or '').strip()
+    if custom:
+        return custom
+    selected = (welding_material or '').strip()
+    if selected:
+        return selected
+    return base_material_display

@@ -51,6 +51,13 @@
               {% if form.outer_diameter.errors %}<div class="text-danger small">{{ form.outer_diameter.errors.0 }}</div>{% endif %}
             </div>
 
+            <!-- Длина пластины (для листов) -->
+            <div class="col-md-6" id="flat-length-group" style="display:none;">
+              <label class="form-label">{{ form.flat_length_mm.label }}</label>
+              {{ form.flat_length_mm }}
+              {% if form.flat_length_mm.help_text %}<div class="form-text">{{ form.flat_length_mm.help_text }}</div>{% endif %}
+            </div>
+
             <!-- Разделитель: Тип сварного соединения -->
             <div class="col-12 mt-2">
               <div class="card-header-section mb-3">
@@ -124,6 +131,52 @@
             <div class="col-md-6">
               <label class="form-label">{{ form.weld_category.label }}</label>
               {{ form.weld_category }}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-semibold">{{ form.joint_mobility.label }}</label>
+              <div class="d-flex flex-wrap gap-3">
+                {% for radio in form.joint_mobility %}
+                <div class="form-check">
+                  {{ radio.tag }}
+                  <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              {% if form.joint_mobility.help_text %}<div class="form-text">{{ form.joint_mobility.help_text }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">{{ form.welding_material.label }}</label>
+              {{ form.welding_material }}
+              {% if form.welding_material.help_text %}<div class="form-text">{{ form.welding_material.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6" id="welding-material-custom-group" style="display:none;">
+              <label class="form-label">{{ form.welding_material_custom.label }}</label>
+              {{ form.welding_material_custom }}
+            </div>
+
+            <div class="col-md-4">
+              <div class="form-check mt-4">
+                {{ form.reinforcement_removed }}
+                <label class="form-check-label" for="{{ form.reinforcement_removed.id_for_label }}">
+                  {{ form.reinforcement_removed.label }}
+                </label>
+              </div>
+              {% if form.reinforcement_removed.help_text %}<div class="form-text">{{ form.reinforcement_removed.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <div class="form-check mt-4">
+                {{ form.has_backing_ring }}
+                <label class="form-check-label" for="{{ form.has_backing_ring.id_for_label }}">
+                  {{ form.has_backing_ring.label }}
+                </label>
+              </div>
+            </div>
+            <div class="col-md-4" id="backing-thickness-group" style="display:none;">
+              <label class="form-label">{{ form.backing_ring_thickness_mm.label }}</label>
+              {{ form.backing_ring_thickness_mm }}
+              {% if form.backing_ring_thickness_mm.help_text %}<div class="form-text">{{ form.backing_ring_thickness_mm.help_text }}</div>{% endif %}
             </div>
           </div>
 
@@ -221,12 +274,15 @@ function calculateZones(jointCode) {
   if (!thickness || !jointCode) return;
 
   fetch('/ajax/joint-zones/?joint=' + encodeURIComponent(jointCode) +
-        '&thickness=' + thickness + '&method=' + method)
+        '&thickness=' + thickness + '&method=' + method +
+        '&reinforcement_removed=' + (document.getElementById('id_reinforcement_removed')?.checked ? '1' : '0') +
+        '&has_backing_ring=' + (document.getElementById('id_has_backing_ring')?.checked ? '1' : '0') +
+        '&backing_ring_thickness_mm=' + encodeURIComponent(document.getElementById('id_backing_ring_thickness_mm')?.value || ''))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.error) return;
-      document.getElementById('dim-e').textContent = data.bead_width_mm || '—';
-      document.getElementById('dim-g').textContent = data.bead_height_mm || '—';
+      document.getElementById('dim-e').textContent = data.e_display || data.bead_width_mm || '—';
+      document.getElementById('dim-g').textContent = data.g_display || data.bead_height_mm || '—';
       document.getElementById('dim-haz').textContent = data.haz_width_mm || '—';
       document.getElementById('dim-zone').textContent = data.zone_width_mm || '—';
       document.getElementById('dim-note').textContent = data.weld_note || '';
@@ -312,6 +368,36 @@ if (weldingCustomSel) {
   weldingCustomSel.addEventListener('change', function() {
     toggleWeldingCustom(this, 'welding-custom-group');
   });
+}
+
+var weldingMaterialSel = document.getElementById('id_welding_material');
+var weldingMaterialCustomGroup = document.getElementById('welding-material-custom-group');
+if (weldingMaterialSel && weldingMaterialCustomGroup) {
+  weldingMaterialSel.addEventListener('change', function() {
+    weldingMaterialCustomGroup.style.display = this.value ? 'none' : '';
+  });
+  weldingMaterialSel.dispatchEvent(new Event('change'));
+}
+
+var backingCheckbox = document.getElementById('id_has_backing_ring');
+if (backingCheckbox) {
+  backingCheckbox.addEventListener('change', toggleBackingThicknessField);
+  toggleBackingThicknessField();
+}
+
+['id_reinforcement_removed', 'id_has_backing_ring', 'id_backing_ring_thickness_mm'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('change', function() {
+    if (jointSelect) calculateZones(jointSelect.value);
+  });
+});
+
+var objectTypeSelect = document.getElementById('id_object_type');
+if (objectTypeSelect) {
+  objectTypeSelect.addEventListener('change', function() {
+    toggleDiameterField(this.value);
+  });
+  toggleDiameterField(objectTypeSelect.value);
 }
 </script>
 {% endblock %}

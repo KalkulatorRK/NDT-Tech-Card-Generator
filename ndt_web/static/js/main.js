@@ -72,12 +72,25 @@ document.addEventListener('DOMContentLoaded', function () {
  */
 function toggleDiameterField(objectType) {
   var diameterGroup = document.getElementById('diameter-group');
-  if (!diameterGroup) return;
+  var flatLengthGroup = document.getElementById('flat-length-group');
+  var backingGroup = document.getElementById('backing-thickness-group');
   if (objectType === 'pipe') {
-    diameterGroup.style.display = '';
+    if (diameterGroup) diameterGroup.style.display = '';
+    if (flatLengthGroup) flatLengthGroup.style.display = 'none';
+  } else if (objectType === 'flat') {
+    if (diameterGroup) diameterGroup.style.display = 'none';
+    if (flatLengthGroup) flatLengthGroup.style.display = '';
   } else {
-    diameterGroup.style.display = 'none';
+    if (diameterGroup) diameterGroup.style.display = 'none';
+    if (flatLengthGroup) flatLengthGroup.style.display = 'none';
   }
+}
+
+function toggleBackingThicknessField() {
+  var checkbox = document.getElementById('id_has_backing_ring');
+  var group = document.getElementById('backing-thickness-group');
+  if (!checkbox || !group) return;
+  group.style.display = checkbox.checked ? '' : 'none';
 }
 
 

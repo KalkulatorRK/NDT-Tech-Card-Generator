@@ -1035,3 +1035,110 @@ class DocumentKindTests(TestCase):
         self.assertTrue(os.path.isfile(full), msg=full)
         # Размер соответствует извлечению из правого столбца таблицы 9.1
         self.assertGreater(os.path.getsize(full), 1900)
+
+
+class TemplateCommentsTests(TestCase):
+    """Требования из комментариев к шаблону техкарты DOCX."""
+
+    def setUp(self):
+        self.pipe_input = {
+            'organization': 'ТестОрг',
+            'object_name': 'Трубопровод',
+            'drawing_number': 'ТП-001',
+            'weld_number': 'Ш-01',
+            'card_number': 'ТК-001',
+            'object_type': 'pipe',
+            'material': '12Х18Н10Т',
+            'wall_thickness': '20',
+            'outer_diameter': '800',
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'joint_mobility': 'non_rotating',
+            'source_code': 'Se-75',
+            'focal_spot_mm': '',
+            'scheme_type': '5a',
+            'iqi_side': 'source',
+        }
+
+    def test_welding_material_defaults_to_base_metal(self):
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        self.assertEqual(params['weld_material'], '12Х18Н10Т')
+
+    def test_isotope_focal_spot_defaults_to_3mm(self):
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        self.assertEqual(params['source_focal_spot_mm'], 3.0)
+
+    def test_pipe_length_field_is_dash(self):
+        from techcards.generator import _build_value_map
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        vmap = _build_value_map(params)
+        self.assertEqual(vmap['4.2.2 длин'], '—')
+        self.assertEqual(vmap['4.2.1'], '800,0')
+
+    def test_flat_outer_diameter_is_dash(self):
+        from techcards.generator import _build_value_map
+        data = dict(
+            self.pipe_input,
+            object_type='flat',
+            outer_diameter='',
+            flat_length_mm='1500',
+            scheme_type='4_6',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        vmap = _build_value_map(params)
+        self.assertEqual(vmap['4.2.1'], '—')
+        self.assertEqual(vmap['4.2.2 длин'], '1500,0')
+
+    def test_joint_mobility_in_section_16(self):
+        from techcards.generator import _build_value_map
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        vmap = _build_value_map(params)
+        self.assertIn('неповоротное', vmap['1.6'])
+
+    def test_reinforcement_removed_zeros_g(self):
+        data = dict(self.pipe_input, reinforcement_removed=True)
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['g_min_mm'], 0.0)
+        self.assertEqual(params['g_max_mm'], 0.0)
+        self.assertEqual(params['reinforcement_status'], 'снят')
+
+    def test_e_and_e1_display_present(self):
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        self.assertIn('±', params['e_display'])
+        self.assertIn('±', params['e1_display'])
+
+    def test_backing_ring_thickness_used(self):
+        data = dict(self.pipe_input, has_backing_ring=True, backing_ring_thickness_mm='3')
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertTrue(params['has_backing'])
+        self.assertEqual(params['backing_thickness_mm'], 3.0)
+
+    def test_generate_from_template_fills_dimension_rows(self):
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            generate_from_template(params, template, out)
+            self.assertGreater(os.path.getsize(out), 5000)
+            from docx import Document
+            doc = Document(out)
+            table_text = ' '.join(
+                cell.text for table in doc.tables for row in table.rows for cell in row.cells
+            )
+            self.assertIn('12Х18Н10Т', table_text)
+            self.assertIn('неповоротное', table_text)
+            self.assertIn('3,0', table_text)

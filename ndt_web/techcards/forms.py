@@ -6,6 +6,7 @@
 """
 
 from django import forms
+from django.utils import timezone
 from normative.gost_50_05_07 import (
     get_film_choices, get_iqi_choices,
     get_suitable_films, get_suitable_sources,
@@ -18,6 +19,7 @@ from normative.gost_59023_2 import (
     get_joint_type_choices, get_welding_process_choices,
     get_welding_process_choices_for_joint,
     get_controlled_object_material_choices, get_material_choices,
+    get_welding_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
 )
@@ -26,6 +28,15 @@ from normative.np_105_18 import get_weld_category_choices
 
 class TechCardStep1Form(forms.Form):
     """Шаг 1: Идентификация объекта контроля."""
+
+    SIGNATURE_POSITION_CHOICES = [
+        ('', '— Выберите должность —'),
+        ('Ведущий инженер технолог', 'Ведущий инженер технолог'),
+        ('Инженер-технолог', 'Инженер-технолог'),
+        ('Начальник лаборатории НК', 'Начальник лаборатории НК'),
+        ('Руководитель группы НК', 'Руководитель группы НК'),
+        ('__custom__', 'Другая (ввести вручную)'),
+    ]
 
     organization = forms.CharField(
         max_length=255, required=False,
@@ -60,6 +71,79 @@ class TechCardStep1Form(forms.Form):
         label='Специалист НК (ФИО)',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Иванов Иван Иванович'}),
     )
+
+    developed_by_position = forms.ChoiceField(
+        choices=SIGNATURE_POSITION_CHOICES,
+        required=False,
+        label='Разработал — должность',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_developed_by_position'}),
+    )
+    developed_by_position_custom = forms.CharField(
+        required=False,
+        label='Разработал — должность (вручную)',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ведущий инженер технолог'}),
+    )
+    developed_by_name = forms.CharField(
+        max_length=200, required=False,
+        label='Разработал — ФИО',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Петров П.П.'}),
+    )
+    develop_date = forms.DateField(
+        required=False,
+        label='Разработал — дата',
+        initial=timezone.localdate,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+    )
+    developed_by_certificate = forms.CharField(
+        max_length=100, required=False,
+        label='Разработал — удостоверение №',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'НК-0000'}),
+    )
+    checked_by_position = forms.ChoiceField(
+        choices=SIGNATURE_POSITION_CHOICES,
+        required=False,
+        label='Проверил — должность',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_checked_by_position'}),
+    )
+    checked_by_position_custom = forms.CharField(
+        required=False,
+        label='Проверил — должность (вручную)',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Начальник лаборатории НК'}),
+    )
+    checked_by_name = forms.CharField(
+        max_length=200, required=False,
+        label='Проверил — ФИО',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Сидоров С.С.'}),
+    )
+    check_date = forms.DateField(
+        required=False,
+        label='Проверил — дата',
+        initial=timezone.localdate,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+    )
+    checked_by_certificate = forms.CharField(
+        max_length=100, required=False,
+        label='Проверил — удостоверение №',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'НК-0000'}),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        for prefix in ('developed_by', 'checked_by'):
+            pos = cleaned.get(f'{prefix}_position', '')
+            custom = (cleaned.get(f'{prefix}_position_custom') or '').strip()
+            if pos == '__custom__' and not custom:
+                self.add_error(
+                    f'{prefix}_position_custom',
+                    'Укажите должность вручную или выберите из списка.',
+                )
+            elif pos and pos != '__custom__':
+                cleaned[f'{prefix}_position_resolved'] = pos
+            elif custom:
+                cleaned[f'{prefix}_position_resolved'] = custom
+            else:
+                cleaned[f'{prefix}_position_resolved'] = ''
+        return cleaned
 
 
 class TechCardStep2Form(forms.Form):
@@ -148,6 +232,65 @@ class TechCardStep2Form(forms.Form):
         label='Категория сварного соединения (по НП-105-18) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_weld_category'}),
     )
+    joint_mobility = forms.ChoiceField(
+        choices=[
+            ('non_rotating', 'Неповоротное'),
+            ('rotating', 'Поворотное'),
+        ],
+        initial='non_rotating',
+        label='Поворотность сварного соединения',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        help_text='Влияет на нормы оценки по табл. 4.4 и 4.6 НП-105-18.',
+    )
+    welding_material = forms.ChoiceField(
+        choices=get_welding_material_choices(),
+        required=False,
+        label='Марка сварочного материала',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_welding_material'}),
+        help_text='По умолчанию совпадает с основным металлом (п. 1.9).',
+    )
+    welding_material_custom = forms.CharField(
+        required=False,
+        label='Марка сварочного материала (вручную)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Например: ЭА-400/10Х',
+            'id': 'id_welding_material_custom',
+        }),
+    )
+    flat_length_mm = forms.FloatField(
+        required=False, min_value=0, max_value=50000,
+        label='Длина листа / пластины, мм',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.1',
+            'placeholder': '1500',
+            'id': 'id_flat_length_mm',
+        }),
+        help_text='Для плоских деталей. Для трубопровода — прочерк.',
+    )
+    reinforcement_removed = forms.BooleanField(
+        required=False,
+        label='Валик усиления снят',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_reinforcement_removed'}),
+        help_text='Если отмечено, высота g не учитывается в расчётах K и f.',
+    )
+    has_backing_ring = forms.BooleanField(
+        required=False,
+        label='Подкладное кольцо',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_has_backing_ring'}),
+    )
+    backing_ring_thickness_mm = forms.FloatField(
+        required=False, min_value=0.1, max_value=500,
+        label='Толщина стенки подкладного кольца, мм',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.1',
+            'placeholder': '3.0',
+            'id': 'id_backing_ring_thickness_mm',
+        }),
+        help_text='Учитывается при расчёте K и f при контроле через одну стенку.',
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -169,7 +312,16 @@ class TechCardStep2Form(forms.Form):
             raise forms.ValidationError(
                 'Для трубопровода необходимо указать наружный диаметр.'
             )
+        if obj_type != 'pipe':
+            return None
         return diameter
+
+    def clean_flat_length_mm(self):
+        obj_type = self.data.get('object_type', 'flat')
+        length = self.cleaned_data.get('flat_length_mm')
+        if obj_type == 'flat' and not length:
+            return None
+        return length
 
     def clean(self):
         cleaned = super().clean()
@@ -200,6 +352,10 @@ class TechCardStep2Form(forms.Form):
                 'welding_process',
                 'Выберите способ сварки из списка допустимых для выбранного соединения.',
             )
+
+        if cleaned.get('has_backing_ring') and not cleaned.get('backing_ring_thickness_mm'):
+            cleaned['backing_ring_thickness_mm'] = cleaned.get('wall_thickness')
+
         return cleaned
 
     def clean_joint_designation(self):
@@ -234,6 +390,21 @@ class TechCardStep3Form(forms.Form):
         self._allowed_films = []
         self._allowed_source_codes = set()
         self._table_b_thickness = None
+
+        source_code_init = None
+        if self.data:
+            source_code_init = (self.data.get('source_code') or '').strip() or None
+        elif self.initial.get('source_code'):
+            source_code_init = self.initial.get('source_code')
+
+        if source_code_init:
+            from normative.gost_50_05_07 import RADIATION_SOURCES
+            src_info = next(
+                (s for s in RADIATION_SOURCES if s['code'] == source_code_init), None,
+            )
+            src_type = src_info.get('type', 'isotope') if src_info else 'isotope'
+            if src_type == 'isotope' and not self.is_bound:
+                self.fields['focal_spot_mm'].initial = 3.0
 
         scheme = None
         source_code = None

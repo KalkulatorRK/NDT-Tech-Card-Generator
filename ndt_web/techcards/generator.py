@@ -43,8 +43,14 @@ from normative.gost_50_05_07 import (
     FILM_PROCESSING, IQI_TYPES, DOCUMENT_CODE, DOCUMENT_FULL_NAME,
     parse_film_size,
     select_film_size_for_length,
+    RADIATION_SOURCES,
 )
-from normative.gost_59023_2 import resolve_material_type, get_material_display_name
+from normative.gost_59023_2 import (
+    resolve_material_type,
+    get_material_display_name,
+    resolve_welding_material,
+    format_dimension_with_tolerance,
+)
 from normative.np_104_18 import WELD_CATEGORIES
 from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
 from normative.calculations import (
@@ -177,6 +183,32 @@ class RadiographicTechCardCalculator:
 
     def _extract_inputs(self):
         d = self.data
+        source_code = d.get('source_code', '')
+        src_info = next((s for s in RADIATION_SOURCES if s['code'] == source_code), None)
+        src_type = src_info.get('type', 'isotope') if src_info else 'isotope'
+        focal_raw = d.get('focal_spot_mm')
+        if focal_raw in (None, ''):
+            focal_spot = 3.0 if src_type == 'isotope' else 2.0
+        else:
+            focal_spot = float(focal_raw)
+
+        develop_date = d.get('develop_date', '')
+        if hasattr(develop_date, 'strftime'):
+            develop_date = develop_date.strftime('%d.%m.%Y')
+        elif not develop_date:
+            develop_date = datetime.now().strftime('%d.%m.%Y')
+
+        check_date = d.get('check_date', '')
+        if hasattr(check_date, 'strftime'):
+            check_date = check_date.strftime('%d.%m.%Y')
+        elif not check_date:
+            check_date = develop_date
+
+        material_display = get_material_display_name(
+            d.get('material', ''),
+            d.get('material_custom', ''),
+        )
+
         self.params.update({
             'organization': d.get('organization', ''),
             'object_name': d.get('object_name', ''),
@@ -186,26 +218,49 @@ class RadiographicTechCardCalculator:
             'object_type': d.get('object_type', 'pipe'),
             'material': d.get('material', ''),
             'material_grade': (d.get('material_custom') or '').strip(),
-            'material_display': get_material_display_name(
-                d.get('material', ''),
-                d.get('material_custom', ''),
-            ),
+            'material_display': material_display,
             'material_type': resolve_material_type(d.get('material', '')),
             'wall_thickness': float(d.get('wall_thickness', 10)),
             'outer_diameter': float(d.get('outer_diameter', 0) or 0),
-            # Условное обозначение (ГОСТ Р 59023.2-2020)
+            'flat_length_mm': float(d.get('flat_length_mm', 0) or 0),
             'joint_designation': d.get('joint_designation', ''),
+            'joint_mobility': d.get('joint_mobility', 'non_rotating'),
             'welding_process': d.get('welding_process', '30'),
             'weld_category': d.get('weld_category', 'II'),
-            'source_code': d.get('source_code', ''),
-            'source_focal_spot_mm': float(d.get('focal_spot_mm', 2.0) or 2.0),
+            'reinforcement_removed': bool(d.get('reinforcement_removed')),
+            'has_backing_ring': bool(d.get('has_backing_ring')),
+            'backing_ring_thickness_mm': float(d.get('backing_ring_thickness_mm', 0) or 0),
+            'weld_material': resolve_welding_material(
+                d.get('welding_material', ''),
+                d.get('welding_material_custom', ''),
+                material_display,
+            ),
+            'source_code': source_code,
+            'source_focal_spot_mm': focal_spot,
             'source_activity': d.get('source_activity', ''),
             'sfd_mm': float(d.get('sfd_mm', 0) or 0),
             'ofd_mm': float(d.get('ofd_mm', 5) or 5),
             'film_name': d.get('film_name', ''),
             'iqi_side': d.get('iqi_side', 'source') or 'source',
             'inspector_name': d.get('inspector_name', ''),
-            'develop_date': d.get('develop_date', datetime.now().strftime('%d.%m.%Y')),
+            'develop_date': develop_date,
+            'check_date': check_date,
+            'developed_by_position': (
+                d.get('developed_by_position_resolved')
+                or (d.get('developed_by_position_custom', '').strip()
+                    if d.get('developed_by_position') == '__custom__'
+                    else d.get('developed_by_position', ''))
+            ),
+            'developed_by_name': d.get('developed_by_name', ''),
+            'developed_by_certificate': d.get('developed_by_certificate', ''),
+            'checked_by_position': (
+                d.get('checked_by_position_resolved')
+                or (d.get('checked_by_position_custom', '').strip()
+                    if d.get('checked_by_position') == '__custom__'
+                    else d.get('checked_by_position', ''))
+            ),
+            'checked_by_name': d.get('checked_by_name', ''),
+            'checked_by_certificate': d.get('checked_by_certificate', ''),
         })
 
     def _calc_inspection_zones(self):
@@ -221,12 +276,23 @@ class RadiographicTechCardCalculator:
         S = self.params['wall_thickness']
         method = self.params.get('welding_process', '30')
 
-        zone = get_inspection_zone(joint_code, S, method)
+        zone = get_inspection_zone(
+            joint_code, S, method,
+            reinforcement_removed=self.params.get('reinforcement_removed', False),
+            has_backing_ring=self.params.get('has_backing_ring', False),
+            backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,
+        )
         joint_info = get_joint_info(joint_code)
 
         self.params['weld_bead_width_mm'] = zone.get('bead_width_mm', '')
+        self.params['weld_bead_width_inner_mm'] = zone.get('bead_width_inner_mm', '')
+        self.params['e_display'] = zone.get('e_display', '')
+        self.params['e1_display'] = zone.get('e1_display', '')
+        self.params['g_display'] = zone.get('g_display', '')
         self.params['weld_bead_height_mm'] = zone.get('bead_height_mm', '')
-        # g_min и g_max для расчёта радиационной толщины (используются в _calc_sensitivity_value)
+        self.params['reinforcement_status'] = (
+            'снят' if self.params.get('reinforcement_removed') else 'не снят'
+        )
         self.params['g_min_mm'] = zone.get('g_min_mm', 0.5)
         self.params['g_max_mm'] = zone.get('g_max_mm', 3.5)
         self.params['backing_thickness_mm'] = zone.get('backing_thickness_mm', 0.0)
@@ -529,9 +595,41 @@ class RadiographicTechCardCalculator:
 # ---------------------------------------------------------------
 
 _WELD_TYPE_NAMES = {
-    'butt': 'Стыковое (С)', 'corner': 'Угловое (У)',
+    'butt': 'Стыковое', 'corner': 'Угловое (У)',
     'tee': 'Тавровое (Т)', 'lap': 'Нахлёсточное (Н)',
 }
+
+_JOINT_MOBILITY_LABELS = {
+    'rotating': 'поворотное',
+    'non_rotating': 'неповоротное',
+}
+
+
+def _fmt_mm(value, decimals: int = 1) -> str:
+    """Форматирует размер в мм с запятой для техкарты."""
+    if value is None or value == '' or value == '—':
+        return '—'
+    try:
+        return f'{float(value):.{decimals}f}'.replace('.', ',')
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_signature_block(
+    position: str,
+    name: str,
+    certificate: str,
+    date_str: str,
+    default_position: str = '',
+) -> str:
+    """Блок подписи для нижнего колонтитула."""
+    lines = [position or default_position]
+    if name:
+        lines.append(name)
+    if certificate:
+        lines.append(f'Удостоверение № {certificate}')
+    lines.append(f'«{date_str}» ___________')
+    return '\n'.join(filter(None, lines))
 
 _OBJECT_TYPE_NAMES = {
     'pipe': 'Трубопровод (кольцевой сварной шов)',
@@ -625,9 +723,36 @@ def _build_value_map(params: dict) -> dict:
         angle = 'По схеме просвечивания (90° к оси шва)'
 
     # Коэффициент C для поля 5.2
-    focal_field = str(params.get('source_focal_spot_mm', ''))
+    focal_field = _fmt_mm(params.get('source_focal_spot_mm', ''))
     if C_val:
-        focal_field += f' мм (C = {C_val:.2f})'
+        focal_field += f' (C = {C_val:.2f})'
+
+    object_type = params.get('object_type', 'pipe')
+    joint_code = params.get('joint_designation', '')
+    from normative.gost_59023_2 import get_joint_info
+    joint_info = get_joint_info(joint_code) if joint_code else {}
+    joint_type = joint_info.get('joint_type', 'butt')
+    mobility = _JOINT_MOBILITY_LABELS.get(
+        params.get('joint_mobility', 'non_rotating'), 'неповоротное',
+    )
+    weld_cat = params.get('weld_category', '')
+
+    if object_type == 'pipe':
+        outer_d_display = _fmt_mm(D) if D else '—'
+        flat_length_display = '—'
+    elif object_type == 'flat':
+        outer_d_display = '—'
+        flat_length_display = _fmt_mm(params.get('flat_length_mm')) if params.get('flat_length_mm') else '—'
+    else:
+        outer_d_display = _fmt_mm(D) if D else '—'
+        flat_length_display = '—'
+
+    backing_label = 'Есть' if params.get('has_backing') else 'Нет'
+    backing_thickness_display = (
+        f'{_fmt_mm(params.get("backing_thickness_mm"))} мм (учитывать в K, f)'
+        if params.get('has_backing') and params.get('backing_thickness_mm')
+        else '—'
+    )
 
     return {
         # ---- Раздел 1: Объект контроля ----
@@ -636,14 +761,13 @@ def _build_value_map(params: dict) -> dict:
         '1.3': params.get('drawing_number', ''),
         '1.4': params.get('weld_number', ''),
         '1.5': params.get('drawing_number', ''),
-        '1.6': (
-            f'{params.get("joint_designation", "")} — {params.get("joint_name", "")}'
-            if params.get('joint_designation') else
-            _WELD_TYPE_NAMES.get(params.get('weld_type', ''), '')
+        '1.6': f'{_WELD_TYPE_NAMES.get(joint_type, "Стыковое")} ({mobility})',
+        '1.7': (
+            f'{joint_code}, по ГОСТ Р 59023.2-2020'
+            if joint_code else ''
         ),
-        '1.7': params.get('weld_number', ''),
         '1.8': (
-            f'Способ {params.get("welding_process", "")} — '
+            f'{params.get("welding_process", "")} — '
             + {
                 '10': 'АДФ под флюсом', '11': 'АДФ с подваркой корня', '20': 'ЭШС',
                 '30': 'РДС', '31': 'РДС с подваркой корня', '32': 'РДС на подкладке',
@@ -651,9 +775,10 @@ def _build_value_map(params: dict) -> dict:
                 '51': 'АДС без присадки', '52': 'АДС с присадкой', '53': 'АДС плавящимся',
                 '60': 'ЭЛС',
             }.get(params.get('welding_process', ''), '')
+            + ', по ГОСТ Р 59023.2-2020'
             if params.get('welding_process') else ''
         ),
-        '1.9': params.get('material', ''),
+        '1.9': params.get('material_display', params.get('material', '')),
         '1.10': params.get('weld_material', ''),
 
         # ---- Раздел 2: Документация ----
@@ -661,34 +786,28 @@ def _build_value_map(params: dict) -> dict:
         '2.2': NP105_CODE,
 
         # ---- Раздел 3: Требования ----
-        '3.1': params.get('weld_category', ''),
-        '3.2': str(params.get('control_volume_pct', 100)) + ' %',
+        '3.1': f'{weld_cat} (по НП-105-18)',
+        '3.2': f'{params.get("control_volume_pct", 100)} %',
 
-        # ---- Раздел 4: Тип и размеры (поля 4.2.2, 4.2.4, 4.2.5 по ГОСТ Р 59023.2-2020) ----
-        '4.1': _OBJECT_TYPE_NAMES.get(params.get('object_type', ''), ''),
-        '4.2.1': f'Dн = {D} мм' if D else 'плоская деталь',
-        'толщина': f'S = {S} мм',
-        '4.2.2': (
-            f'e = {params.get("weld_bead_width_mm", "—")} мм, '
-            f'g = {params.get("weld_bead_height_mm", "—")} мм '
-            f'({params.get("joint_designation", "—")}, S={S}мм, сп.{params.get("welding_process","—")})'
-            if params.get('weld_bead_width_mm') else 'по замеру на объекте'
-        ),
-        '4.2.3': 'не снят',
-        '4.2.4': f'{params.get("haz_width_mm", 5.0):.1f} мм (с каждой стороны от краёв шва)',
-        '4.2.5': (
-            f'{params.get("zone_width_mm", "—")} мм '
-            f'= e({params.get("weld_bead_width_mm","—")})+2×{params.get("haz_width_mm",5.0):.1f}'
-            if params.get('zone_width_mm') else 'ширина шва + 2×5 мм'
-        ),
+        # ---- Раздел 4: Тип и размеры ----
+        '4.1': _OBJECT_TYPE_NAMES.get(object_type, ''),
+        '4.2.1': outer_d_display,
+        'толщина': _fmt_mm(S),
+        '4.2.2 длин': flat_length_display,
+        '4.2.2': params.get('e_display', ''),
+        '4.2.2 e1': params.get('e1_display', ''),
+        '4.2.3': params.get('g_display', params.get('reinforcement_status', 'не снят')),
+        '4.2.4': f'{_fmt_mm(params.get("haz_width_mm", 5.0))} мм (с каждой стороны от краёв шва)',
+        '4.2.5': _fmt_mm(params.get('zone_width_mm', '')),
+        '4.2.6': backing_label,
+        '4.2.7': backing_thickness_display,
 
         # ---- Раздел 5: Средства контроля ----
         '5.1': src.get('name', ''),
         '5.2': focal_field,
         '5.3': (
-            f"Проволочный ИКИ {params.get('iqi_marking', '')} "
-            f"({params.get('iqi_label', '')}, "
-            f"{placement.get('side_label', 'со стороны источника')})"
+            f"Проволочный / №{params.get('iqi_marking', '')} по ГОСТ 7512 "
+            f"({placement.get('side_label', 'со стороны источника')})"
         ),
         '5.4': params.get('film_name', film_info.get('examples', '')),
         '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
@@ -735,6 +854,45 @@ def _build_value_map(params: dict) -> dict:
     }
 
 
+def _fill_dimension_rows(doc: Document, value_map: dict):
+    """Заполняет многоячеечные строки раздела 4.2 шаблона техкарты."""
+    for table in doc.tables:
+        for row in table.rows:
+            ucells = _unique_cells(row)
+            if not ucells:
+                continue
+            label = ucells[0].text.strip().lower()
+
+            if '4.2.1' in label and 'внешний' in label and len(ucells) >= 4:
+                _set_cell_text(ucells[1], value_map.get('4.2.1', '—'))
+                _set_cell_text(ucells[3], value_map.get('толщина', ''))
+                continue
+
+            if ('длинна' in label or 'длина' in label) and '4.2.2' in label:
+                if len(ucells) >= 2:
+                    _set_cell_text(ucells[1], value_map.get('4.2.2 длин', '—'))
+                continue
+
+            if 'наружной поверхности' in label and len(ucells) >= 4:
+                _set_cell_text(ucells[1], value_map.get('4.2.2', ''))
+                _set_cell_text(ucells[3], value_map.get('4.2.2 e1', ''))
+                continue
+
+            if '4.2.3' in label and 'высота' in label:
+                if len(ucells) >= 2:
+                    _set_cell_text(ucells[-1], value_map.get('4.2.3', ''))
+                continue
+
+            if '4.2.4' in label and 'околошовной' in label and len(ucells) >= 4:
+                _set_cell_text(ucells[1], value_map.get('4.2.4', ''))
+                _set_cell_text(ucells[3], value_map.get('4.2.5', ''))
+                continue
+
+            if '4.2.6' in label and len(ucells) >= 4:
+                _set_cell_text(ucells[1], value_map.get('4.2.6', ''))
+                _set_cell_text(ucells[3], value_map.get('4.2.7', ''))
+
+
 def generate_from_template(params: dict, template_path: str, output_path: str,
                            static_root: str = '') -> str:
     """
@@ -769,6 +927,13 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
             matched_value = None
             for key, val in value_map.items():
                 if key.lower() in label_text.lower() and label_text != '':
+                    # Многоячеечные строки 4.2 заполняются отдельно
+                    if key.startswith('4.2.') and key not in ('4.2.3',):
+                        if any(x in label_text.lower() for x in (
+                            'внешний диаметр', 'длинна', 'длина', 'наружной поверхности',
+                            'околошовной', '4.2.6',
+                        )):
+                            continue
                     matched_value = val
                     break
 
@@ -782,6 +947,8 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                 org = params.get('organization', '')
                 if org:
                     _set_cell_text(ucells[0], org)
+
+    _fill_dimension_rows(doc, value_map)
 
     # --- Замена номера карты в шапке ---
     card_num = params.get('card_number', '___')
@@ -1027,7 +1194,22 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     org = params.get('organization', '')
     card_num = params.get('card_number', '___')
     dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
-    inspector = params.get('inspector_name', '')
+    check_date = params.get('check_date', dev_date)
+
+    sig_left = _format_signature_block(
+        params.get('developed_by_position', ''),
+        params.get('developed_by_name', '') or params.get('inspector_name', ''),
+        params.get('developed_by_certificate', ''),
+        dev_date,
+        default_position='Ведущий инженер технолог',
+    )
+    sig_right = _format_signature_block(
+        params.get('checked_by_position', ''),
+        params.get('checked_by_name', ''),
+        params.get('checked_by_certificate', ''),
+        check_date,
+        default_position='Начальник лаборатории НК',
+    )
 
     section = doc.sections[0]
     section.header_distance = Mm(8)
@@ -1059,7 +1241,7 @@ def _setup_page_headers_footers(doc: Document, params: dict):
 
     # Строка 2: пусто | номер карты | Лист X / Листов Y
     r1 = ht.rows[1]
-    _set_cell_text(r1.cells[0], '', font_size=8)
+    _set_cell_text(r1.cells[0], f'№ {card_num}', font_size=8)
     _set_cell_text(r1.cells[1], f'№ {card_num}', font_size=9)
     r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -1072,33 +1254,26 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     for para in list(footer.paragraphs):
         para._element.getparent().remove(para._element)
 
-    # Таблица 2 строки × 2 столбца
-    ft = footer.add_table(rows=2, cols=2, width=Mm(185))
+    # Таблица 3 строки × 2 столбца
+    ft = footer.add_table(rows=3, cols=2, width=Mm(185))
     _add_table_borders(ft)
     for cell in ft.columns[0].cells:
         cell.width = Mm(90)
     for cell in ft.columns[1].cells:
         cell.width = Mm(95)
 
-    # Строка 1: роли
     fr0 = ft.rows[0]
-    _set_cell_text(fr0.cells[0], 'Разработал', bold=True, font_size=9)
-    _set_cell_text(fr0.cells[1], 'Проверил', bold=True, font_size=9)
+    _set_cell_text(fr0.cells[0], f'№ {card_num}', font_size=8)
+    _set_cell_text(fr0.cells[1], '', font_size=8)
+    fr0.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    # Строка 2: должности + дата + подпись
     fr1 = ft.rows[1]
-    sig_left = (
-        f'Ведущий инженер технолог\n'
-        f'«{dev_date}» ___________'
-    )
-    sig_right = (
-        f'Начальник лаборатории НК\n'
-        f'«{dev_date}» _________'
-    )
-    if inspector:
-        sig_left += f'\n{inspector}'
-    _set_cell_text(fr1.cells[0], sig_left, font_size=9)
-    _set_cell_text(fr1.cells[1], sig_right, font_size=9)
+    _set_cell_text(fr1.cells[0], 'Разработал', bold=True, font_size=9)
+    _set_cell_text(fr1.cells[1], 'Проверил', bold=True, font_size=9)
+
+    fr2 = ft.rows[2]
+    _set_cell_text(fr2.cells[0], sig_left, font_size=9)
+    _set_cell_text(fr2.cells[1], sig_right, font_size=9)
 
 
 def _insert_page_break_before_section10(doc: Document):
@@ -1475,11 +1650,20 @@ def generate_tech_card(input_data: dict, media_root: str,
 
 
 def get_default_template_path() -> str | None:
-    """Путь к шаблону DOCX, если файл загружен в card_templates/."""
+    """Путь к шаблону DOCX, если файл загружен в card_templates/ или normative_docs/."""
     from django.conf import settings as django_settings
-    template_filename = 'Пример технологической карты радиографического контроля.docx'
-    template_path = os.path.join(django_settings.BASE_DIR, 'card_templates', template_filename)
-    return template_path if os.path.exists(template_path) else None
+    candidates = [
+        os.path.join(django_settings.BASE_DIR, 'card_templates',
+                     'Пример технологической карты радиографического контроля.docx'),
+        os.path.join(
+            django_settings.BASE_DIR, 'normative_docs',
+            'Пример_технологической_карты_радиографического_контроля  с комментариями.docx',
+        ),
+    ]
+    for template_path in candidates:
+        if os.path.exists(template_path):
+            return template_path
+    return None
 
 
 def regenerate_techcard_files(

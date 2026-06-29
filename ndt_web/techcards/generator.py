@@ -809,10 +809,7 @@ def _build_value_map(params: dict) -> dict:
     else:
         # Обычные схемы: показываем рассчитанные значения
         if f_val is not None and f_val != '':
-            f_field = (
-                f'f = {f_val} мм '
-                f'(расчёт: {params.get("scheme_formula", "")})'
-            )
+            f_field = f'f = {f_val} мм'
         else:
             f_field = f'{sfd_used} мм'
 
@@ -1072,6 +1069,50 @@ def _find_paragraph_index(doc: Document, fragment: str) -> int:
     return -1
 
 
+def _is_empty_body_paragraph(el) -> bool:
+    """True для пустого абзаца без рисунков."""
+    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    if el.tag.split('}')[-1] != 'p':
+        return False
+    wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
+    if el.findall(f'.//{wp_ns}inline') or el.findall(f'.//{wp_ns}anchor'):
+        return False
+    text = ''.join(t.text or '' for t in el.findall(f'.//{ns}t')).strip()
+    return not text
+
+
+def _trim_empty_paragraphs_before(doc: Document, *needles: str, keep: int = 1):
+    """
+    Оставляет не более keep пустых абзацев перед целевым параграфом.
+    Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
+    """
+    para = None
+    for p in doc.paragraphs:
+        lower = p.text.lower()
+        if all(n.lower() in lower for n in needles):
+            para = p
+            break
+    if para is None:
+        return
+
+    target_el = para._element
+    parent = target_el.getparent()
+    if parent is None:
+        return
+
+    children = list(parent)
+    idx = children.index(target_el)
+    empty_before = []
+    for i in range(idx - 1, -1, -1):
+        child = children[i]
+        if not _is_empty_body_paragraph(child):
+            break
+        empty_before.append(child)
+
+    for el in empty_before[keep:]:
+        parent.remove(el)
+
+
 def _insert_joint_sketch_into_docx(doc: Document, params: dict, static_root: str):
     """
     Вставляет эскиз сварного соединения в п. 4.3 шаблона техкарты.
@@ -1239,6 +1280,9 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
 
     # Служебные заголовки-образцы (без удаления пустых абзацев-отступов)
     _compact_document(doc)
+
+    # П. 4.3 — один пустой абзац (строка) перед заголовком, не четыре
+    _trim_empty_paragraphs_before(doc, '4.3', 'эскиз', keep=1)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)

@@ -1467,7 +1467,46 @@ class TemplateCommentsTests(TestCase):
             generate_from_template(params, template, out, static_root=static_root)
             gen_breaks, gen_empty = _layout_stats(out)
             self.assertEqual(gen_breaks, tpl_breaks)
-            self.assertGreaterEqual(gen_empty, tpl_empty - 2)
+            # Перед п. 4.3 остаётся 1 пустая строка вместо 4 в шаблоне
+            self.assertGreaterEqual(gen_empty, tpl_empty - 5)
+
+    def test_section_43_single_line_gap_before_heading(self):
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            para_43 = next(
+                p for p in doc.paragraphs if '4.3' in p.text and 'эскиз' in p.text.lower()
+            )
+            empty = 0
+            prev = para_43._element.getprevious()
+            while prev is not None and prev.tag.endswith('p'):
+                from techcards.generator import _is_empty_body_paragraph
+                if not _is_empty_body_paragraph(prev):
+                    break
+                empty += 1
+                prev = prev.getprevious()
+            self.assertEqual(empty, 1)
+
+    def test_section_65_shows_f_value_only(self):
+        from techcards.generator import _build_value_map
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        vmap = _build_value_map(params)
+        self.assertIn('f =', vmap['6.5'])
+        self.assertNotIn('расчёт:', vmap['6.5'].lower())
+        self.assertNotIn('scheme_formula', vmap['6.5'])
 
     def test_generated_docx_has_materials_and_no_comments(self):
         """П. 1.9/1.10 и отсутствие служебных комментариев в готовой техкарте."""

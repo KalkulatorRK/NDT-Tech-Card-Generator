@@ -1096,42 +1096,14 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                 if value_cell._tc is not ucells[0]._tc:
                     _set_cell_text(value_cell, matched_value)
 
-            # Отдельная обработка: шапка — замена «ОАО «ХХХХ»»
-            if 'ОАО «ХХ' in label_text or label_text.startswith('ОАО') or label_text.startswith('ОД'):
-                org = params.get('organization', '')
-                if org:
-                    _set_cell_text(ucells[0], org)
-
     _fill_dimension_rows(doc, value_map)
-
-    # --- Замена номера карты в шапке ---
-    card_num = params.get('card_number', '___')
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    if '02/11-РГК' in para.text:
-                        for run in para.runs:
-                            run.text = run.text.replace('02/11-РГК', card_num)
-
-    # --- Замена даты в подписях ---
-    dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    if '2012г' in para.text or '_01___2012' in para.text:
-                        for run in para.runs:
-                            run.text = run.text.replace('_21_»_01___2012г.', f'«{dev_date}»')
-                            run.text = run.text.replace('«_21_»_01___2012_г.', f'«{dev_date}»')
 
     _insert_joint_sketch_into_docx(doc, params, static_root)
     _insert_scheme_section_into_docx(doc, params, static_root)
 
-    # --- Настройка колонтитулов Word (заменяют колонтитулы шаблона) ---
-    _remove_inline_header_footer_tables(doc)
-    _setup_page_headers_footers(doc, params)
+    # Колонтитулы — заполняем структуру нового шаблона, не пересобираем заново
     _remove_duplicate_body_title(doc)
+    _fill_template_headers_footers(doc, params)
 
     # --- Раздел 10 «Оценка качества» на отдельном листе ---
     _insert_page_break_before_section10(doc)
@@ -1259,61 +1231,6 @@ def _insert_page_number_field(para, prefix: str = '', suffix: str = ''):
         para.add_run(suffix)
 
 
-def _remove_inline_header_footer_tables(doc: Document):
-    """
-    Удаляет из тела документа inline-таблицы, которые в шаблоне
-    имитировали шапки страниц и поля подписей.
-
-    Шапки-заглушки: 2 строки × 3 столбца, вторая строка содержит
-    'Лист' или номер карты.
-    Подписи-заглушки: 2 строки × 2 столбца, первая строка содержит
-    'Разработал'.
-    """
-    tables_to_remove = []
-
-    for table in doc.tables:
-        rows = len(table.rows)
-        if rows == 0:
-            continue
-        cols = len(table.columns)
-        first_cell_text = table.rows[0].cells[0].text.strip()
-
-        # Шапка: 2 строки × 3 столбца
-        if rows == 2 and cols == 3:
-            second_row_text = ' '.join(
-                c.text for c in table.rows[1].cells
-            )
-            if ('Лист' in second_row_text
-                    or 'листов' in second_row_text.lower()
-                    or 'ОДМ' in first_cell_text
-                    or 'РГК' in second_row_text):
-                tables_to_remove.append(table)
-
-        # Подписи: 2 строки × 2 столбца, "Разработал"/"Проверил"
-        if rows == 2 and cols == 2:
-            if 'Разработал' in first_cell_text:
-                tables_to_remove.append(table)
-
-    for tbl in tables_to_remove:
-        el = tbl._element
-        parent = el.getparent()
-        if parent is not None:
-            parent.remove(el)
-
-    # Удаляем ставшие пустыми параграфы-разделители
-    body = doc.element.body
-    for para_el in list(body.iterchildren(
-        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'
-    )):
-        if para_el.text is None:
-            # Проверяем что в параграфе нет run-элементов с текстом
-            runs = para_el.findall(
-                './/{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'
-            )
-            if not runs:
-                body.remove(para_el)
-
-
 def _clear_header_footer_part(part):
     """Удаляет все параграфы и таблицы из верхнего/нижнего колонтитула Word."""
     element = part._element
@@ -1378,19 +1295,119 @@ def _add_table_borders(table):
     tblPr.append(tblBorders)
 
 
-def _setup_page_headers_footers(doc: Document, params: dict):
+def _unlink_first_page_headers_footers(section):
     """
-    Настраивает Word-колонтитулы технологической карты:
-    - Верхний колонтитул (header): шапка с названием организации,
-      номером карты и нумерацией страниц (PAGE/NUMPAGES).
-    - Нижний колонтитул (footer): поля подписей
-      (Разработал / Проверил) с датой.
+    Отключает отдельные колонтитулы первой страницы шаблона.
+    Новый шаблон содержит header1/header2 и footer1/footer2 — без
+    отвязки first-ссылок Word может показывать оба варианта.
 
-    Колонтитулы Word автоматически воспроизводятся на каждой
-    странице при печати независимо от объёма содержимого.
+    Нельзя обращаться к section.first_page_header/footer: python-docx
+    заново создаёт first-ссылки при доступе к этим свойствам.
+    """
+    section.different_first_page_header_footer = False
+    sect_pr = section._sectPr
+    title_pg = sect_pr.find(qn('w:titlePg'))
+    if title_pg is not None:
+        sect_pr.remove(title_pg)
+    for ref_tag in ('headerReference', 'footerReference'):
+        for ref in list(sect_pr.findall(qn(f'w:{ref_tag}'))):
+            if ref.get(qn('w:type')) == 'first':
+                sect_pr.remove(ref)
 
-    :param doc: объект DOCX документа
-    :param params: параметры техкарты
+
+def _find_header_table(part):
+    """Находит таблицу шапки в колонтитуле (2×3, «Технологическая карта»)."""
+    for table in part.tables:
+        if len(table.rows) >= 2 and len(table.columns) >= 3:
+            text = ' '.join(cell.text for row in table.rows for cell in row.cells)
+            if 'Технологическая карта' in text:
+                return table
+    return part.tables[0] if part.tables else None
+
+
+def _find_footer_table(part):
+    """Находит таблицу подписей в нижнем колонтитуле."""
+    for table in part.tables:
+        text = ' '.join(cell.text for row in table.rows for cell in row.cells)
+        if 'Разработал' in text and 'Проверил' in text:
+            return table
+    return part.tables[0] if part.tables else None
+
+
+def _fill_page_number_cell(cell):
+    """Заменяет статичную нумерацию шаблона полями PAGE / NUMPAGES."""
+    for para in cell.paragraphs:
+        _clear_paragraph_content(para)
+    para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+    _insert_page_number_field(para, prefix='Лист ')
+
+
+def _fill_template_header_table(table, params: dict):
+    """Заполняет шапку техкарты в структуре нового шаблона DOCX."""
+    org = params.get('organization', '') or 'Наименование организации'
+    card_num = params.get('card_number', '___')
+    r0 = table.rows[0]
+    r1 = table.rows[1]
+    _set_cell_text(r0.cells[0], org, font_size=8)
+    if len(r0.cells) > 1:
+        r0.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _set_cell_text(r1.cells[1], f'№ {card_num}', font_size=9)
+    if len(r1.cells) > 1:
+        r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if len(r1.cells) > 2:
+        _fill_page_number_cell(r1.cells[2])
+
+
+def _fill_template_footer_table(table, params: dict):
+    """Заполняет блок подписей в структуре нового шаблона DOCX."""
+    dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
+    check_date = params.get('check_date', dev_date)
+    dev_pos = params.get('developed_by_position', '') or 'Ведущий инженер технолог'
+    chk_pos = params.get('checked_by_position', '') or 'Начальник лаборатории НК'
+    dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
+    chk_name = params.get('checked_by_name', '')
+    dev_cert = params.get('developed_by_certificate', '')
+    chk_cert = params.get('checked_by_certificate', '')
+
+    dev_line3 = dev_name
+    if dev_cert:
+        dev_line3 += f'\nУдостоверение № {dev_cert}'
+    dev_line3 += f'\n«{dev_date}» ___________'
+    chk_line3 = chk_name
+    if chk_cert:
+        chk_line3 += f'\nУдостоверение № {chk_cert}'
+    chk_line3 += f'\n«{check_date}» ___________'
+
+    if len(table.rows) >= 3:
+        _set_cell_text(table.rows[1].cells[0], dev_pos, font_size=9)
+        _set_cell_text(table.rows[1].cells[1], chk_pos, font_size=9)
+        _set_cell_text(table.rows[2].cells[0], dev_line3.strip(), font_size=9)
+        _set_cell_text(table.rows[2].cells[1], chk_line3.strip(), font_size=9)
+
+
+def _fill_template_headers_footers(doc: Document, params: dict):
+    """
+    Заполняет колонтитулы нового шаблона техкарты данными пользователя.
+    Структура таблиц берётся из шаблона normative_docs — ничего не
+    пересобирается программно.
+    """
+    for section in doc.sections:
+        section.header_distance = Mm(8)
+        section.footer_distance = Mm(10)
+        _unlink_first_page_headers_footers(section)
+
+        header_table = _find_header_table(section.header)
+        if header_table is not None:
+            _fill_template_header_table(header_table, params)
+
+        footer_table = _find_footer_table(section.footer)
+        if footer_table is not None:
+            _fill_template_footer_table(footer_table, params)
+
+
+def _build_headers_footers_scratch(doc: Document, params: dict):
+    """
+    Создаёт колонтитулы с нуля (только для fallback без шаблона DOCX).
     """
     org = params.get('organization', '')
     card_num = params.get('card_number', '___')
@@ -2013,8 +2030,8 @@ def _generate_docx_fallback(params: dict, output_path: str) -> str:
         row.cells[1].text = str(vmap.get(key, ''))
         row.cells[1].paragraphs[0].runs[0].font.size = Pt(9)
 
-    # Настраиваем колонтитулы
-    _setup_page_headers_footers(doc, params)
+    # Настраиваем колонтитулы (fallback без шаблона)
+    _build_headers_footers_scratch(doc, params)
 
     doc.save(output_path)
     return output_path

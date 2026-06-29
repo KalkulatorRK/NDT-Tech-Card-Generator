@@ -1233,6 +1233,16 @@ class TemplateCommentsTests(TestCase):
                 part_text += ' '.join(p.text for p in part.paragraphs)
                 self.assertNotIn('ФГУП МАРКС', part_text, attr)
                 self.assertNotIn('Иванов', part_text, attr)
+            import zipfile
+            import re
+            with zipfile.ZipFile(out) as zf:
+                sect_xml = re.search(
+                    r'<w:sectPr.*?</w:sectPr>',
+                    zf.read('word/document.xml').decode('utf-8'),
+                    re.DOTALL,
+                ).group(0)
+            self.assertNotIn('titlePg', sect_xml)
+            self.assertNotIn('w:type="first"', sect_xml)
             header_text = ' '.join(
                 cell.text for table in section.header.tables
                 for row in table.rows for cell in row.cells

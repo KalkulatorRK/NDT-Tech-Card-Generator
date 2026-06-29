@@ -1198,3 +1198,45 @@ class TemplateCommentsTests(TestCase):
             )
             self.assertIsNotNone(caption)
             self.assertTrue(any(_paragraph_has_drawing(p) for p in doc.paragraphs))
+
+    def test_no_duplicate_legacy_headers_footers(self):
+        """Старые колонтитулы шаблона (ФГУП МАРКС, Иванов) не дублируются."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+        )
+        import tempfile
+        from docx import Document
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section = doc.sections[0]
+            self.assertFalse(section.different_first_page_header_footer)
+            for attr in (
+                'header', 'footer',
+                'first_page_header', 'first_page_footer',
+            ):
+                part = getattr(section, attr)
+                part_text = ' '.join(
+                    cell.text
+                    for table in part.tables
+                    for row in table.rows
+                    for cell in row.cells
+                )
+                part_text += ' '.join(p.text for p in part.paragraphs)
+                self.assertNotIn('ФГУП МАРКС', part_text, attr)
+                self.assertNotIn('Иванов', part_text, attr)
+            header_text = ' '.join(
+                cell.text for table in section.header.tables
+                for row in table.rows for cell in row.cells
+            )
+            self.assertIn('ТестОрг', header_text)
+            self.assertEqual(len(section.header.tables), 1)
+            self.assertEqual(len(section.footer.tables), 1)

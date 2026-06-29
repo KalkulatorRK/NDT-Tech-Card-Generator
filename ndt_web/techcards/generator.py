@@ -1128,9 +1128,10 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     _insert_joint_sketch_into_docx(doc, params, static_root)
     _insert_scheme_section_into_docx(doc, params, static_root)
 
-    # --- Настройка колонтитулов Word ---
+    # --- Настройка колонтитулов Word (заменяют колонтитулы шаблона) ---
     _remove_inline_header_footer_tables(doc)
     _setup_page_headers_footers(doc, params)
+    _remove_duplicate_body_title(doc)
 
     # --- Раздел 10 «Оценка качества» на отдельном листе ---
     _insert_page_break_before_section10(doc)
@@ -1313,6 +1314,52 @@ def _remove_inline_header_footer_tables(doc: Document):
                 body.remove(para_el)
 
 
+def _clear_header_footer_part(part):
+    """Удаляет все параграфы и таблицы из верхнего/нижнего колонтитула Word."""
+    element = part._element
+    for child in list(element):
+        tag = child.tag.split('}')[-1]
+        if tag in ('p', 'tbl'):
+            element.remove(child)
+
+
+def _clear_section_headers_footers(section):
+    """
+    Очищает все колонтитулы секции, включая отдельные для первой страницы.
+    Шаблон DOCX использует different_first_page — без очистки first_page_*
+    остаются старые «ФГУП МАРКС» / «Иванов» поверх новых колонтитулов.
+    """
+    for attr in (
+        'header', 'footer',
+        'first_page_header', 'first_page_footer',
+    ):
+        part = getattr(section, attr, None)
+        if part is not None:
+            _clear_header_footer_part(part)
+
+
+def _remove_duplicate_body_title(doc: Document):
+    """
+    Удаляет из тела документа дублирующий титул «Технологическая карта…»,
+    который в шаблоне продублирован вне колонтитула.
+    """
+    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    paras_to_remove = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if (
+            text.startswith('Технологическая карта')
+            or text == 'радиографического контроля'
+            or text == '№'
+        ):
+            paras_to_remove.append(para._element)
+
+    for el in paras_to_remove:
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+
+
 def _add_table_borders(table):
     """Добавляет границы таблице через XML (работает в headers/footers)."""
     tbl = table._tbl
@@ -1350,31 +1397,14 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
     check_date = params.get('check_date', dev_date)
 
-    sig_left = _format_signature_block(
-        params.get('developed_by_position', ''),
-        params.get('developed_by_name', '') or params.get('inspector_name', ''),
-        params.get('developed_by_certificate', ''),
-        dev_date,
-        default_position='Ведущий инженер технолог',
-    )
-    sig_right = _format_signature_block(
-        params.get('checked_by_position', ''),
-        params.get('checked_by_name', ''),
-        params.get('checked_by_certificate', ''),
-        check_date,
-        default_position='Начальник лаборатории НК',
-    )
-
     section = doc.sections[0]
     section.header_distance = Mm(8)
     section.footer_distance = Mm(10)
     section.different_first_page_header_footer = False
+    _clear_section_headers_footers(section)
 
     # ---- Верхний колонтитул ----
     header = section.header
-    # Очищаем стандартный параграф
-    for para in list(header.paragraphs):
-        para._element.getparent().remove(para._element)
 
     # Таблица 2 строки × 3 столбца
     ht = header.add_table(rows=2, cols=3, width=Mm(185))
@@ -1393,9 +1423,9 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     )
     r0.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Строка 2: пусто | номер карты | Лист X / Листов Y
+    # Строка 2: номер карты | номер карты | Лист X / Листов Y
     r1 = ht.rows[1]
-    _set_cell_text(r1.cells[0], f'№ {card_num}', font_size=8)
+    _set_cell_text(r1.cells[0], '', font_size=8)
     _set_cell_text(r1.cells[1], f'№ {card_num}', font_size=9)
     r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -1405,10 +1435,8 @@ def _setup_page_headers_footers(doc: Document, params: dict):
 
     # ---- Нижний колонтитул ----
     footer = section.footer
-    for para in list(footer.paragraphs):
-        para._element.getparent().remove(para._element)
 
-    # Таблица 3 строки × 2 столбца
+    # Таблица 3 строки × 2 столбца (структура шаблона)
     ft = footer.add_table(rows=3, cols=2, width=Mm(185))
     _add_table_borders(ft)
     for cell in ft.columns[0].cells:
@@ -1416,18 +1444,33 @@ def _setup_page_headers_footers(doc: Document, params: dict):
     for cell in ft.columns[1].cells:
         cell.width = Mm(95)
 
+    dev_pos = params.get('developed_by_position', '') or 'Ведущий инженер технолог'
+    chk_pos = params.get('checked_by_position', '') or 'Начальник лаборатории НК'
+    dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
+    chk_name = params.get('checked_by_name', '')
+    dev_cert = params.get('developed_by_certificate', '')
+    chk_cert = params.get('checked_by_certificate', '')
+
+    dev_line3 = dev_name
+    if dev_cert:
+        dev_line3 += f'\nУдостоверение № {dev_cert}'
+    dev_line3 += f'\n«{dev_date}» ___________'
+    chk_line3 = chk_name
+    if chk_cert:
+        chk_line3 += f'\nУдостоверение № {chk_cert}'
+    chk_line3 += f'\n«{check_date}» ___________'
+
     fr0 = ft.rows[0]
-    _set_cell_text(fr0.cells[0], f'№ {card_num}', font_size=8)
-    _set_cell_text(fr0.cells[1], '', font_size=8)
-    fr0.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_cell_text(fr0.cells[0], 'Разработал', bold=True, font_size=9)
+    _set_cell_text(fr0.cells[1], 'Проверил', bold=True, font_size=9)
 
     fr1 = ft.rows[1]
-    _set_cell_text(fr1.cells[0], 'Разработал', bold=True, font_size=9)
-    _set_cell_text(fr1.cells[1], 'Проверил', bold=True, font_size=9)
+    _set_cell_text(fr1.cells[0], dev_pos, font_size=9)
+    _set_cell_text(fr1.cells[1], chk_pos, font_size=9)
 
     fr2 = ft.rows[2]
-    _set_cell_text(fr2.cells[0], sig_left, font_size=9)
-    _set_cell_text(fr2.cells[1], sig_right, font_size=9)
+    _set_cell_text(fr2.cells[0], dev_line3.strip(), font_size=9)
+    _set_cell_text(fr2.cells[1], chk_line3.strip(), font_size=9)
 
 
 def _insert_page_break_before_section10(doc: Document):

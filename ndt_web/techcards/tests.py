@@ -1288,12 +1288,17 @@ class TemplateCommentsTests(TestCase):
             first_tbl = next(
                 c for c in body if c.tag.split('}')[-1] == 'tbl'
             )
-            prev = first_tbl.getprevious()
-            self.assertIsNotNone(prev)
-            self.assertEqual(prev.tag.split('}')[-1], 'p')
-            br_type = prev.find(f'.//{ns}br')
-            self.assertIsNotNone(br_type)
-            self.assertEqual(br_type.get(qn('w:type')), 'page')
+            has_title_break = False
+            for child in body:
+                if child is first_tbl:
+                    break
+                if child.tag.split('}')[-1] != 'p':
+                    continue
+                br = child.find(f'.//{ns}br')
+                if br is not None and br.get(qn('w:type')) == 'page':
+                    has_title_break = True
+                    break
+            self.assertTrue(has_title_break)
             for child in list(body):
                 if child is first_tbl:
                     break
@@ -1332,6 +1337,62 @@ class TemplateCommentsTests(TestCase):
                 ).group(0)
             self.assertIn('titlePg', sect_xml)
             self.assertIn('w:type="first"', sect_xml)
+
+    def test_default_template_is_tc_reference(self):
+        from techcards.generator import get_default_template_path
+        path = get_default_template_path()
+        self.assertIsNotNone(path)
+        self.assertIn('card_templates', path)
+        self.assertTrue(os.path.basename(path).startswith('TC_'))
+
+    def test_reference_block_page_breaks(self):
+        """П. 4.3, 6.9 и таблицы 7–10 начинаются с нового листа."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path, _element_has_page_break,
+        )
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+
+            para_43 = next(
+                (p for p in doc.paragraphs if '4.3' in p.text and 'эскиз' in p.text.lower()),
+                None,
+            )
+            para_69 = next(
+                (p for p in doc.paragraphs if '6.9' in p.text and 'схема' in p.text.lower()),
+                None,
+            )
+            self.assertIsNotNone(para_43)
+            self.assertIsNotNone(para_69)
+            self.assertTrue(_element_has_page_break(para_43._element.getprevious()))
+            self.assertTrue(_element_has_page_break(para_69._element.getprevious()))
+
+            for section_num in ('7', '8', '9', '10'):
+                table = next(
+                    (
+                        t for t in doc.tables
+                        if t.rows[0].cells[0].text.strip().startswith(f'{section_num}.')
+                        or t.rows[0].cells[0].text.strip().startswith(f'{section_num}\xa0')
+                    ),
+                    None,
+                )
+                self.assertIsNotNone(table, msg=f'раздел {section_num}')
+                prev = table._tbl.getprevious()
+                self.assertTrue(
+                    prev is not None and _element_has_page_break(prev),
+                    msg=f'разрыв перед разделом {section_num}',
+                )
 
     def test_generated_docx_has_materials_and_no_comments(self):
         """П. 1.9/1.10 и отсутствие служебных комментариев в готовой техкарте."""

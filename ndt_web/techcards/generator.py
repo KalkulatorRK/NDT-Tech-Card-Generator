@@ -124,21 +124,86 @@ def _match_value_for_label(label_text: str, value_map: dict):
     return None
 
 
-def _set_cell_text(cell, text: str, bold: bool = False, font_size: int = 9):
-    """Устанавливает текст в ячейке таблицы, сохраняя стиль."""
+def _reference_run_in_cell(cell):
+    """Первый непустой run ячейки — эталон шрифта шаблона."""
     for para in cell.paragraphs:
         for run in para.runs:
-            run.text = ''
-    if not cell.paragraphs:
-        cell.add_paragraph('')
-    para = cell.paragraphs[0]
-    # Очищаем параграф
+            if (run.text or '').strip():
+                return run
+    for para in cell.paragraphs:
+        if para.runs:
+            return para.runs[0]
+    return None
+
+
+def _reference_run_in_paragraph(para):
+    """Первый непустой run параграфа — эталон шрифта шаблона."""
     for run in para.runs:
-        run.clear()
-    para.clear()
-    run = para.add_run(str(text) if text is not None else '')
-    run.bold = bold
-    run.font.size = Pt(font_size)
+        if (run.text or '').strip():
+            return run
+    return para.runs[0] if para.runs else None
+
+
+def _copy_run_font(source, target):
+    """Копирует оформление run без изменения текста."""
+    if source is None or target is None:
+        return
+    target.bold = source.bold
+    target.italic = source.italic
+    target.underline = source.underline
+    if source.font.size:
+        target.font.size = source.font.size
+    if source.font.name:
+        target.font.name = source.font.name
+    for attr in ('name_ascii', 'name_hansi', 'name_cs', 'name_east_asia'):
+        value = getattr(source.font, attr, None)
+        if value:
+            setattr(target.font, attr, value)
+
+
+BODY_TABLE_FONT_PT = 12
+
+
+def _set_cell_text(
+    cell,
+    text: str,
+    bold: bool | None = None,
+    font_size: int | None = None,
+):
+    """
+    Устанавливает текст в ячейке, сохраняя шрифт и отступы шаблона.
+    По умолчанию — 12 pt (как в эталонной техкарте), а не 9 pt.
+    """
+    ref = _reference_run_in_cell(cell)
+    para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+    if para.runs:
+        run = para.runs[0]
+        run.text = str(text) if text is not None else ''
+        for extra in para.runs[1:]:
+            extra.text = ''
+    else:
+        run = para.add_run(str(text) if text is not None else '')
+    for extra_para in cell.paragraphs[1:]:
+        for extra_run in extra_para.runs:
+            extra_run.text = ''
+    if bold is not None:
+        run.bold = bold
+    elif ref is not None:
+        run.bold = ref.bold
+    if font_size is not None:
+        run.font.size = Pt(font_size)
+    elif ref is not None and ref.font.size:
+        run.font.size = ref.font.size
+    else:
+        run.font.size = Pt(12)
+    if ref is not None:
+        _copy_run_font(ref, run)
+        if bold is not None:
+            run.bold = bold
+        if font_size is not None:
+            run.font.size = Pt(font_size)
+    if font_size is None and (run.font.size is None or run.font.size.pt < BODY_TABLE_FONT_PT):
+        run.font.size = Pt(BODY_TABLE_FONT_PT)
 
 
 def _fill_row_value(table, row_idx: int, value: str):
@@ -904,17 +969,38 @@ def _build_value_map(params: dict) -> dict:
     }
 
 
-def _set_paragraph_text(para, text: str, *, font_size: int = 9, bold: bool = False):
-    """Заменяет текст параграфа, сохраняя стиль."""
-    for run in para.runs:
-        run.text = ''
+def _set_paragraph_text(
+    para,
+    text: str,
+    *,
+    font_size: int | None = None,
+    bold: bool | None = None,
+):
+    """Заменяет текст параграфа, сохраняя оформление шаблона."""
+    ref = _reference_run_in_paragraph(para)
     if para.runs:
         run = para.runs[0]
+        run.text = str(text) if text is not None else ''
+        for extra in para.runs[1:]:
+            extra.text = ''
     else:
-        run = para.add_run()
-    run.text = str(text) if text is not None else ''
-    run.bold = bold
-    run.font.size = Pt(font_size)
+        run = para.add_run(str(text) if text is not None else '')
+    if bold is not None:
+        run.bold = bold
+    elif ref is not None:
+        run.bold = ref.bold
+    if font_size is not None:
+        run.font.size = Pt(font_size)
+    elif ref is not None and ref.font.size:
+        run.font.size = ref.font.size
+    else:
+        run.font.size = Pt(12)
+    if ref is not None:
+        _copy_run_font(ref, run)
+        if bold is not None:
+            run.bold = bold
+        if font_size is not None:
+            run.font.size = Pt(font_size)
 
 
 def _paragraph_has_drawing(para) -> bool:
@@ -1259,7 +1345,7 @@ def _insert_page_number_field(para):
 
     para.add_run('Страница ')
     _field_run(' PAGE ')
-    para.add_run('    ')
+    para.add_run(' ')
     _field_run(' NUMPAGES ')
     para.add_run(' страниц')
 
@@ -1520,10 +1606,17 @@ def _find_footer_table(part):
 
 def _fill_page_number_cell(cell):
     """Заменяет статичную нумерацию шаблона полями PAGE / NUMPAGES."""
-    for para in cell.paragraphs:
-        _clear_paragraph_content(para)
     para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+    ref = _reference_run_in_paragraph(para)
+    for extra in cell.paragraphs[1:]:
+        _clear_paragraph_content(extra)
+    _clear_paragraph_content(para)
     _insert_page_number_field(para)
+    for run in para.runs:
+        if ref is not None:
+            _copy_run_font(ref, run)
+        elif not run.font.size:
+            run.font.size = Pt(12)
 
 
 def _insert_page_break_before_first_table(doc: Document):
@@ -1686,34 +1779,23 @@ def _insert_page_break_before_section10(doc: Document):
 
 def _compact_document(doc: Document):
     """
-    Делает документ компактным:
+    Минимальная подготовка документа без перезаписи вёрстки шаблона:
     1. Удаляет заголовок-образец «Пример технологической карты...»
-    2. Убирает все пустые параграфы между таблицами
-    3. Уменьшает отступы в ячейках таблиц
-    4. Уменьшает межстрочный интервал
-
-    :param doc: объект DOCX документа
+    2. Убирает пустые параграфы между таблицами (титульные отступы сохраняются)
     """
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
-
     body = doc.element.body
     ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
-    # 1. Удаляем заголовочные параграфы (Heading 1 и подобные,
-    #    а также параграф "Пример технологической карты...")
     paras_to_remove = []
     for para in doc.paragraphs:
         text = para.text.strip()
         style_name = para.style.name if para.style else ''
-        # Убираем: заголовок-образец, служебные надписи
         if (
             'Пример технологической карты' in text
             or 'Heading' in style_name
         ):
             paras_to_remove.append(para._element)
 
-    # 2. Убираем пустые параграфы — сохраняем отступы титульного листа
     title_para_idx = next(
         (
             i for i, p in enumerate(doc.paragraphs)
@@ -1746,59 +1828,6 @@ def _compact_document(doc: Document):
         parent = el.getparent()
         if parent is not None:
             parent.remove(el)
-
-    # 3. Уменьшаем отступы ячеек и межстрочный интервал в таблицах
-    _minimize_cell_padding = Pt(1)
-    for table in doc.tables:
-        # Минимальные отступы на уровне таблицы
-        tbl_el = table._tbl
-        tblPr = tbl_el.find(qn('w:tblPr'))
-        if tblPr is None:
-            tblPr = OxmlElement('w:tblPr')
-            tbl_el.insert(0, tblPr)
-
-        # Убираем лишние пробелы после таблицы
-        tblLook = tblPr.find(qn('w:tblLook'))
-        if tblLook is None:
-            tblLook = OxmlElement('w:tblLook')
-            tblPr.append(tblLook)
-
-        # Клеточные поля: минимальные
-        tblCellMar = tblPr.find(qn('w:tblCellMar'))
-        if tblCellMar is not None:
-            tblPr.remove(tblCellMar)
-        tblCellMar = OxmlElement('w:tblCellMar')
-        for side in ('top', 'left', 'bottom', 'right'):
-            mar = OxmlElement(f'w:{side}')
-            mar.set(qn('w:w'), '40')    # 40 twips ≈ 0.7 мм
-            mar.set(qn('w:type'), 'dxa')
-            tblCellMar.append(mar)
-        tblPr.append(tblCellMar)
-
-        # Уменьшаем интервал в каждом параграфе ячеек
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    pPr = para._p.find(qn('w:pPr'))
-                    if pPr is None:
-                        pPr = OxmlElement('w:pPr')
-                        para._p.insert(0, pPr)
-                    # Убираем отступ до/после абзаца
-                    spacing = pPr.find(qn('w:spacing'))
-                    if spacing is None:
-                        spacing = OxmlElement('w:spacing')
-                        pPr.append(spacing)
-                    spacing.set(qn('w:before'), '0')
-                    spacing.set(qn('w:after'), '0')
-                    spacing.set(qn('w:line'), '240')     # одинарный
-                    spacing.set(qn('w:lineRule'), 'auto')
-
-    # 4. Устанавливаем узкие поля страницы (15 мм со всех сторон)
-    for section in doc.sections:
-        section.top_margin = Mm(15)
-        section.bottom_margin = Mm(15)
-        section.left_margin = Mm(20)
-        section.right_margin = Mm(10)
 
 
 def generate_radiographic_pdf(params: dict, output_path: str) -> str:

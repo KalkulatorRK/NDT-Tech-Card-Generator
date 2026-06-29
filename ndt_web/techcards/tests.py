@@ -1372,3 +1372,44 @@ class TemplateCommentsTests(TestCase):
             self.assertNotIn('commentRangeStart', doc_xml)
             self.assertNotIn('commentReference', doc_xml)
             self.assertEqual(params['develop_date'], '21.06.2026')
+
+    def test_generated_docx_preserves_reference_layout(self):
+        """Шрифт 12 pt в таблице, поля и нумерация как в эталонной техкарте."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+        )
+        import tempfile
+        import zipfile
+        from docx import Document
+        from docx.shared import Pt
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section = doc.sections[0]
+            self.assertAlmostEqual(section.top_margin.mm, 15.0, delta=0.5)
+            self.assertAlmostEqual(section.left_margin.mm, 20.0, delta=0.5)
+
+            value_cell = None
+            for row in doc.tables[0].rows:
+                if row.cells[0].text.strip().startswith('1.1'):
+                    value_cell = row.cells[-1]
+                    break
+            self.assertIsNotNone(value_cell)
+            run = value_cell.paragraphs[0].runs[0]
+            self.assertIsNotNone(run.font.size)
+            self.assertGreaterEqual(run.font.size.pt, 12.0)
+
+            with zipfile.ZipFile(out) as zf:
+                header_xml = zf.read('word/header1.xml').decode('utf-8')
+            self.assertIn('Страница ', header_xml)
+            self.assertNotIn('Страница    ', header_xml)
+            self.assertIn('NUMPAGES', header_xml)

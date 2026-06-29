@@ -1208,6 +1208,7 @@ class TemplateCommentsTests(TestCase):
         import zipfile
         import re
         from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
 
         template = get_default_template_path()
         if not template:
@@ -1237,7 +1238,11 @@ class TemplateCommentsTests(TestCase):
             ]
             self.assertIn('Технологическая карта', body_title[0])
             self.assertIn('радиографического контроля', body_title)
-            self.assertTrue(any(t.startswith('№ ТК-001') for t in body_title))
+            self.assertTrue(any('№' in t and 'ТК-001' in t for t in body_title))
+
+            fp_footer_table = section.first_page_footer.tables[0]
+            dev_name_para = fp_footer_table.rows[2].cells[0].paragraphs[0]
+            self.assertEqual(dev_name_para.alignment, WD_ALIGN_PARAGRAPH.RIGHT)
 
             header_text = ' '.join(
                 cell.text for table in section.header.tables

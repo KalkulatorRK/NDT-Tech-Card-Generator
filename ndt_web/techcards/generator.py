@@ -10,6 +10,7 @@
 
 import io
 import os
+import re
 import uuid
 import copy
 import tempfile
@@ -1255,23 +1256,85 @@ def _clear_section_headers_footers(section):
             _clear_header_footer_part(part)
 
 
+def _replace_in_paragraph_runs(para, mapping: dict[str, str]):
+    """Точечная замена текста в run-элементах без сброса вёрстки параграфа."""
+    for run in para.runs:
+        text = run.text
+        for old, new in mapping.items():
+            if old and old in text:
+                text = text.replace(old, new)
+        run.text = text
+
+
+def _replace_in_cell(cell, mapping: dict[str, str]):
+    for para in cell.paragraphs:
+        _replace_in_paragraph_runs(para, mapping)
+
+
+def _replace_in_table(table, mapping: dict[str, str]):
+    for row in table.rows:
+        for cell in row.cells:
+            _replace_in_cell(cell, mapping)
+
+
+def _replace_in_document_part(part, mapping: dict[str, str]):
+    """Заменяет плейсхолдеры в колонтитуле, сохраняя форматирование шаблона."""
+    for para in part.paragraphs:
+        _replace_in_paragraph_runs(para, mapping)
+    for table in part.tables:
+        _replace_in_table(table, mapping)
+
+
+def _replace_certificate_in_cell(cell, certificate: str):
+    """Подставляет номер удостоверения, сохраняя строку шаблона с точками."""
+    if not certificate:
+        return
+    for para in cell.paragraphs:
+        for run in para.runs:
+            if 'Удостоверение' in run.text:
+                run.text = re.sub(
+                    r'Удостоверение №[.\s…]+',
+                    f'Удостоверение № {certificate}',
+                    run.text,
+                )
+
+
+def _fill_header_card_number_cell(cell, card_num: str):
+    """Заполняет ячейку «№» в шапке, не пересобирая параграф."""
+    display = f'№ {card_num}'.strip() if card_num else '№'
+    if not cell.paragraphs:
+        cell.add_paragraph(display)
+        return
+    para = cell.paragraphs[0]
+    if para.runs:
+        para.runs[0].text = display
+        for run in para.runs[1:]:
+            run.text = ''
+    else:
+        para.add_run(display)
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
 def _fill_body_title_page(doc: Document, params: dict):
     """
-    Заполняет титульный лист в теле документа: параграфы
-    «Технологическая карта / радиографического контроля / № …».
+    Титульный лист в теле документа оставляем как в шаблоне:
+    крупный заголовок и отдельная строка «№» (номер — в шапке).
     """
-    card_num = params.get('card_number', '___')
+    card_num = (params.get('card_number') or '').strip()
+    if not card_num:
+        return
     for para in doc.paragraphs:
-        text = para.text.strip()
-        if text == '№' or (text.startswith('№') and len(text) <= 3):
-            for run in para.runs:
-                run.text = ''
-            run = para.runs[0] if para.runs else para.add_run()
-            run.text = f'№ {card_num}'
-            run.bold = True
-            run.font.size = Pt(14)
-            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            return
+        stripped = para.text.strip()
+        if stripped not in ('№', '№ '):
+            continue
+        if len(para.runs) >= 2:
+            para.runs[1].text = f' {card_num}'
+        elif para.runs:
+            para.runs[0].text = f'№ {card_num}'
+        else:
+            para.add_run(f'№ {card_num}')
+        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        return
 
 
 def _short_position_for_title_page(position: str) -> str:
@@ -1282,54 +1345,6 @@ def _short_position_for_title_page(position: str) -> str:
     if 'начальник' in lower and 'лаборатор' in lower:
         return 'Начальник лаборатории'
     return position or ''
-
-
-def _ensure_cell_paragraphs(cell, count: int):
-    """Гарантирует нужное число параграфов в ячейке таблицы."""
-    while len(cell.paragraphs) < count:
-        cell.add_paragraph()
-
-
-_DATE_SIGN_LABEL_DEV = (
-    '                                (дата)                                (подпись)'
-)
-_DATE_SIGN_LABEL_CHK = (
-    '                                                              (дата)                                (подпись)'
-)
-
-
-def _fill_first_page_signature_cell(
-    cell,
-    name: str,
-    date_str: str,
-    *,
-    certificate: str = '',
-    include_certificate: bool = False,
-    leading_space_on_date: bool = False,
-):
-    """Заполняет ячейку подписи титульного листа (многострочная вёрстка шаблона)."""
-    para_count = 4 if include_certificate else 3
-    _ensure_cell_paragraphs(cell, para_count)
-    _set_paragraph_text(cell.paragraphs[0], name or '', font_size=9)
-    date_line = f'«{date_str}» _________________'
-    if leading_space_on_date:
-        date_line = f' {date_line}'
-    _set_paragraph_text(cell.paragraphs[1], date_line, font_size=9)
-    label = _DATE_SIGN_LABEL_DEV if include_certificate else _DATE_SIGN_LABEL_CHK
-    _set_paragraph_text(cell.paragraphs[2], label, font_size=9)
-    if include_certificate:
-        cert_text = (
-            f'Удостоверение № {certificate}'
-            if certificate else 'Удостоверение №…………………………………'
-        )
-        _set_paragraph_text(cell.paragraphs[3], cert_text, font_size=9)
-
-
-def _fill_first_page_position_cell(cell, position: str):
-    """Первая строка должности в колонтитуле титула (пустая строка + должность)."""
-    _ensure_cell_paragraphs(cell, 2)
-    _set_paragraph_text(cell.paragraphs[0], '', font_size=9)
-    _set_paragraph_text(cell.paragraphs[1], position, font_size=9)
 
 
 def _add_table_borders(table):
@@ -1358,21 +1373,19 @@ def _fill_default_footer_table(table, params: dict):
     chk_name = params.get('checked_by_name', '')
     dev_cert = params.get('developed_by_certificate', '')
 
-    if len(table.rows) < 3:
-        return
-    _set_cell_text(table.rows[1].cells[0], dev_pos, font_size=9)
-    _set_cell_text(table.rows[1].cells[1], chk_pos, font_size=9)
-    dev_lines = []
-    if dev_name:
-        dev_lines.append(dev_name)
-    if dev_cert:
-        dev_lines.append(f'Удостоверение № {dev_cert}')
-    _set_cell_text(table.rows[2].cells[0], '\n'.join(dev_lines), font_size=9)
-    _set_cell_text(table.rows[2].cells[1], chk_name or '', font_size=9)
+    mapping = {
+        'Ведущий инженер технолог': dev_pos,
+        'Начальник лаборатории НК': chk_pos,
+        'Иванов Н.Н.': dev_name,
+        'Сидоров И.Н.': chk_name,
+    }
+    _replace_in_table(table, mapping)
+    if dev_cert and len(table.rows) >= 3:
+        _replace_certificate_in_cell(table.rows[2].cells[0], dev_cert)
 
 
 def _fill_first_page_footer_table(table, params: dict):
-    """Нижний колонтитул титульного листа (3×3, с датами и подписями)."""
+    """Нижний колонтитул титульного листа — точечная замена в вёрстке шаблона."""
     dev_date = params.get('develop_date', datetime.now().strftime('%d.%m.%Y'))
     check_date = params.get('check_date', dev_date)
     dev_pos = _short_position_for_title_page(
@@ -1387,16 +1400,19 @@ def _fill_first_page_footer_table(table, params: dict):
 
     if len(table.rows) < 3:
         return
-    _fill_first_page_position_cell(table.rows[1].cells[0], dev_pos)
-    _fill_first_page_position_cell(table.rows[1].cells[1], chk_pos)
-    _fill_first_page_signature_cell(
-        table.rows[2].cells[0], dev_name, dev_date,
-        certificate=dev_cert, include_certificate=True, leading_space_on_date=True,
-    )
-    _fill_first_page_signature_cell(
-        table.rows[2].cells[1], chk_name, check_date,
-        include_certificate=False,
-    )
+
+    _replace_in_cell(table.rows[1].cells[0], {'Ведущий инженер': dev_pos})
+    _replace_in_cell(table.rows[1].cells[1], {'Начальник лаборатории': chk_pos})
+    _replace_in_cell(table.rows[2].cells[0], {
+        'Иванов Н.Н.': dev_name,
+        '21.06.2026': dev_date,
+    })
+    _replace_in_cell(table.rows[2].cells[1], {
+        'Сидоров И.Н.': chk_name,
+        '21.06.2026': check_date,
+    })
+    if dev_cert:
+        _replace_certificate_in_cell(table.rows[2].cells[0], dev_cert)
 
 
 def _fill_template_headers_footers(doc: Document, params: dict):
@@ -1455,17 +1471,17 @@ def _fill_page_number_cell(cell):
 
 
 def _fill_template_header_table(table, params: dict):
-    """Заполняет шапку техкарты в структуре нового шаблона DOCX."""
+    """Заполняет шапку, сохраняя табличную вёрстку шаблона."""
     org = params.get('organization', '') or 'Наименование организации'
-    card_num = params.get('card_number', '___')
+    card_num = params.get('card_number', '')
     r0 = table.rows[0]
     r1 = table.rows[1]
-    _set_cell_text(r0.cells[0], org, font_size=8)
-    if len(r0.cells) > 1:
-        r0.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _set_cell_text(r1.cells[1], f'№ {card_num}', font_size=9)
+    _replace_in_cell(r0.cells[0], {
+        'ФГУП МАРКС': org,
+        'Наименование организации': org,
+    })
     if len(r1.cells) > 1:
-        r1.cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _fill_header_card_number_cell(r1.cells[1], card_num)
     if len(r1.cells) > 2:
         _fill_page_number_cell(r1.cells[2])
 
@@ -1622,10 +1638,24 @@ def _compact_document(doc: Document):
         ):
             paras_to_remove.append(para._element)
 
-    # 2. Убираем пустые параграфы без текста и без рисунков
+    # 2. Убираем пустые параграфы — сохраняем отступы титульного листа
+    title_para_idx = next(
+        (
+            i for i, p in enumerate(doc.paragraphs)
+            if p.text.strip().startswith('Технологическая карта')
+        ),
+        None,
+    )
+    title_spacing_ids = set()
+    if title_para_idx is not None:
+        for p in doc.paragraphs[:title_para_idx]:
+            title_spacing_ids.add(p._element)
+
     wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     for para_el in body.findall(f'{ns}p'):
         if para_el in paras_to_remove:
+            continue
+        if para_el in title_spacing_ids:
             continue
         has_drawing = bool(
             para_el.findall(f'.//{wp_ns}inline')

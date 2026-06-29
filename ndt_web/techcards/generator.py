@@ -92,7 +92,7 @@ def _format_date_ddmmyyyy(value) -> str:
 def _label_matches_value_key(label_text: str, key: str) -> bool:
     """
     Сопоставляет метку строки шаблона с ключом value_map.
-    «1.1» не должно совпадать с «1.10», «1.9» и т.п.
+    «1.1» не должно совпадать с «1.10»; «2.2» — с «4.2.2» и т.п.
     """
     if not label_text or not key:
         return False
@@ -103,9 +103,13 @@ def _label_matches_value_key(label_text: str, key: str) -> bool:
     if not key[0].isdigit():
         return True
     pos = label_lower.find(key_lower)
+    if pos > 0 and label_lower[pos - 1] in '.0123456789':
+        return False
     tail = label_lower[pos + len(key_lower):]
     if not tail:
         return True
+    if tail[0] == '.' and len(tail) > 1 and tail[1].isdigit():
+        return False
     return tail[0] in '.\t \xa0'
 
 
@@ -1124,6 +1128,11 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                 continue
 
             label_text = ucells[0].text.strip()
+            label_lower = label_text.lower()
+            # Раздел 4.2 заполняется отдельно (_fill_dimension_rows) по ГОСТ Р 59023.2-2020
+            if '4.2.' in label_lower or label_lower.startswith('4.2 '):
+                continue
+
             value_cell = ucells[-1] if len(ucells) >= 2 else None
 
             matched_value = _match_value_for_label(label_text, value_map)

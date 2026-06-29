@@ -1134,6 +1134,88 @@ class TemplateCommentsTests(TestCase):
             'WELD',
         )
 
+    def test_label_22_does_not_match_422(self):
+        from techcards.generator import _label_matches_value_key, _match_value_for_label
+        self.assertFalse(_label_matches_value_key('4.2.2 Длинна (листы/пластины)', '2.2'))
+        vmap = {'2.2': 'НП-105-18', '4.2.2': '15,0 ±4,0', '4.2.2 длин': '—'}
+        self.assertIsNone(
+            _match_value_for_label('4.2.2 Длинна (листы/пластины)', vmap),
+        )
+        self.assertIsNone(
+            _match_value_for_label(
+                '4.2.2. Ширина валиков усиления на наружной поверхности (е):',
+                vmap,
+            ),
+        )
+
+    def test_section_42_gost_dimensions_in_value_map(self):
+        from normative.gost_59023_2 import get_inspection_zone
+        from techcards.generator import _build_value_map, _fmt_mm
+
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        zone = get_inspection_zone('С-4', 20.0, '30')
+
+        self.assertEqual(params['e_display'], zone['e_display'])
+        self.assertEqual(params['e1_display'], zone['e1_display'])
+        self.assertEqual(params['g_display'], zone['g_display'])
+        self.assertEqual(params['haz_width_mm'], zone['haz_width_mm'])
+        self.assertEqual(params['zone_width_mm'], zone['zone_width_mm'])
+
+        vmap = _build_value_map(params)
+        self.assertEqual(vmap['4.2.2'], zone['e_display'])
+        self.assertEqual(vmap['4.2.2 e1'], zone['e1_display'])
+        self.assertEqual(vmap['4.2.3'], zone['g_display'])
+        self.assertIn(_fmt_mm(zone['haz_width_mm']), vmap['4.2.4'])
+        self.assertEqual(vmap['4.2.5'], _fmt_mm(zone['zone_width_mm']))
+
+    def test_section_42_gost_dimensions_in_docx(self):
+        from techcards.generator import (
+            generate_from_template, get_default_template_path, _unique_cells, _fmt_mm,
+        )
+        from normative.gost_59023_2 import get_inspection_zone
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        zone = get_inspection_zone('С-4', 20.0, '30')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            rows = {}
+            for row in doc.tables[0].rows:
+                ucells = _unique_cells(row)
+                if ucells:
+                    rows[ucells[0].text.strip().lower()] = [c.text.strip() for c in ucells]
+
+            length_row = next(
+                v for k, v in rows.items() if '4.2.2' in k and 'длинна' in k
+            )
+            self.assertEqual(length_row[1], '—')
+            self.assertNotIn('НП-105-18', length_row)
+
+            width_row = next(
+                v for k, v in rows.items() if 'наружной поверхности' in k
+            )
+            self.assertEqual(width_row[1], zone['e_display'])
+            self.assertEqual(width_row[3], zone['e1_display'])
+
+            height_row = next(v for k, v in rows.items() if '4.2.3' in k and 'высота' in k)
+            self.assertEqual(height_row[-1], zone['g_display'])
+
+            haz_row = next(v for k, v in rows.items() if '4.2.4' in k and 'околошовной' in k)
+            self.assertIn(_fmt_mm(zone['haz_width_mm']), haz_row[1])
+            self.assertEqual(haz_row[3], _fmt_mm(zone['zone_width_mm']))
+
     def test_isotope_focal_spot_defaults_to_3mm(self):
         calc = RadiographicTechCardCalculator(self.pipe_input)
         params = calc.calculate()

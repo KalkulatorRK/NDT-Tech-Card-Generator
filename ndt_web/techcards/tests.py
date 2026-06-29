@@ -1106,6 +1106,34 @@ class TemplateCommentsTests(TestCase):
         params = calc.calculate()
         self.assertEqual(params['weld_material'], '12Х18Н10Т')
 
+    def test_welding_material_same_as_base_sentinel(self):
+        data = dict(self.pipe_input, welding_material='same_as_base')
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['weld_material'], '12Х18Н10Т')
+
+    def test_dates_formatted_ddmmyyyy_from_iso(self):
+        data = dict(
+            self.pipe_input,
+            develop_date='2026-06-21',
+            check_date='2026-12-31',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['develop_date'], '21.06.2026')
+        self.assertEqual(params['check_date'], '31.12.2026')
+
+    def test_label_110_does_not_match_11(self):
+        from techcards.generator import _label_matches_value_key, _match_value_for_label
+        self.assertTrue(_label_matches_value_key('1.1 Предприятие', '1.1'))
+        self.assertFalse(_label_matches_value_key('1.10. Марка сварочного материала', '1.1'))
+        self.assertTrue(_label_matches_value_key('1.10. Марка сварочного материала', '1.10'))
+        vmap = {'1.1': 'ORG', '1.10': 'WELD', '1.9': 'BASE'}
+        self.assertEqual(
+            _match_value_for_label('1.10. Марка сварочного материала', vmap),
+            'WELD',
+        )
+
     def test_isotope_focal_spot_defaults_to_3mm(self):
         calc = RadiographicTechCardCalculator(self.pipe_input)
         params = calc.calculate()
@@ -1304,3 +1332,43 @@ class TemplateCommentsTests(TestCase):
                 ).group(0)
             self.assertIn('titlePg', sect_xml)
             self.assertIn('w:type="first"', sect_xml)
+
+    def test_generated_docx_has_materials_and_no_comments(self):
+        """П. 1.9/1.10 и отсутствие служебных комментариев в готовой техкарте."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+        )
+        import tempfile
+        import zipfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        data = dict(
+            self.pipe_input,
+            material='12Х18Н10Т',
+            welding_material='same_as_base',
+            develop_date='2026-06-21',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            def _row_value(table, fragment):
+                for row in table.rows:
+                    if fragment in row.cells[0].text:
+                        return row.cells[-1].text.strip()
+                return ''
+            main = doc.tables[0]
+            self.assertEqual(_row_value(main, '1.9'), '12Х18Н10Т')
+            self.assertEqual(_row_value(main, '1.10'), '12Х18Н10Т')
+            with zipfile.ZipFile(out) as zf:
+                doc_xml = zf.read('word/document.xml').decode('utf-8')
+            self.assertNotIn('commentRangeStart', doc_xml)
+            self.assertNotIn('commentReference', doc_xml)
+            self.assertEqual(params['develop_date'], '21.06.2026')

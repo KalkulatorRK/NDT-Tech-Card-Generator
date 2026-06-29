@@ -76,6 +76,54 @@ def _unique_cells(row):
     return seen
 
 
+def _format_date_ddmmyyyy(value) -> str:
+    """Форматирует дату для техкарты: дд.мм.гггг (в т.ч. из ISO YYYY-MM-DD)."""
+    if value is None or value == '':
+        return datetime.now().strftime('%d.%m.%Y')
+    if hasattr(value, 'strftime'):
+        return value.strftime('%d.%m.%Y')
+    s = str(value).strip()
+    iso = re.match(r'^(\d{4})-(\d{2})-(\d{2})', s)
+    if iso:
+        return f'{iso.group(3)}.{iso.group(2)}.{iso.group(1)}'
+    return s
+
+
+def _label_matches_value_key(label_text: str, key: str) -> bool:
+    """
+    Сопоставляет метку строки шаблона с ключом value_map.
+    «1.1» не должно совпадать с «1.10», «1.9» и т.п.
+    """
+    if not label_text or not key:
+        return False
+    label_lower = label_text.lower()
+    key_lower = key.lower()
+    if key_lower not in label_lower:
+        return False
+    if not key[0].isdigit():
+        return True
+    pos = label_lower.find(key_lower)
+    tail = label_lower[pos + len(key_lower):]
+    if not tail:
+        return True
+    return tail[0] in '.\t \xa0'
+
+
+def _match_value_for_label(label_text: str, value_map: dict):
+    """Возвращает значение для метки (приоритет у более длинных ключей)."""
+    for key in sorted(value_map.keys(), key=len, reverse=True):
+        if not _label_matches_value_key(label_text, key):
+            continue
+        if key.startswith('4.2.') and key not in ('4.2.3',):
+            if any(x in label_text.lower() for x in (
+                'внешний диаметр', 'длинна', 'длина', 'наружной поверхности',
+                'околошовной', '4.2.6',
+            )):
+                continue
+        return value_map[key]
+    return None
+
+
 def _set_cell_text(cell, text: str, bold: bool = False, font_size: int = 9):
     """Устанавливает текст в ячейке таблицы, сохраняя стиль."""
     for para in cell.paragraphs:
@@ -193,17 +241,16 @@ class RadiographicTechCardCalculator:
         else:
             focal_spot = float(focal_raw)
 
-        develop_date = d.get('develop_date', '')
-        if hasattr(develop_date, 'strftime'):
-            develop_date = develop_date.strftime('%d.%m.%Y')
-        elif not develop_date:
-            develop_date = datetime.now().strftime('%d.%m.%Y')
-
-        check_date = d.get('check_date', '')
-        if hasattr(check_date, 'strftime'):
-            check_date = check_date.strftime('%d.%m.%Y')
-        elif not check_date:
+        develop_date = _format_date_ddmmyyyy(d.get('develop_date', ''))
+        raw_check = d.get('check_date', '')
+        if (
+            raw_check is None
+            or raw_check == ''
+            or (isinstance(raw_check, str) and not raw_check.strip())
+        ):
             check_date = develop_date
+        else:
+            check_date = _format_date_ddmmyyyy(raw_check)
 
         material_display = get_material_display_name(
             d.get('material', ''),
@@ -1066,6 +1113,7 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     :return: путь к созданному файлу
     """
     doc = Document(template_path)
+    _remove_docx_comments(doc)
     value_map = _build_value_map(params)
 
     # --- Замена в таблицах ---
@@ -1078,19 +1126,7 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
             label_text = ucells[0].text.strip()
             value_cell = ucells[-1] if len(ucells) >= 2 else None
 
-            # Ищем совпадение по фрагменту метки
-            matched_value = None
-            for key, val in value_map.items():
-                if key.lower() in label_text.lower() and label_text != '':
-                    # Многоячеечные строки 4.2 заполняются отдельно
-                    if key.startswith('4.2.') and key not in ('4.2.3',):
-                        if any(x in label_text.lower() for x in (
-                            'внешний диаметр', 'длинна', 'длина', 'наружной поверхности',
-                            'околошовной', '4.2.6',
-                        )):
-                            continue
-                    matched_value = val
-                    break
+            matched_value = _match_value_for_label(label_text, value_map)
 
             if matched_value is not None and value_cell is not None:
                 # Не перезаписываем, если ячейка та же что и метка
@@ -1226,6 +1262,30 @@ def _insert_page_number_field(para):
     para.add_run('    ')
     _field_run(' NUMPAGES ')
     para.add_run(' страниц')
+
+
+def _remove_docx_comments(doc: Document):
+    """Удаляет комментарии Word из документа (служебные пометки шаблона)."""
+    w_ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    comment_tags = (
+        f'{{{w_ns}commentRangeStart',
+        f'{{{w_ns}commentRangeEnd',
+        f'{{{w_ns}commentReference',
+    )
+    roots = [doc.element.body]
+    for section in doc.sections:
+        roots.extend([
+            section.header._element,
+            section.footer._element,
+            section.first_page_header._element,
+            section.first_page_footer._element,
+        ])
+    for root in roots:
+        for tag in comment_tags:
+            for el in list(root.iter(tag)):
+                parent = el.getparent()
+                if parent is not None:
+                    parent.remove(el)
 
 
 def _clear_header_footer_part(part):

@@ -913,11 +913,12 @@ def resolve_welding_material(
     welding_material_custom: str,
     base_material_display: str,
 ) -> str:
-    """Определяет марку сварочного материала для техкарты."""
+    """Определяет марку сварочного материала для техкарты (п. 1.10)."""
     custom = (welding_material_custom or '').strip()
     if custom:
         return custom
     selected = (welding_material or '').strip()
-    if selected:
-        return selected
-    return base_material_display
+    if not selected or selected == 'same_as_base':
+        return base_material_display
+    display = get_material_display_name(selected, '')
+    return display or selected

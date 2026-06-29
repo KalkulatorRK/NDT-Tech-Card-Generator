@@ -1209,6 +1209,7 @@ class TemplateCommentsTests(TestCase):
         import re
         from docx import Document
         from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml.ns import qn
 
         template = get_default_template_path()
         if not template:
@@ -1251,6 +1252,30 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('ТестОрг', header_text)
             self.assertNotIn('ФГУП МАРКС', header_text)
             self.assertNotIn('Иванов', header_text)
+            self.assertIn('Страница', header_text)
+            self.assertIn('страниц', header_text)
+
+            body = doc.element.body
+            ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+            first_tbl = next(
+                c for c in body if c.tag.split('}')[-1] == 'tbl'
+            )
+            prev = first_tbl.getprevious()
+            self.assertIsNotNone(prev)
+            self.assertEqual(prev.tag.split('}')[-1], 'p')
+            br_type = prev.find(f'.//{ns}br')
+            self.assertIsNotNone(br_type)
+            self.assertEqual(br_type.get(qn('w:type')), 'page')
+            for child in list(body):
+                if child is first_tbl:
+                    break
+                self.assertNotEqual(child.tag.split('}')[-1], 'tbl')
+
+            with zipfile.ZipFile(out) as zf:
+                header_xml = zf.read('word/header1.xml').decode('utf-8')
+            self.assertIn('Страница', header_xml)
+            self.assertIn('NUMPAGES', header_xml)
+            self.assertIn('PAGE', header_xml)
 
             default_footer = ' '.join(
                 cell.text for table in section.footer.tables

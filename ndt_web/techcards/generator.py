@@ -1112,6 +1112,9 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # --- Компактизация документа ---
     _compact_document(doc)
 
+    # Титул — только обложка; таблицы техкарты со 2-й страницы
+    _insert_page_break_before_first_table(doc)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
     return output_path
@@ -1200,17 +1203,12 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
 # Генерация PDF
 # ---------------------------------------------------------------
 
-def _insert_page_number_field(para, prefix: str = '', suffix: str = ''):
+def _insert_page_number_field(para):
     """
-    Вставляет в параграф поле PAGE / NUMPAGES (номер страницы / всего страниц).
-    Используется для колонтитулов Word.
-
-    :param para: объект параграфа
-    :param prefix: текст перед номером страницы
-    :param suffix: текст после номера всего страниц
+    Вставляет в параграф нумерацию «Страница N    M страниц».
+    Используется для колонтитулов Word (поля PAGE / NUMPAGES).
     """
     def _field_run(instr_text: str):
-        """Вставляет одно поле Word."""
         run = para.add_run()
         fc_begin = OxmlElement('w:fldChar')
         fc_begin.set(qn('w:fldCharType'), 'begin')
@@ -1223,13 +1221,11 @@ def _insert_page_number_field(para, prefix: str = '', suffix: str = ''):
         run._r.append(instr)
         run._r.append(fc_end)
 
-    if prefix:
-        para.add_run(prefix)
+    para.add_run('Страница ')
     _field_run(' PAGE ')
-    para.add_run('\nЛистов ')
+    para.add_run('    ')
     _field_run(' NUMPAGES ')
-    if suffix:
-        para.add_run(suffix)
+    para.add_run(' страниц')
 
 
 def _clear_header_footer_part(part):
@@ -1467,7 +1463,26 @@ def _fill_page_number_cell(cell):
     for para in cell.paragraphs:
         _clear_paragraph_content(para)
     para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
-    _insert_page_number_field(para, prefix='Лист ')
+    _insert_page_number_field(para)
+
+
+def _insert_page_break_before_first_table(doc: Document):
+    """
+    Вставляет разрыв страницы перед первой таблицей тела документа.
+    Титульный лист остаётся без таблиц техкарты (как обложка).
+    """
+    body = doc.element.body
+    for child in list(body):
+        if child.tag.split('}')[-1] != 'tbl':
+            continue
+        p_el = OxmlElement('w:p')
+        r_el = OxmlElement('w:r')
+        br_el = OxmlElement('w:br')
+        br_el.set(qn('w:type'), 'page')
+        r_el.append(br_el)
+        p_el.append(r_el)
+        body.insert(list(body).index(child), p_el)
+        return
 
 
 def _fill_template_header_table(table, params: dict):
@@ -1529,7 +1544,7 @@ def _build_headers_footers_scratch(doc: Document, params: dict):
 
     # Поле нумерации страниц в правой ячейке
     page_para = r1.cells[2].paragraphs[0]
-    _insert_page_number_field(page_para, prefix='Лист ')
+    _insert_page_number_field(page_para)
 
     # ---- Нижний колонтитул ----
     footer = section.footer

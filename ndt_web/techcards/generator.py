@@ -304,6 +304,8 @@ class RadiographicTechCardCalculator:
         self.params['joint_groove'] = joint_info.get('groove', '')
         self.params['joint_name'] = joint_info.get('name', joint_code)
         self.params['joint_sketch'] = joint_info.get('sketch', '')
+        from normative.gost_59023_2 import get_joint_image_path
+        self.params['joint_image'] = get_joint_image_path(joint_code)
 
     def _calc_sensitivity_value(self):
         """
@@ -854,6 +856,158 @@ def _build_value_map(params: dict) -> dict:
     }
 
 
+def _set_paragraph_text(para, text: str, *, font_size: int = 9, bold: bool = False):
+    """Заменяет текст параграфа, сохраняя стиль."""
+    for run in para.runs:
+        run.text = ''
+    if para.runs:
+        run = para.runs[0]
+    else:
+        run = para.add_run()
+    run.text = str(text) if text is not None else ''
+    run.bold = bold
+    run.font.size = Pt(font_size)
+
+
+def _paragraph_has_drawing(para) -> bool:
+    wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
+    el = para._element
+    return bool(el.findall(f'.//{wp_ns}inline') or el.findall(f'.//{wp_ns}anchor'))
+
+
+def _clear_paragraph_content(para):
+    """Удаляет все run-элементы параграфа (в т.ч. встроенные рисунки)."""
+    p_el = para._element
+    for child in list(p_el):
+        if child.tag.endswith('}r'):
+            p_el.remove(child)
+
+
+def _resolve_static_image_path(static_root: str, image_rel: str) -> str | None:
+    """Ищет файл изображения относительно каталога static/."""
+    if not image_rel or not static_root:
+        return None
+    rel = image_rel.replace('\\', '/').lstrip('/')
+    if rel.startswith('img/'):
+        candidates = [os.path.join(static_root, rel)]
+    else:
+        candidates = [
+            os.path.join(static_root, 'img', 'welds', rel),
+            os.path.join(static_root, rel),
+            os.path.join(static_root, 'img', rel),
+        ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _picture_source_for_docx(image_path: str):
+    """Возвращает путь или BytesIO для add_picture (в т.ч. SVG → PNG)."""
+    if image_path.lower().endswith('.svg'):
+        try:
+            import cairosvg
+            return io.BytesIO(cairosvg.svg2png(url=image_path))
+        except Exception:
+            logger.warning('Не удалось конвертировать SVG для DOCX: %s', image_path)
+            return None
+    return image_path
+
+
+def _insert_picture_in_paragraph(para, image_path: str, width_mm: float = 40):
+    """Вставляет изображение в параграф DOCX."""
+    source = _picture_source_for_docx(image_path)
+    if source is None:
+        return False
+    _clear_paragraph_content(para)
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = para.add_run()
+    run.add_picture(source, width=Mm(width_mm))
+    return True
+
+
+def _find_paragraph_index(doc: Document, fragment: str) -> int:
+    needle = fragment.lower()
+    for idx, para in enumerate(doc.paragraphs):
+        if needle in para.text.lower():
+            return idx
+    return -1
+
+
+def _insert_joint_sketch_into_docx(doc: Document, params: dict, static_root: str):
+    """
+    Вставляет эскиз сварного соединения в п. 4.3 шаблона техкарты.
+
+    Используется то же изображение, что на шаге 3 (get_joint_image_path).
+    """
+    from normative.gost_59023_2 import get_joint_image_path
+
+    idx = _find_paragraph_index(doc, '4.3')
+    if idx < 0 or 'эскиз' not in doc.paragraphs[idx].text.lower():
+        return
+
+    joint_code = params.get('joint_designation', '')
+    image_rel = params.get('joint_image') or get_joint_image_path(joint_code)
+    image_path = _resolve_static_image_path(static_root, image_rel)
+    if not image_path:
+        logger.warning('Эскиз шва не найден: %s', image_rel)
+        return
+
+    if idx + 1 < len(doc.paragraphs):
+        _insert_picture_in_paragraph(doc.paragraphs[idx + 1], image_path, width_mm=42)
+
+    if idx + 2 < len(doc.paragraphs):
+        caption = doc.paragraphs[idx + 2]
+        if joint_code:
+            _set_paragraph_text(
+                caption,
+                f'Сварное соединение {joint_code} по ГОСТ Р 59023.2-2020',
+                font_size=9,
+            )
+
+
+def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: str):
+    """
+    Вставляет изображение схемы просвечивания в п. 6.9 (параграфы шаблона).
+    """
+    scheme_info = params.get('scheme_info') or {}
+    image_rel = scheme_info.get('image', '')
+    if not image_rel:
+        return
+
+    image_path = _resolve_static_image_path(static_root, image_rel)
+    if not image_path:
+        return
+
+    idx = _find_paragraph_index(doc, '6.9')
+    if idx < 0:
+        return
+
+    scheme_name = scheme_info.get('name') or params.get('scheme_type', '')
+    scheme_desc = scheme_info.get('description', '')
+    caption_text = ' '.join(filter(None, [scheme_name, scheme_desc])).strip()
+
+    image_paras = []
+    caption_para = None
+    for para in doc.paragraphs[idx + 1: idx + 8]:
+        text = para.text.strip()
+        if _paragraph_has_drawing(para):
+            image_paras.append(para)
+        elif text and 'черт' in text.lower():
+            caption_para = para
+            break
+
+    if image_paras:
+        _insert_picture_in_paragraph(image_paras[0], image_path, width_mm=45)
+        for extra in image_paras[1:]:
+            _clear_paragraph_content(extra)
+
+    if caption_para and caption_text:
+        _set_paragraph_text(caption_para, caption_text, font_size=9)
+    elif caption_text and idx + 4 < len(doc.paragraphs):
+        _set_paragraph_text(doc.paragraphs[idx + 4], caption_text, font_size=9)
+
+
 def _fill_dimension_rows(doc: Document, value_map: dict):
     """Заполняет многоячеечные строки раздела 4.2 шаблона техкарты."""
     for table in doc.tables:
@@ -971,8 +1125,8 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
                             run.text = run.text.replace('_21_»_01___2012г.', f'«{dev_date}»')
                             run.text = run.text.replace('«_21_»_01___2012_г.', f'«{dev_date}»')
 
-    # --- Вставка изображения схемы просвечивания ОТКЛЮЧЕНА ---
-    # (по требованию: изображение схемы в техкарту не вставляется)
+    _insert_joint_sketch_into_docx(doc, params, static_root)
+    _insert_scheme_section_into_docx(doc, params, static_root)
 
     # --- Настройка колонтитулов Word ---
     _remove_inline_header_footer_tables(doc)
@@ -1339,20 +1493,23 @@ def _compact_document(doc: Document):
         # Убираем: заголовок-образец, служебные надписи
         if (
             'Пример технологической карты' in text
-            or text == 'Технологическая карта радиографического контроля'
             or 'Heading' in style_name
         ):
             paras_to_remove.append(para._element)
 
-    # 2. Убираем все пустые параграфы в теле документа (между таблицами)
+    # 2. Убираем пустые параграфы без текста и без рисунков
+    wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     for para_el in body.findall(f'{ns}p'):
         if para_el in paras_to_remove:
             continue
-        runs = para_el.findall(f'.//{ns}r')
+        has_drawing = bool(
+            para_el.findall(f'.//{wp_ns}inline')
+            or para_el.findall(f'.//{wp_ns}anchor')
+        )
         text = ''.join(
             t.text or '' for t in para_el.findall(f'.//{ns}t')
         ).strip()
-        if not text and not runs:
+        if not text and not has_drawing:
             paras_to_remove.append(para_el)
 
     for el in paras_to_remove:
@@ -1650,14 +1807,16 @@ def generate_tech_card(input_data: dict, media_root: str,
 
 
 def get_default_template_path() -> str | None:
-    """Путь к шаблону DOCX, если файл загружен в card_templates/ или normative_docs/."""
+    """Путь к шаблону DOCX техкарты (эталон — normative_docs/)."""
     from django.conf import settings as django_settings
     candidates = [
-        os.path.join(django_settings.BASE_DIR, 'card_templates',
-                     'Пример технологической карты радиографического контроля.docx'),
         os.path.join(
             django_settings.BASE_DIR, 'normative_docs',
             'Пример_технологической_карты_радиографического_контроля  с комментариями.docx',
+        ),
+        os.path.join(
+            django_settings.BASE_DIR, 'card_templates',
+            'Пример технологической карты радиографического контроля.docx',
         ),
     ]
     for template_path in candidates:

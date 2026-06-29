@@ -1163,8 +1163,11 @@ class TemplateCommentsTests(TestCase):
         self.assertEqual(params['backing_thickness_mm'], 3.0)
 
     def test_generate_from_template_fills_dimension_rows(self):
-        from techcards.generator import generate_from_template, get_default_template_path
+        from techcards.generator import (
+            generate_from_template, get_default_template_path, _paragraph_has_drawing,
+        )
         import tempfile
+        from docx import Document
         template = get_default_template_path()
         if not template:
             self.skipTest('Шаблон DOCX не найден')
@@ -1172,9 +1175,10 @@ class TemplateCommentsTests(TestCase):
         params = calc.calculate()
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, 'card.docx')
-            generate_from_template(params, template, out)
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
             self.assertGreater(os.path.getsize(out), 5000)
-            from docx import Document
             doc = Document(out)
             table_text = ' '.join(
                 cell.text for table in doc.tables for row in table.rows for cell in row.cells
@@ -1182,3 +1186,15 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('12Х18Н10Т', table_text)
             self.assertIn('неповоротное', table_text)
             self.assertIn('3,0', table_text)
+
+            sketch_heading = next(
+                (p for p in doc.paragraphs if '4.3' in p.text and 'Эскиз' in p.text),
+                None,
+            )
+            self.assertIsNotNone(sketch_heading)
+            caption = next(
+                (p for p in doc.paragraphs if 'Сварное соединение С-4' in p.text),
+                None,
+            )
+            self.assertIsNotNone(caption)
+            self.assertTrue(any(_paragraph_has_drawing(p) for p in doc.paragraphs))

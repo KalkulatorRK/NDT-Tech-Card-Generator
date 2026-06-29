@@ -1037,6 +1037,46 @@ class DocumentKindTests(TestCase):
         self.assertGreater(os.path.getsize(full), 1900)
 
 
+class SessionSerializationTests(TestCase):
+    """Сессия техкарты должна сохранять только JSON-совместимые типы."""
+
+    def test_session_safe_data_converts_dates(self):
+        from techcards.views import _session_safe_data
+        from datetime import date, datetime
+        result = _session_safe_data({
+            'develop_date': date(2026, 6, 21),
+            'checked_at': datetime(2026, 6, 21, 12, 30),
+        })
+        self.assertEqual(result['develop_date'], '2026-06-21')
+        self.assertEqual(result['checked_at'], '2026-06-21T12:30:00')
+
+    def test_step1_post_stores_dates_in_session(self):
+        user = User.objects.create_user(
+            'step1user', email='step1@test.com', password='pass123', email_verified=True,
+        )
+        UserBalance.objects.create(user=user, techcard_credits=10)
+        NormativeDocument.objects.create(
+            code='ГОСТ Р 50.05.07-2018',
+            full_name='Радиографический контроль',
+            control_method='RT',
+            is_implemented=True,
+        )
+        self.client.login(username='step1user', password='pass123')
+        response = self.client.post(
+            '/techcards/create/ГОСТ Р 50.05.07-2018/step1/',
+            {
+                'object_name': 'Трубопровод',
+                'weld_number': 'Ш-01',
+                'develop_date': '2026-06-21',
+                'check_date': '2026-06-21',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        session_data = self.client.session.get('techcard_data', {})
+        self.assertEqual(session_data.get('develop_date'), '2026-06-21')
+        self.assertEqual(session_data.get('check_date'), '2026-06-21')
+
+
 class TemplateCommentsTests(TestCase):
     """Требования из комментариев к шаблону техкарты DOCX."""
 

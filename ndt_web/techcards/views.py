@@ -7,6 +7,8 @@
 
 import json
 import os
+from datetime import date, datetime
+from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -180,6 +182,21 @@ def build_step3_scheme_data(
     }
 
 
+def _session_safe_value(value):
+    """Приводит значения к типам, совместимым с JSON-сериализацией сессии Django."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
+
+def _session_safe_data(data: dict) -> dict:
+    return {key: _session_safe_value(val) for key, val in data.items()}
+
+
 def _get_session_data(request) -> dict:
     """Получает данные из сессии."""
     return request.session.get(SESSION_KEY, {})
@@ -188,7 +205,7 @@ def _get_session_data(request) -> dict:
 def _save_session_data(request, data: dict):
     """Сохраняет данные в сессию."""
     existing = _get_session_data(request)
-    existing.update(data)
+    existing.update(_session_safe_data(data))
     request.session[SESSION_KEY] = existing
     request.session.modified = True
 

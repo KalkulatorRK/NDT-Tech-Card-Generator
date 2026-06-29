@@ -1201,7 +1201,8 @@ class TemplateCommentsTests(TestCase):
                 v for k, v in rows.items() if '4.2.2' in k and 'длинна' in k
             )
             self.assertEqual(length_row[1], '—')
-            self.assertNotIn('НП-105-18', length_row)
+            # В 4-й колонке шаблона — ссылка на НП-105-18 (не подменяется генератором)
+            self.assertEqual(length_row[-1], 'НП-105-18')
 
             width_row = next(
                 v for k, v in rows.items() if 'наружной поверхности' in k

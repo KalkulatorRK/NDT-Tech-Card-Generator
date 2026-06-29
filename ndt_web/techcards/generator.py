@@ -1240,9 +1240,6 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # Служебные заголовки-образцы (без удаления пустых абзацев-отступов)
     _compact_document(doc)
 
-    # Разрывы страниц: титул, п. 4.3, 6.9, разделы 7–10
-    _apply_reference_page_breaks(doc)
-
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
     return output_path
@@ -1675,113 +1672,6 @@ def _fill_page_number_cell(cell):
             _copy_run_font(ref, run)
         elif not run.font.size:
             run.font.size = Pt(12)
-
-
-def _insert_page_break_paragraph_before(element):
-    """Вставляет параграф с разрывом страницы непосредственно перед элементом body."""
-    parent = element.getparent()
-    if parent is None:
-        return
-    idx = list(parent).index(element)
-    if idx > 0 and _element_has_page_break(list(parent)[idx - 1]):
-        return
-    p_el = OxmlElement('w:p')
-    r_el = OxmlElement('w:r')
-    br_el = OxmlElement('w:br')
-    br_el.set(qn('w:type'), 'page')
-    r_el.append(br_el)
-    p_el.append(r_el)
-    parent.insert(idx, p_el)
-
-
-def _element_has_page_break(el) -> bool:
-    """True, если в элементе уже есть разрыв страницы."""
-    ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-    if el.tag.split('}')[-1] != 'p':
-        return False
-    for br in el.findall(f'.//{ns}br'):
-        if br.get(qn('w:type')) == 'page':
-            return True
-    p_pr = el.find(f'{ns}pPr')
-    if p_pr is not None and p_pr.find(f'{ns}pageBreakBefore') is not None:
-        return True
-    return False
-
-
-def _body_has_page_break_before(element) -> bool:
-    """Проверяет, есть ли разрыв страницы непосредственно перед элементом."""
-    parent = element.getparent()
-    if parent is None:
-        return False
-    idx = list(parent).index(element)
-    if idx == 0:
-        return False
-    return _element_has_page_break(list(parent)[idx - 1])
-
-
-def _ensure_page_break_before(element):
-    """Гарантирует разрыв страницы перед элементом (без дублирования)."""
-    if _body_has_page_break_before(element):
-        return
-    p_pr = element.find(qn('w:pPr'))
-    if p_pr is not None and p_pr.find(qn('w:pageBreakBefore')) is not None:
-        return
-    _insert_page_break_paragraph_before(element)
-
-
-def _find_body_paragraph(doc: Document, *needles: str):
-    """Ищет параграф тела документа, содержащий все фрагменты."""
-    for para in doc.paragraphs:
-        lower = para.text.lower()
-        if all(n.lower() in lower for n in needles):
-            return para
-    return None
-
-
-def _table_starts_with_section(table, section_num: str) -> bool:
-    """True, если первая ячейка таблицы — заголовок раздела N."""
-    if not table.rows:
-        return False
-    text = table.rows[0].cells[0].text.strip().lstrip('\ufeff')
-    prefixes = (f'{section_num}.', f'{section_num}\xa0', f'{section_num} ')
-    return any(text.startswith(p) for p in prefixes)
-
-
-def _apply_reference_page_breaks(doc: Document):
-    """
-    Разрывы страниц по эталонному шаблону card_templates:
-    - титул отдельно от таблиц (если в шаблоне ещё нет);
-    - п. 4.3, 6.9;
-    - таблицы разделов 7, 8, 9, 10 — каждая с нового листа.
-    """
-    body = doc.element.body
-    children = list(body)
-
-    first_tbl = next(
-        (c for c in children if c.tag.split('}')[-1] == 'tbl'),
-        None,
-    )
-    if first_tbl is not None and not _body_has_page_break_before(first_tbl):
-        has_break_before_table = any(
-            child.tag.split('}')[-1] == 'p' and _element_has_page_break(child)
-            for child in children[:children.index(first_tbl)]
-        )
-        if not has_break_before_table:
-            _ensure_page_break_before(first_tbl)
-
-    para_43 = _find_body_paragraph(doc, '4.3', 'эскиз')
-    if para_43 is not None:
-        _ensure_page_break_before(para_43._element)
-
-    para_69 = _find_body_paragraph(doc, '6.9', 'схема')
-    if para_69 is not None:
-        _ensure_page_break_before(para_69._element)
-
-    for section_num in ('7', '8', '9', '10'):
-        for table in doc.tables:
-            if _table_starts_with_section(table, section_num):
-                _ensure_page_break_before(table._tbl)
-                break
 
 
 def _insert_page_break_before_first_table(doc: Document):

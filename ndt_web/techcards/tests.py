@@ -1466,7 +1466,8 @@ class TemplateCommentsTests(TestCase):
             static_root = str(settings.STATICFILES_DIRS[0])
             generate_from_template(params, template, out, static_root=static_root)
             gen_breaks, gen_empty = _layout_stats(out)
-            self.assertEqual(gen_breaks, tpl_breaks)
+            # +1 разрыв перед п. 4.3 (начало страницы 3)
+            self.assertEqual(gen_breaks, tpl_breaks + 1)
             # Перед п. 4.3 остаётся 1 пустая строка вместо 4 в шаблоне
             self.assertGreaterEqual(gen_empty, tpl_empty - 5)
 
@@ -1588,3 +1589,195 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('Страница ', header_xml)
             self.assertNotIn('Страница    ', header_xml)
             self.assertIn('NUMPAGES', header_xml)
+
+    def test_section_102_contains_acceptance_table(self):
+        """П. 10.2 — вложенная таблица норм по табл. 4.8 для стали кат. II."""
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            cell = row_102.cells[0]
+            self.assertIn('таблица N 4.8', cell.text)
+            self.assertIn('20,0', cell.text)
+            nested = cell.tables
+            self.assertEqual(len(nested), 1)
+            self.assertGreater(len(nested[0].rows), 1)
+            data_row = ' '.join(c.text for c in nested[0].rows[1].cells)
+            self.assertIn('2,5', data_row)
+
+    def test_section_102_aluminum_uses_table_410(self):
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        data = dict(
+            self.pipe_input,
+            material='__aluminum__',
+            material_custom='АМг6',
+            weld_category='II',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            self.assertIn('таблица N 4.10', row_102.cells[0].text)
+
+    def test_section_43_has_page_break_before_gap(self):
+        """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _is_empty_body_paragraph, _paragraph_has_page_break,
+        )
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            para_43 = next(
+                p for p in doc.paragraphs if '4.3' in p.text and 'эскиз' in p.text.lower()
+            )
+            empty = 0
+            prev = para_43._element.getprevious()
+            while prev is not None and _is_empty_body_paragraph(prev):
+                empty += 1
+                prev = prev.getprevious()
+            self.assertEqual(empty, 1)
+            if prev is not None:
+                self.assertTrue(_paragraph_has_page_break(prev))
+
+    def test_section_102_contains_acceptance_table(self):
+        """П. 10.2 — вложенная таблица норм по табл. 4.8 для стали кат. II."""
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            cell = row_102.cells[0]
+            self.assertIn('таблица N 4.8', cell.text)
+            self.assertIn('20,0', cell.text)
+            nested = cell.tables
+            self.assertEqual(len(nested), 1)
+            self.assertGreater(len(nested[0].rows), 1)
+            data_row = ' '.join(c.text for c in nested[0].rows[1].cells)
+            self.assertIn('2,5', data_row)
+
+    def test_section_102_aluminum_uses_table_410(self):
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        data = dict(
+            self.pipe_input,
+            material='__aluminum__',
+            material_custom='АМг6',
+            weld_category='II',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            self.assertIn('таблица N 4.10', row_102.cells[0].text)
+
+    def test_section_43_has_page_break_before_gap(self):
+        """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _is_empty_body_paragraph, _paragraph_has_page_break,
+        )
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            para_43 = next(
+                p for p in doc.paragraphs if '4.3' in p.text and 'эскиз' in p.text.lower()
+            )
+            empty = 0
+            prev = para_43._element.getprevious()
+            while prev is not None and _is_empty_body_paragraph(prev):
+                empty += 1
+                prev = prev.getprevious()
+            self.assertEqual(empty, 1)
+            if prev is not None:
+                self.assertTrue(_paragraph_has_page_break(prev))

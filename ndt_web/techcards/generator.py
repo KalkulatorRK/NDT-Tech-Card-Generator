@@ -53,7 +53,11 @@ from normative.gost_59023_2 import (
     format_dimension_with_tolerance,
 )
 from normative.np_104_18 import WELD_CATEGORIES
-from normative.np_105_18 import DOCUMENT_CODE as NP105_CODE
+from normative.np_105_18 import (
+    DOCUMENT_CODE as NP105_CODE,
+    build_acceptance_criteria_docx_data,
+    resolve_acceptance_table,
+)
 from normative.calculations import (
     calc_exposure_parameters, recommend_scheme,
     calc_geometric_unsharpness_full, SCHEME_INFO, clamp_f_mm,
@@ -696,11 +700,20 @@ class RadiographicTechCardCalculator:
 
     def _fill_acceptance_criteria(self):
         weld_cat = self.params['weld_category']
+        material_type = self.params.get('material_type', 'steel')
+        thickness = self.params.get('wall_thickness', 0)
+        table_ref = resolve_acceptance_table(material_type, weld_cat)
+        docx_data = build_acceptance_criteria_docx_data(
+            material_type, weld_cat, thickness,
+        )
+        self.params['acceptance_table_ref'] = table_ref
+        self.params['acceptance_criteria_docx'] = docx_data
         self.params['quality_normative'] = NP105_CODE
         self.params['quality_criteria_summary'] = (
             f'По {NP105_CODE}, категория {weld_cat}. '
-            f'Трещины, несплавления, непровары — не допускаются. '
-            f'Поры и шлаковые включения — по Таблице 1 {NP105_CODE}.'
+            f'Трещины, несплавления, непровары — не допускаются '
+            f'(п. 23 приложения 4). '
+            f'Поры и шлаковые включения — по таблице N {table_ref}.'
         )
 
     def _calc_control_volume(self):
@@ -945,7 +958,8 @@ def _build_value_map(params: dict) -> dict:
         '6.2': (
             f'S_K = {params.get("s_k_mm", "—")} мм → '
             f'K ≤ {params.get("required_sensitivity_norm_mm", params.get("required_sensitivity_mm", "—")):.3f} мм '
-            f'(НП-105-18, Табл. 4.8, кат. {params.get("weld_category", "")});  '
+            f'(НП-105-18, Табл. {params.get("acceptance_table_ref", "4.8")}, '
+            f'кат. {params.get("weld_category", "")});  '
             f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
         ),
         '6.3': (
@@ -1070,9 +1084,11 @@ def _find_paragraph_index(doc: Document, fragment: str) -> int:
 
 
 def _is_empty_body_paragraph(el) -> bool:
-    """True для пустого абзаца без рисунков."""
+    """True для пустого абзаца без рисунков и без разрыва страницы."""
     ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
     if el.tag.split('}')[-1] != 'p':
+        return False
+    if _paragraph_has_page_break(el):
         return False
     wp_ns = '{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     if el.findall(f'.//{wp_ns}inline') or el.findall(f'.//{wp_ns}anchor'):
@@ -1081,7 +1097,150 @@ def _is_empty_body_paragraph(el) -> bool:
     return not text
 
 
+def _paragraph_has_page_break(element) -> bool:
+    """True, если XML-элемент абзаца содержит разрыв страницы."""
+    if element is None:
+        return False
+    tag = element.tag.split('}')[-1]
+    if tag != 'p':
+        return False
+    return 'w:br' in element.xml and 'page' in element.xml
+
+
+def _insert_page_break_before_element(element):
+    """Вставляет разрыв страницы непосредственно перед XML-элементом тела документа."""
+    parent = element.getparent()
+    if parent is None:
+        return
+    p_el = OxmlElement('w:p')
+    r_el = OxmlElement('w:r')
+    br_el = OxmlElement('w:br')
+    br_el.set(qn('w:type'), 'page')
+    r_el.append(br_el)
+    p_el.append(r_el)
+    parent.insert(list(parent).index(element), p_el)
+
+
+def _ensure_section_43_on_page_three(doc: Document):
+    """
+    П. 4.3 «Эскиз сварного соединения» — всегда в начале страницы 3
+    с одной пустой строкой (зазор) от верхнего колонтитула.
+    """
+    _trim_empty_paragraphs_before(doc, '4.3', 'эскиз', keep=1)
+
+    para_43 = None
+    for p in doc.paragraphs:
+        lower = p.text.lower()
+        if '4.3' in lower and 'эскиз' in lower:
+            para_43 = p
+            break
+    if para_43 is None:
+        return
+
+    target_el = para_43._element
+    insert_before = target_el
+    prev = target_el.getprevious()
+    if prev is not None and _is_empty_body_paragraph(prev):
+        insert_before = prev
+
+    before = insert_before.getprevious()
+    if before is not None and _paragraph_has_page_break(before):
+        return
+
+    _insert_page_break_before_element(insert_before)
+
+
+def _clear_cell_content(cell):
+    """Удаляет всё содержимое ячейки таблицы DOCX."""
+    tc = cell._tc
+    for child in list(tc):
+        if child.tag.split('}')[-1] != 'tcPr':
+            tc.remove(child)
+
+
+def _fill_section_102_criteria_table(doc: Document, params: dict):
+    """
+    Заполняет п. 10.2 техкарты: вводный текст и вложенная таблица
+    с нормами из табл. 4.8–4.11 НП-105-18 для выбранных параметров.
+    """
+    docx_data = params.get('acceptance_criteria_docx')
+    if not docx_data:
+        material_type = params.get('material_type', 'steel')
+        docx_data = build_acceptance_criteria_docx_data(
+            material_type,
+            params.get('weld_category', 'II'),
+            float(params.get('wall_thickness', 0) or 0),
+        )
+
+    headers = docx_data.get('headers') or []
+    row_values = docx_data.get('row_values') or []
+    if not headers:
+        return
+
+    section_table = None
+    row_idx = -1
+    for table in doc.tables:
+        for ri, row in enumerate(table.rows):
+            label = row.cells[0].text.strip().lower()
+            if label.startswith('10.2'):
+                section_table = table
+                row_idx = ri
+                break
+        if section_table is not None:
+            break
+    if section_table is None or row_idx < 0:
+        return
+
+    cell = _unique_cells(section_table.rows[row_idx])[0]
+    _clear_cell_content(cell)
+
+    intro_para = cell.add_paragraph(docx_data.get('intro', ''))
+    intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    if intro_para.runs:
+        intro_para.runs[0].font.size = Pt(12)
+
+    nested = cell.add_table(rows=2, cols=len(headers))
+    nested.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _add_table_borders(nested)
+
+    for ci, header in enumerate(headers):
+        _set_cell_text(nested.rows[0].cells[ci], header, bold=True, font_size=9)
+        val = row_values[ci] if ci < len(row_values) else '—'
+        _set_cell_text(nested.rows[1].cells[ci], val, font_size=9)
+
+
 def _trim_empty_paragraphs_before(doc: Document, *needles: str, keep: int = 1):
+    """
+    Оставляет не более keep пустых абзацев перед целевым параграфом.
+    Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
+    """
+    para = None
+    for p in doc.paragraphs:
+        lower = p.text.lower()
+        if all(n.lower() in lower for n in needles):
+            para = p
+            break
+    if para is None:
+        return
+
+    target_el = para._element
+    parent = target_el.getparent()
+    if parent is None:
+        return
+
+    children = list(parent)
+    idx = children.index(target_el)
+    empty_before = []
+    for i in range(idx - 1, -1, -1):
+        child = children[i]
+        if not _is_empty_body_paragraph(child):
+            break
+        empty_before.append(child)
+
+    for el in empty_before[keep:]:
+        parent.remove(el)
+
+
     """
     Оставляет не более keep пустых абзацев перед целевым параграфом.
     Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
@@ -1273,6 +1432,7 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
 
     _insert_joint_sketch_into_docx(doc, params, static_root)
     _insert_scheme_section_into_docx(doc, params, static_root)
+    _fill_section_102_criteria_table(doc, params)
 
     # Титульный лист и колонтитулы — по структуре шаблона normative_docs
     _fill_body_title_page(doc, params)
@@ -1281,8 +1441,8 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # Служебные заголовки-образцы (без удаления пустых абзацев-отступов)
     _compact_document(doc)
 
-    # П. 4.3 — один пустой абзац (строка) перед заголовком, не четыре
-    _trim_empty_paragraphs_before(doc, '4.3', 'эскиз', keep=1)
+    # П. 4.3 — начало страницы 3, зазор в одну строку от верхнего колонтитула
+    _ensure_section_43_on_page_three(doc)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)

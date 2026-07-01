@@ -4,8 +4,10 @@
 (с изменениями 2024 года, приказ Ростехнадзора N 211 от 08.07.2024).
 
 Модуль содержит точные табличные данные из документа:
-- Таблица N 4.8 — Нормы для сварных соединений категорий I, II, III
+- Таблица N 4.8 — Нормы для сварных соединений категорий I, II, III (сталь)
 - Таблица N 4.9 — Нормы для сварных соединений категорий Iн, IIн
+- Таблица N 4.10 — Нормы для сварных соединений из алюминиевых сплавов
+- Таблица N 4.11 — Нормы для сварных соединений из титановых сплавов
 - Таблица N 4.6 — Поверхностные дефекты (подрезы, вольфрамовые включения)
 
 ВАЖНО: Данные введены из оригинального текста документа (PDF).
@@ -239,7 +241,40 @@ TABLE_4_9_CAT_IIN = [
     (120.0,200.0,1.50,  5.0,    8, 125.0),
 ]
 
-# Сводный словарь таблиц по категориям
+# Таблица N 4.10 — Алюминиевые сплавы (категории I, II, III)
+# (толщ_мин, толщ_макс, K, макс_вкл, макс_скоп, длина_I, длина_II, длина_III)
+TABLE_4_10 = [
+    (3.0,  5.0,  0.10, 1.0, 1.8,  4.0,  6.0, 10.0),
+    (5.0,  8.0,  0.20, 1.2, 2.2,  6.0,  8.0, 12.0),
+    (8.0,  12.0, 0.30, 1.5, 2.5,  8.0, 10.0, 15.0),
+    (12.0, 18.0, 0.40, 2.0, 3.0, 10.0, 15.0, 20.0),
+    (18.0, 25.0, 0.50, 2.5, 4.0, 12.0, 18.0, 24.0),
+    (25.0, 30.0, 0.50, 3.0, 5.0, 14.0, 20.0, 26.0),
+]
+
+# Таблица N 4.11 — Титановые сплавы
+# (толщ_мин, толщ_макс, группа_кат, макс_разм, длина_100мм, длина_снимка_%)
+# группа_кат: 'I_II' — категории I и II; 'III' — категория III
+TABLE_4_11 = [
+    (0.0,  2.0,  'I_II', 0.2, 0.6,  0.5),
+    (0.0,  2.0,  'III',  0.4, 2.5,  2.5),
+    (2.0,  3.0,  'I_II', 0.3, 0.9,  0.7),
+    (2.0,  3.0,  'III',  0.6, 4.5,  4.0),
+    (3.0,  4.0,  'I_II', 0.4, 1.2,  1.0),
+    (3.0,  4.0,  'III',  0.8, 5.6,  5.0),
+    (4.0,  5.0,  'I_II', 0.5, 1.5,  1.5),
+    (4.0,  5.0,  'III',  1.0, 7.0,  7.0),
+    (5.0,  12.0, 'I_II', 1.2, 2.4,  2.0),
+    (5.0,  12.0, 'III',  1.5, 9.0,  9.0),
+    (12.0, 20.0, 'I_II', 1.5, 3.6,  3.0),
+    (12.0, 20.0, 'III',  2.0, 13.0, 13.0),
+    (20.0, 40.0, 'I_II', 2.0, 6.0,  5.0),
+    (20.0, 40.0, 'III',  3.5, 15.0, 15.0),
+    (40.0, 100.0,'I_II', 2.5, 7.5,  6.0),
+    (40.0, 100.0,'III',  4.5, 25.0, 25.0),
+]
+
+# Сводный словарь таблиц по категориям (сталь / Fe-Ni)
 INCLUSION_TABLES = {
     'I':   TABLE_4_8_CAT_I,
     'II':  TABLE_4_8_CAT_II,
@@ -247,6 +282,232 @@ INCLUSION_TABLES = {
     'Iн':  TABLE_4_9_CAT_IN,
     'IIн': TABLE_4_9_CAT_IIN,
 }
+
+STEEL_CATEGORIES = frozenset({'I', 'II', 'III', 'Iн', 'IIн'})
+ALLOY_CATEGORIES = frozenset({'I', 'II', 'III'})
+
+
+def resolve_acceptance_table(material_type: str, category: str) -> str:
+    """
+    Возвращает номер таблицы НП-105-18 для оценки включений по РГК.
+
+    :param material_type: 'steel', 'aluminum' или 'titanium'
+    :param category: категория сварного соединения
+    """
+    if material_type == 'aluminum':
+        return '4.10'
+    if material_type == 'titanium':
+        return '4.11'
+    if category in ('Iн', 'IIн'):
+        return '4.9'
+    return '4.8'
+
+
+def _fmt_thickness_mm(value) -> str:
+    """Номинальная толщина для текста техкарты: всегда одна цифра после запятой."""
+    try:
+        return f'{float(value):.1f}'.replace('.', ',')
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_thickness_range(t_min: float, t_max: float) -> str:
+    """Форматирует диапазон толщины для техкарты (запятая как разделитель)."""
+    def _n(v):
+        s = f'{v:.1f}'.replace('.', ',')
+        return s.rstrip('0').rstrip(',') if ',' in s else s
+
+    if t_max >= 9999:
+        return f'более {_n(t_min)}'
+    if t_min <= 0:
+        return f'до {_n(t_max)} включительно'
+    return f'от {_n(t_min)} до {_n(t_max)} включительно'
+
+
+def _fmt_num(value, decimals: int = 1) -> str:
+    if value is None:
+        return '—'
+    if isinstance(value, (int, float)):
+        if decimals == 0:
+            return str(int(value))
+        s = f'{float(value):.{decimals}f}'.replace('.', ',')
+        if s.endswith(',0'):
+            return s[:-2]
+        return s
+    return str(value)
+
+
+def _lookup_table_4_10(category: str, thickness_mm: float) -> dict:
+    cat = category if category in ALLOY_CATEGORIES else 'II'
+    for row in TABLE_4_10:
+        t_min, t_max = row[0], row[1]
+        if t_min < thickness_mm <= t_max:
+            length_idx = {'I': 5, 'II': 6, 'III': 7}[cat]
+            return {
+                'table': '4.10',
+                't_min': t_min,
+                't_max': t_max,
+                'thickness_range': _fmt_thickness_range(t_min, t_max),
+                'sensitivity_K': row[2],
+                'max_inclusion_mm': row[3],
+                'max_cluster_mm': row[4],
+                'max_length_100mm': row[length_idx],
+                'category': cat,
+            }
+    return {}
+
+
+def _lookup_table_4_11(category: str, thickness_mm: float) -> dict:
+    cat_group = 'III' if category == 'III' else 'I_II'
+    for row in TABLE_4_11:
+        t_min, t_max, group = row[0], row[1], row[2]
+        if group == cat_group and t_min < thickness_mm <= t_max:
+            return {
+                'table': '4.11',
+                't_min': t_min,
+                't_max': t_max,
+                'thickness_range': _fmt_thickness_range(t_min, t_max),
+                'max_inclusion_mm': row[3],
+                'max_length_100mm': row[4],
+                'max_length_whole_pct': row[5],
+                'category': category,
+                'category_group': 'I, II' if cat_group == 'I_II' else 'III',
+            }
+    return {}
+
+
+def lookup_acceptance_criteria(
+    material_type: str,
+    category: str,
+    thickness_mm: float,
+) -> dict:
+    """
+    Унифицированный поиск строки норм по материалу, категории и толщине.
+    """
+    table_ref = resolve_acceptance_table(material_type, category)
+    if table_ref == '4.10':
+        return _lookup_table_4_10(category, thickness_mm)
+    if table_ref == '4.11':
+        return _lookup_table_4_11(category, thickness_mm)
+    return _lookup_table(category, thickness_mm)
+
+
+def build_acceptance_criteria_docx_data(
+    material_type: str,
+    category: str,
+    thickness_mm: float,
+) -> dict:
+    """
+    Формирует данные для вставки таблицы в п. 10.2 техкарты DOCX.
+
+    :return: словарь с intro, headers, row_values, table_ref
+    """
+    row = lookup_acceptance_criteria(material_type, category, thickness_mm)
+    table_ref = row.get('table') or resolve_acceptance_table(material_type, category)
+    thickness_fmt = _fmt_thickness_mm(thickness_mm)
+
+    if not row:
+        return {
+            'table_ref': table_ref,
+            'intro': (
+                f'10.2. Нормы допустимости для номинальной толщины {thickness_fmt} мм '
+                f'и категории {category} (таблица N {table_ref} {DOCUMENT_CODE}): '
+                f'нет данных для указанной толщины.'
+            ),
+            'headers': [],
+            'row_values': [],
+            'not_allowed': True,
+        }
+
+    range_label = row.get('thickness_range', '')
+
+    if table_ref == '4.8':
+        headers = [
+            'Номин. толщина, мм',
+            'K, мм, не более',
+            'Включение, мм',
+            'Скопление, мм',
+            'Кол-во на 100 мм, шт.',
+            'Sпр, мм²',
+            'Кр. вкл., мм',
+            'Шир. кр., мм',
+            'Кр. кол-во на 100 мм',
+        ]
+        values = [
+            range_label,
+            _fmt_num(row['sensitivity_K'], 2),
+            _fmt_num(row['max_inclusion_mm'], 1),
+            _fmt_num(row['max_cluster_mm'], 1),
+            _fmt_num(row['max_count_100mm'], 0),
+            _fmt_num(row['max_total_area_mm2'], 1),
+            _fmt_num(row['max_large_size_mm'], 1),
+            _fmt_num(row['max_large_width_mm'], 1),
+            _fmt_num(row['max_large_count_100mm'], 0),
+        ]
+    elif table_ref == '4.9':
+        not_allowed = row.get('max_inclusion_mm') is None
+        headers = [
+            'Номин. толщина, мм',
+            'K, мм, не более',
+            'Макс. размер, мм',
+            'Кол-во на 100 мм, шт.',
+            'Sпр, мм²',
+        ]
+        if not_allowed:
+            values = [range_label, _fmt_num(row['sensitivity_K'], 2), 'Не допускаются', '—', '—']
+        else:
+            values = [
+                range_label,
+                _fmt_num(row['sensitivity_K'], 2),
+                _fmt_num(row['max_inclusion_mm'], 1),
+                _fmt_num(row['max_count_100mm'], 0),
+                _fmt_num(row['max_total_area_mm2'], 1),
+            ]
+    elif table_ref == '4.10':
+        headers = [
+            'Номин. толщина, мм',
+            'K, мм, не более',
+            'Включение, мм',
+            'Скопление, мм',
+            f'Пред. длина на 100 мм (кат. {category}), мм',
+        ]
+        values = [
+            range_label,
+            _fmt_num(row['sensitivity_K'], 2),
+            _fmt_num(row['max_inclusion_mm'], 1),
+            _fmt_num(row['max_cluster_mm'], 1),
+            _fmt_num(row['max_length_100mm'], 1),
+        ]
+    else:  # 4.11
+        headers = [
+            'Номин. толщина, мм',
+            'Категория',
+            'Макс. размер несплошности, мм',
+            'Σ длина на 100 мм, мм',
+            'Σ длина на снимке, %',
+        ]
+        values = [
+            range_label,
+            row.get('category_group', category),
+            _fmt_num(row['max_inclusion_mm'], 1),
+            _fmt_num(row['max_length_100mm'], 1),
+            _fmt_num(row['max_length_whole_pct'], 1),
+        ]
+
+    intro = (
+        f'10.2. Нормы допустимости одиночных включений и скоплений '
+        f'для номинальной толщины {thickness_fmt} мм и категории {category} '
+        f'(таблица N {table_ref} {DOCUMENT_CODE}):'
+    )
+
+    return {
+        'table_ref': table_ref,
+        'intro': intro,
+        'headers': headers,
+        'row_values': values,
+        'not_allowed': row.get('max_inclusion_mm') is None and table_ref == '4.9',
+        'criteria_row': row,
+    }
 
 
 def _lookup_table(category: str, thickness_mm: float) -> dict:
@@ -266,6 +527,7 @@ def _lookup_table(category: str, thickness_mm: float) -> dict:
         t_min, t_max = row[0], row[1]
         if t_min < thickness_mm <= t_max:
             K = row[2]
+            thickness_range = _fmt_thickness_range(t_min, t_max)
             # Определяем расширенный или укороченный формат строки
             if len(row) >= 10:
                 # Полная таблица 4.8 (категории I, II, III)
@@ -279,6 +541,9 @@ def _lookup_table(category: str, thickness_mm: float) -> dict:
                     'max_large_width_mm': row[8],
                     'max_large_count_100mm': row[9],
                     'table': '4.8',
+                    't_min': t_min,
+                    't_max': t_max,
+                    'thickness_range': thickness_range,
                 }
             else:
                 # Укороченная таблица 4.9 (категории Iн, IIн)
@@ -292,20 +557,28 @@ def _lookup_table(category: str, thickness_mm: float) -> dict:
                     'max_large_width_mm': None,
                     'max_large_count_100mm': None,
                     'table': '4.9',
+                    't_min': t_min,
+                    't_max': t_max,
+                    'thickness_range': thickness_range,
                 }
     return {}
 
 
-def get_required_sensitivity(category: str, thickness_mm: float) -> float:
+def get_required_sensitivity(
+    category: str,
+    thickness_mm: float,
+    material_type: str = 'steel',
+) -> float:
     """
     Возвращает требуемую чувствительность контроля K (мм) по
-    НП-105-18, Таблица 4.8/4.9.
+    НП-105-18, табл. 4.8–4.11.
 
     :param category: категория сварного соединения
     :param thickness_mm: номинальная толщина, мм
+    :param material_type: steel / aluminum / titanium
     :return: требуемая чувствительность K, мм (или 0 если не найдено)
     """
-    row = _lookup_table(category, thickness_mm)
+    row = lookup_acceptance_criteria(material_type, category, thickness_mm)
     return row.get('sensitivity_K', 0)
 
 
@@ -954,10 +1227,21 @@ def assess_multiple_defects(
     }
 
 
-def get_weld_category_choices():
-    """Категории I–III для полей выбора (НП-105-18, табл. 4.8)."""
-    return [
+def get_weld_category_choices(material_type: str = 'steel'):
+    """
+    Категории сварного соединения для полей выбора (НП-105-18).
+
+    Для стали — I, II, III (табл. 4.8) и Iн, IIн (табл. 4.9).
+    Для алюминия и титана — только I, II, III (табл. 4.10 / 4.11).
+    """
+    base = [
         ('I', 'I'),
         ('II', 'II'),
         ('III', 'III'),
     ]
+    if material_type == 'steel':
+        base.extend([
+            ('Iн', 'Iн (табл. 4.9)'),
+            ('IIн', 'IIн (табл. 4.9)'),
+        ])
+    return base

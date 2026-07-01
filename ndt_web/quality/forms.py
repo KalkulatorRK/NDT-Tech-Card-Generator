@@ -5,14 +5,14 @@
 """
 
 from django import forms
-from normative.np_104_18 import get_choices as get_category_choices
+from normative.np_105_18 import get_weld_category_choices as get_np105_category_choices
 
 
 NORMATIVE_DOC_CHOICES = [
     ('НП-105-18', 'НП-105-18 — Требования к качеству сварных соединений АЭУ'),
 ]
 
-WELD_CATEGORY_CHOICES = get_category_choices()
+WELD_CATEGORY_CHOICES = get_np105_category_choices('steel')
 
 
 class QualityAssessmentForm(forms.Form):
@@ -25,9 +25,9 @@ class QualityAssessmentForm(forms.Form):
     )
     weld_category = forms.ChoiceField(
         choices=WELD_CATEGORY_CHOICES,
-        label='Категория сварного соединения (по НП-104-18) *',
+        label='Категория сварного соединения (по НП-105-18) *',
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Категория I — первый контур АЭУ; II — вспомогательные системы; III — прочее оборудование.',
+        help_text='Категории I, II, III — табл. 4.8; Iн, IIн — табл. 4.9 НП-105-18.',
     )
     wall_thickness = forms.FloatField(
         min_value=0.5, max_value=500,

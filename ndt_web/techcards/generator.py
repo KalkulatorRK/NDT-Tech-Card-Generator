@@ -52,7 +52,7 @@ from normative.gost_59023_2 import (
     resolve_welding_material,
     format_dimension_with_tolerance,
 )
-from normative.np_104_18 import WELD_CATEGORIES
+from normative.np_104_18 import WELD_CATEGORIES, build_titanium_edge_cleaning_requirement
 from normative.np_105_18 import (
     DOCUMENT_CODE as NP105_CODE,
     build_acceptance_criteria_docx_data,
@@ -736,6 +736,15 @@ _JOINT_MOBILITY_LABELS = {
     'non_rotating': 'неповоротное',
 }
 
+_SURFACE_QUALITY_BASE = (
+    'подлежащие контролю сварные соединения должны быть очищены от окалины, '
+    'шлака, брызг металла и других загрязнений. При этом также должны быть '
+    'устранены все обнаруженные при внешнем осмотре наружные дефекты, а также '
+    'неровности, изображения которых на снимке могут помешать выявлению и '
+    'расшифровке изображений внутренних несплошностей и включений в сварном '
+    'соединении.'
+)
+
 
 def _fmt_mm(value, decimals: int = 1) -> str:
     """Форматирует размер в мм с запятой для техкарты."""
@@ -979,9 +988,23 @@ def _build_value_map(params: dict) -> dict:
             f'Dн = {D} мм, Dвн = {d_inner:.1f} мм, S = {S} мм'
             if D else f'S = {S} мм'
         ),
+        '7.2': _build_surface_quality_text(params),
         '8.3': pers.get('level', ''),
         '8.4': '+5 ÷ +40',
     }
+
+
+def _build_surface_quality_text(params: dict) -> str:
+    """П. 7.2 — требования к качеству поверхности перед контролем."""
+    text = _SURFACE_QUALITY_BASE
+    if params.get('material_type') == 'titanium':
+        text += (
+            '\n'
+            + build_titanium_edge_cleaning_requirement(
+                params.get('welding_process', ''),
+            )
+        )
+    return text
 
 
 def _set_paragraph_text(
@@ -1209,6 +1232,8 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
 
     intro_para = cell.add_paragraph(docx_data.get('intro', ''))
     intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    intro_para.paragraph_format.space_before = Pt(0)
+    intro_para.paragraph_format.space_after = Pt(0)
     if intro_para.runs:
         intro_para.runs[0].font.size = Pt(12)
 
@@ -1221,6 +1246,7 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
         val = row_values[ci] if ci < len(row_values) else '—'
         _set_cell_text(nested.rows[1].cells[ci], val, font_size=9)
 
+    _trim_empty_paragraphs_after_last_table(cell)
     _clear_table_row_height(section_table.rows[row_idx])
 
 
@@ -1233,6 +1259,21 @@ def _clear_table_row_height(row):
     row_height = tr_pr.find(qn('w:trHeight'))
     if row_height is not None:
         tr_pr.remove(row_height)
+
+
+def _trim_empty_paragraphs_after_last_table(cell):
+    """Удаляет пустые абзацы после последней вложенной таблицы в ячейке."""
+    tc = cell._tc
+    children = [child for child in tc if child.tag.split('}')[-1] != 'tcPr']
+    last_tbl_idx = None
+    for idx, child in enumerate(children):
+        if child.tag.split('}')[-1] == 'tbl':
+            last_tbl_idx = idx
+    if last_tbl_idx is None:
+        return
+    for child in children[last_tbl_idx + 1:]:
+        if child.tag.split('}')[-1] == 'p' and _is_empty_body_paragraph(child):
+            tc.remove(child)
 
 
 def _collapse_excessive_empty_paragraphs(doc: Document, max_consecutive: int = 1):

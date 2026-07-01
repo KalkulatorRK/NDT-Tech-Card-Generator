@@ -123,3 +123,19 @@ class NP105AcceptanceCriteriaTests(SimpleTestCase):
             resolve_material_type_for_categories(MATERIAL_ALUMINUM, 'АМг6', 'II'),
             'aluminum',
         )
+
+
+class NP104TitaniumPreparationTests(SimpleTestCase):
+    def test_arc_welding_cleaning_width(self):
+        from normative.np_104_18 import build_titanium_edge_cleaning_requirement
+
+        text = build_titanium_edge_cleaning_requirement('30')
+        self.assertIn('20,0 мм', text)
+        self.assertIn('дуговую сварку', text)
+
+    def test_esw_cleaning_width(self):
+        from normative.np_104_18 import build_titanium_edge_cleaning_requirement
+
+        text = build_titanium_edge_cleaning_requirement('20')
+        self.assertIn('50,0 мм', text)
+        self.assertIn('электрошлаковую сварку', text)

@@ -1774,6 +1774,117 @@ class TemplateCommentsTests(TestCase):
             if tr_pr is not None:
                 self.assertIsNone(tr_pr.find(qn('w:trHeight')))
 
+    def test_section_102_cell_fits_table_without_trailing_gap(self):
+        """П. 10.2 — ячейка без пустых абзацев после вложенной таблицы."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path, _is_empty_body_paragraph,
+        )
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            cell = row_102.cells[0]
+            children = [c for c in cell._tc if c.tag.split('}')[-1] != 'tcPr']
+            tbl_idx = next(
+                i for i, c in enumerate(children) if c.tag.split('}')[-1] == 'tbl'
+            )
+            trailing = children[tbl_idx + 1:]
+            self.assertFalse(
+                any(
+                    c.tag.split('}')[-1] == 'p' and _is_empty_body_paragraph(c)
+                    for c in trailing
+                ),
+                'После таблицы норм не должно быть пустых абзацев',
+            )
+
+    def test_titanium_section_72_includes_np104_point_84(self):
+        """Для титана в п. 7.2 добавляется требование НП-104-18, п. 84."""
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        data = dict(
+            self.pipe_input,
+            material='__titanium__',
+            material_custom='ВТ6',
+            weld_category='III',
+            welding_process='30',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            prep_table = next(
+                t for t in doc.tables
+                if any('7.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_72 = next(
+                row for row in prep_table.rows if '7.2' in row.cells[0].text
+            )
+            value = row_72.cells[-1].text
+            self.assertIn('НП-104-18', value)
+            self.assertIn('п. 84', value)
+            self.assertIn('цветов побежалости', value)
+            self.assertIn('20,0 мм', value)
+
+    def test_titanium_esw_section_72_uses_50mm_width(self):
+        from techcards.generator import generate_from_template, get_default_template_path
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        data = dict(
+            self.pipe_input,
+            material='__titanium__',
+            material_custom='ВТ6',
+            weld_category='III',
+            joint_designation='С-17',
+            welding_process='20',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            prep_table = next(
+                t for t in doc.tables
+                if any('7.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_72 = next(
+                row for row in prep_table.rows if '7.2' in row.cells[0].text
+            )
+            self.assertIn('50,0 мм', row_72.cells[-1].text)
+            self.assertIn('электрошлаковую сварку', row_72.cells[-1].text)
+
     def test_section_43_has_page_break_before_gap(self):
         """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""
         from techcards.generator import (

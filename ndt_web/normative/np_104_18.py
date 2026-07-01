@@ -131,3 +131,41 @@ def get_quality_category_choices():
 def get_choices():
     """Список кортежей для полей выбора (категории I–III для РГК и оценки качества)."""
     return get_quality_category_choices()
+
+
+DOCUMENT_CODE = 'НП-104-18'
+
+# П. 84 — ширина зачищенных участков кромок (мм)
+TITANIUM_EDGE_CLEANING_WIDTH_ARC_MM = 20.0
+TITANIUM_EDGE_CLEANING_WIDTH_ESW_MM = 50.0
+
+ELECTROSHLAG_WELDING_CODE = '20'
+
+
+def is_electroslag_welding(welding_process: str) -> bool:
+    """Электрошлаковая сварка (код 20 по ГОСТ Р 59023.2-2020)."""
+    return (welding_process or '').strip() == ELECTROSHLAG_WELDING_CODE
+
+
+def build_titanium_edge_cleaning_requirement(welding_process: str) -> str:
+    """
+    Требования НП-104-18, п. 84 к зачистке кромок титановых сплавов.
+
+    Ширина зачищенных участков: ≥ 20,0 мм (дуговая сварка/наплавка)
+    или ≥ 50,0 мм (электрошлаковая сварка).
+    """
+    if is_electroslag_welding(welding_process):
+        width = TITANIUM_EDGE_CLEANING_WIDTH_ESW_MM
+        weld_kind = 'электрошлаковую сварку'
+    else:
+        width = TITANIUM_EDGE_CLEANING_WIDTH_ARC_MM
+        weld_kind = 'дуговую сварку (наплавку)'
+
+    width_fmt = f'{width:.1f}'.replace('.', ',')
+    return (
+        f'По {DOCUMENT_CODE}, п. 84: подготовленные под сварку кромки (поверхности '
+        f'под наплавку) и прилегающие к ним участки деталей из титановых сплавов '
+        f'должны быть зачищены от поверхностных загрязнений, а также от цветов '
+        f'побежалости. Ширина указанных участков — не менее {width_fmt} мм при '
+        f'подготовке деталей под {weld_kind}.'
+    )

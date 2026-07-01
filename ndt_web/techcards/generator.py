@@ -1121,23 +1121,23 @@ def _insert_page_break_before_element(element):
     parent.insert(list(parent).index(element), p_el)
 
 
-def _ensure_section_43_on_page_three(doc: Document):
+def _ensure_paragraph_on_new_page(doc: Document, *needles: str, keep: int = 1):
     """
-    П. 4.3 «Эскиз сварного соединения» — всегда в начале страницы 3
-    с одной пустой строкой (зазор) от верхнего колонтитула.
+    Размещает целевой абзац в начале новой страницы с keep пустыми строками
+    перед ним (зазор от верхнего колонтитула).
     """
-    _trim_empty_paragraphs_before(doc, '4.3', 'эскиз', keep=1)
+    _trim_empty_paragraphs_before(doc, *needles, keep=keep)
 
-    para_43 = None
+    para = None
     for p in doc.paragraphs:
         lower = p.text.lower()
-        if '4.3' in lower and 'эскиз' in lower:
-            para_43 = p
+        if all(n.lower() in lower for n in needles):
+            para = p
             break
-    if para_43 is None:
+    if para is None:
         return
 
-    target_el = para_43._element
+    target_el = para._element
     insert_before = target_el
     prev = target_el.getprevious()
     if prev is not None and _is_empty_body_paragraph(prev):
@@ -1148,6 +1148,19 @@ def _ensure_section_43_on_page_three(doc: Document):
         return
 
     _insert_page_break_before_element(insert_before)
+
+
+def _ensure_section_43_on_page_three(doc: Document):
+    """
+    П. 4.3 «Эскиз сварного соединения» — всегда в начале страницы 3
+    с одной пустой строкой (зазор) от верхнего колонтитула.
+    """
+    _ensure_paragraph_on_new_page(doc, '4.3', 'эскиз', keep=1)
+
+
+def _ensure_section_69_on_new_page(doc: Document):
+    """П. 6.9 «Схема просвечивания» — новая страница, зазор в одну строку."""
+    _ensure_paragraph_on_new_page(doc, '6.9', 'схема', keep=1)
 
 
 def _clear_cell_content(cell):
@@ -1504,6 +1517,9 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
 
     # П. 4.3 — начало страницы 3, зазор в одну строку от верхнего колонтитула
     _ensure_section_43_on_page_three(doc)
+
+    # П. 6.9 — новая страница, зазор в одну строку от верхнего колонтитула
+    _ensure_section_69_on_new_page(doc)
 
     # Убрать множественные пустые строки между блоками (не более 1 подряд)
     _collapse_excessive_empty_paragraphs(doc, max_consecutive=1)

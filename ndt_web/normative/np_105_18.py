@@ -16,6 +16,8 @@
 
 import math
 
+from normative.gost_59023_2 import resolve_material_type
+
 # ------------------------------------------------------------------
 # Идентификатор документа
 # ------------------------------------------------------------------
@@ -1245,3 +1247,20 @@ def get_weld_category_choices(material_type: str = 'steel'):
             ('IIн', 'IIн (табл. 4.9)'),
         ])
     return base
+
+
+def resolve_material_type_for_categories(
+    material: str,
+    material_custom: str = '',
+    weld_category: str = '',
+) -> str:
+    """
+    Тип материала для списка категорий шва на шаге 2.
+
+    Категории Iн/IIн всегда относятся к табл. 4.9 (сталь / Ni-сплавы).
+    """
+    material_key = (material or '').strip() or (material_custom or '').strip()
+    material_type = resolve_material_type(material_key)
+    if weld_category in ('Iн', 'IIн'):
+        return 'steel'
+    return material_type

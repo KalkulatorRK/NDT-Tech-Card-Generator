@@ -1011,6 +1011,50 @@ class WeldingProcessFilterTests(TestCase):
         self.assertIn('НП-105-18', field.label)
         self.assertFalse(field.help_text)
 
+    def test_weld_category_in_reload_after_session(self):
+        """Iн/IIн доступны при возврате на шаг 2 из сессии."""
+        from techcards.forms import TechCardStep2Form
+        from techcards.views import _step2_form_initial
+        from django.test import RequestFactory
+
+        session = {
+            'object_type': 'pipe',
+            'material': '12Х18Н10Т',
+            'wall_thickness': 20,
+            'outer_diameter': 219,
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+            'weld_category': 'Iн',
+            'joint_mobility': 'non_rotating',
+        }
+        form = TechCardStep2Form(initial=session)
+        codes = [c[0] for c in form.fields['weld_category'].choices]
+        self.assertIn('Iн', codes)
+        self.assertIn('IIн', codes)
+
+        factory = RequestFactory()
+        request = factory.get('/')
+        request.session = {}
+        request.session['techcard_data'] = session
+        initial = _step2_form_initial(request)
+        form2 = TechCardStep2Form(initial=initial)
+        codes2 = [c[0] for c in form2.fields['weld_category'].choices]
+        self.assertIn('Iн', codes2)
+
+    def test_weld_category_in_with_material_custom_only(self):
+        from techcards.forms import TechCardStep2Form
+        form = TechCardStep2Form(initial={
+            'object_type': 'pipe',
+            'material_custom': '12Х18Н10Т',
+            'material': '12Х18Н10Т',
+            'weld_category': 'IIн',
+            'wall_thickness': 10,
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+        })
+        codes = [c[0] for c in form.fields['weld_category'].choices]
+        self.assertIn('IIн', codes)
+
 
 class DocumentKindTests(TestCase):
     """Вид документа: методический vs нормативный."""
@@ -1468,8 +1512,8 @@ class TemplateCommentsTests(TestCase):
             static_root = str(settings.STATICFILES_DIRS[0])
             generate_from_template(params, template, out, static_root=static_root)
             gen_breaks, gen_empty = _layout_stats(out)
-            # +1 разрыв перед п. 4.3 (начало страницы 3)
-            self.assertEqual(gen_breaks, tpl_breaks + 1)
+            # +2 разрыва: п. 4.3 (стр. 3) и п. 6.9 (схема просвечивания)
+            self.assertEqual(gen_breaks, tpl_breaks + 2)
             # Пустые строки схлопнуты — не более одной подряд
             self.assertLess(gen_empty, tpl_empty)
             doc = Document(out)
@@ -1752,3 +1796,36 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('PAGE', header_xml)
             self.assertIn('NUMPAGES', header_xml)
             self.assertNotIn('Страница 1', header_xml)
+
+    def test_section_69_has_page_break_before_gap(self):
+        """П. 6.9 — разрыв страницы и одна пустая строка перед заголовком."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _is_empty_body_paragraph, _paragraph_has_page_break,
+        )
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            para_69 = next(
+                p for p in doc.paragraphs
+                if '6.9' in p.text and 'схема' in p.text.lower()
+            )
+            empty = 0
+            prev = para_69._element.getprevious()
+            while prev is not None and _is_empty_body_paragraph(prev):
+                empty += 1
+                prev = prev.getprevious()
+            self.assertEqual(empty, 1)
+            if prev is not None:
+                self.assertTrue(_paragraph_has_page_break(prev))

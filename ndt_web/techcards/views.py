@@ -253,6 +253,14 @@ def create_step1_view(request, doc_code):
     })
 
 
+def _step2_form_initial(request) -> dict:
+    """Данные сессии для шага 2 с нормализацией материала."""
+    initial = dict(_get_session_data(request))
+    if not initial.get('material') and initial.get('material_custom'):
+        initial['material'] = initial['material_custom']
+    return initial
+
+
 def create_step2_view(request, doc_code):
     """Шаг 2: Материал, геометрия и тип сварного соединения."""
     doc = get_object_or_404(NormativeDocument, code=doc_code)
@@ -270,9 +278,10 @@ def create_step2_view(request, doc_code):
             _save_session_data(request, data)
             return redirect('create_step3', doc_code=doc_code)
     else:
-        form = TechCardStep2Form(initial=_get_session_data(request))
+        form = TechCardStep2Form(initial=_step2_form_initial(request))
 
     from normative.gost_59023_2 import JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path
+    from normative.np_105_18 import get_weld_category_choices
     joint_data = {
         code: {
             'name': info['name'],
@@ -295,6 +304,11 @@ def create_step2_view(request, doc_code):
         'step_labels': ['Объект', 'Параметры', 'Источник', 'Подтверждение'],
         'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
         'welding_labels_json': json.dumps(welding_labels, ensure_ascii=False),
+        'weld_category_choices_json': json.dumps({
+            'steel': get_weld_category_choices('steel'),
+            'aluminum': get_weld_category_choices('aluminum'),
+            'titanium': get_weld_category_choices('titanium'),
+        }, ensure_ascii=False),
     })
 
 

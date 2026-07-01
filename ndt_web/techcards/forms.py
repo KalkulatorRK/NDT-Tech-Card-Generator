@@ -24,7 +24,10 @@ from normative.gost_59023_2 import (
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
     resolve_material_type,
 )
-from normative.np_105_18 import get_weld_category_choices
+from normative.np_105_18 import (
+    get_weld_category_choices,
+    resolve_material_type_for_categories,
+)
 
 
 class TechCardStep1Form(forms.Form):
@@ -229,7 +232,7 @@ class TechCardStep2Form(forms.Form):
         }),
     )
     weld_category = forms.ChoiceField(
-        choices=get_weld_category_choices(),
+        choices=get_weld_category_choices('steel'),
         label='Категория сварного соединения (по НП-105-18) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_weld_category'}),
     )
@@ -297,17 +300,25 @@ class TechCardStep2Form(forms.Form):
         super().__init__(*args, **kwargs)
         joint = ''
         material = ''
+        material_custom = ''
+        weld_category = ''
         if self.is_bound:
             joint = self.data.get('joint_designation', '')
             material = self.data.get('material', '')
+            material_custom = (self.data.get('material_custom') or '').strip()
+            weld_category = self.data.get('weld_category', '')
         else:
             joint = self.initial.get('joint_designation', '')
             material = self.initial.get('material', '')
+            material_custom = (self.initial.get('material_custom') or '').strip()
+            weld_category = self.initial.get('weld_category', '')
         if joint:
             self.fields['welding_process'].choices = (
                 get_welding_process_choices_for_joint(joint)
             )
-        material_type = resolve_material_type(material)
+        material_type = resolve_material_type_for_categories(
+            material, material_custom, weld_category,
+        )
         self.fields['weld_category'].choices = get_weld_category_choices(material_type)
 
     def clean_outer_diameter(self):
@@ -362,7 +373,11 @@ class TechCardStep2Form(forms.Form):
         if cleaned.get('has_backing_ring') and not cleaned.get('backing_ring_thickness_mm'):
             cleaned['backing_ring_thickness_mm'] = cleaned.get('wall_thickness')
 
-        material_type = resolve_material_type(cleaned.get('material', ''))
+        material_type = resolve_material_type_for_categories(
+            cleaned.get('material', ''),
+            (cleaned.get('material_custom') or '').strip(),
+            cleaned.get('weld_category', ''),
+        )
         weld_cat = cleaned.get('weld_category')
         if weld_cat in ('Iн', 'IIн') and material_type != 'steel':
             self.add_error(

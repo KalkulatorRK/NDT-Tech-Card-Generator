@@ -320,6 +320,39 @@ var materialCustomLabel = materialCustomGroup ?
   materialCustomGroup.querySelector('label') : null;
 var weldingCustomSel = document.getElementById('id_welding_process');
 var ALLOY_MATERIALS = ['__titanium__', '__aluminum__'];
+var WELD_CATEGORY_CHOICES = {{ weld_category_choices_json|safe }};
+
+function resolveMaterialTypeForCategories(val) {
+  if (val === '__titanium__') return 'titanium';
+  if (val === '__aluminum__') return 'aluminum';
+  return 'steel';
+}
+
+function updateWeldCategoryChoices() {
+  var categorySelect = document.getElementById('id_weld_category');
+  if (!categorySelect || !WELD_CATEGORY_CHOICES) return;
+
+  var mat = materialSel ? materialSel.value : '';
+  var current = categorySelect.value;
+  var type = (current === 'Iн' || current === 'IIн')
+    ? 'steel'
+    : resolveMaterialTypeForCategories(mat);
+  var choices = WELD_CATEGORY_CHOICES[type] || WELD_CATEGORY_CHOICES.steel;
+
+  categorySelect.innerHTML = '';
+  choices.forEach(function (pair) {
+    var opt = document.createElement('option');
+    opt.value = pair[0];
+    opt.textContent = pair[1];
+    categorySelect.appendChild(opt);
+  });
+
+  var stillValid = choices.some(function (pair) { return pair[0] === current; });
+  categorySelect.value = stillValid ? current : choices[0][0];
+  if (typeof updateCategoryInfo === 'function') {
+    updateCategoryInfo(categorySelect.value);
+  }
+}
 
 function updateMaterialUI() {
   if (!materialSel || !materialCustomGroup) return;
@@ -361,8 +394,12 @@ function toggleWeldingCustom(sel, groupId) {
 }
 
 if (materialSel) {
-  materialSel.addEventListener('change', updateMaterialUI);
+  materialSel.addEventListener('change', function() {
+    updateMaterialUI();
+    updateWeldCategoryChoices();
+  });
   updateMaterialUI();
+  updateWeldCategoryChoices();
 }
 if (weldingCustomSel) {
   weldingCustomSel.addEventListener('change', function() {

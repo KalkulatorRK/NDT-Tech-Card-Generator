@@ -270,11 +270,13 @@ function calculateZones(jointCode) {
     document.getElementById('id_wall_thickness').value : 0);
   var method = document.getElementById('id_welding_process') ?
     document.getElementById('id_welding_process').value : '30';
+  var material = materialSel ? materialSel.value : '';
 
   if (!thickness || !jointCode) return;
 
   fetch('/ajax/joint-zones/?joint=' + encodeURIComponent(jointCode) +
         '&thickness=' + thickness + '&method=' + method +
+        '&material=' + encodeURIComponent(material) +
         '&reinforcement_removed=' + (document.getElementById('id_reinforcement_removed')?.checked ? '1' : '0') +
         '&has_backing_ring=' + (document.getElementById('id_has_backing_ring')?.checked ? '1' : '0') +
         '&backing_ring_thickness_mm=' + encodeURIComponent(document.getElementById('id_backing_ring_thickness_mm')?.value || ''))
@@ -285,7 +287,11 @@ function calculateZones(jointCode) {
       document.getElementById('dim-g').textContent = data.g_display || data.bead_height_mm || '—';
       document.getElementById('dim-haz').textContent = data.haz_width_mm || '—';
       document.getElementById('dim-zone').textContent = data.zone_width_mm || '—';
-      document.getElementById('dim-note').textContent = data.weld_note || '';
+      var note = data.weld_note || '';
+      if (data.ref) {
+        note = note ? note + ' ' + data.ref : data.ref;
+      }
+      document.getElementById('dim-note').textContent = note;
       dimensionsBlock.style.display = '';
     })
     .catch(function() {});
@@ -395,6 +401,7 @@ if (materialSel) {
   materialSel.addEventListener('change', function() {
     updateMaterialUI();
     updateWeldCategoryChoices();
+    if (jointSelect) calculateZones(jointSelect.value);
   });
   updateMaterialUI();
   updateWeldCategoryChoices();

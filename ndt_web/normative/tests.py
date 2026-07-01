@@ -139,3 +139,25 @@ class NP104TitaniumPreparationTests(SimpleTestCase):
         text = build_titanium_edge_cleaning_requirement('20')
         self.assertIn('50,0 мм', text)
         self.assertIn('электрошлаковую сварку', text)
+
+    def test_titanium_min_edge_zone_width(self):
+        from normative.np_104_18 import get_titanium_min_edge_zone_width_mm
+
+        self.assertEqual(get_titanium_min_edge_zone_width_mm('30'), 20.0)
+        self.assertEqual(get_titanium_min_edge_zone_width_mm('20'), 50.0)
+
+
+class InspectionZoneTests(SimpleTestCase):
+    def test_titanium_thin_wall_haz_is_at_least_20mm(self):
+        from normative.gost_59023_2 import get_inspection_zone
+
+        zone = get_inspection_zone('С-1', 3.0, '53', material_type='titanium')
+        self.assertEqual(zone['haz_width_mm'], 20.0)
+        self.assertEqual(zone['zone_width_mm'], zone['bead_width_mm'] + 40.0)
+        self.assertIn('НП-104-18', zone['ref'])
+
+    def test_steel_thin_wall_keeps_default_haz(self):
+        from normative.gost_59023_2 import get_inspection_zone
+
+        zone = get_inspection_zone('С-1', 3.0, '53', material_type='steel')
+        self.assertEqual(zone['haz_width_mm'], 5.0)

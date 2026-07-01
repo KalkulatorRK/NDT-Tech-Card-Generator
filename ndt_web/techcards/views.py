@@ -770,6 +770,7 @@ def get_joint_zones_ajax(request):
     reinforcement_removed = request.GET.get('reinforcement_removed', '0') in ('1', 'true', 'on')
     has_backing_ring = request.GET.get('has_backing_ring', '0') in ('1', 'true', 'on')
     backing_raw = request.GET.get('backing_ring_thickness_mm', '')
+    material = request.GET.get('material', '')
 
     try:
         thickness = float(thickness)
@@ -783,9 +784,10 @@ def get_joint_zones_ajax(request):
     except (ValueError, TypeError):
         backing_thickness = None
 
-    from normative.gost_59023_2 import get_inspection_zone
+    from normative.gost_59023_2 import get_inspection_zone, resolve_material_type
     result = get_inspection_zone(
         joint_code, thickness, method,
+        material_type=resolve_material_type(material),
         reinforcement_removed=reinforcement_removed,
         has_backing_ring=has_backing_ring,
         backing_ring_thickness_mm=backing_thickness,

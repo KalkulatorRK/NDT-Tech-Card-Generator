@@ -399,6 +399,7 @@ class RadiographicTechCardCalculator:
 
         zone = get_inspection_zone(
             joint_code, S, method,
+            material_type=self.params.get('material_type', 'steel'),
             reinforcement_removed=self.params.get('reinforcement_removed', False),
             has_backing_ring=self.params.get('has_backing_ring', False),
             backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,

@@ -1295,6 +1295,27 @@ class TemplateCommentsTests(TestCase):
             self.assertIn(_fmt_mm(zone['haz_width_mm']), haz_row[1])
             self.assertEqual(haz_row[3], _fmt_mm(zone['zone_width_mm']))
 
+    def test_titanium_haz_width_in_calculator(self):
+        from normative.gost_59023_2 import get_inspection_zone
+
+        data = dict(
+            self.pipe_input,
+            material='__titanium__',
+            material_custom='ПТ-3В',
+            wall_thickness=3,
+            outer_diameter=58,
+            joint_designation='С-1',
+            welding_process='53',
+            weld_category='III',
+        )
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        zone = get_inspection_zone(
+            'С-1', 3.0, '53', material_type='titanium',
+        )
+        self.assertEqual(params['haz_width_mm'], 20.0)
+        self.assertEqual(params['zone_width_mm'], zone['zone_width_mm'])
+
     def test_isotope_focal_spot_defaults_to_3mm(self):
         calc = RadiographicTechCardCalculator(self.pipe_input)
         params = calc.calculate()

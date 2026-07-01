@@ -142,11 +142,6 @@ TITANIUM_EDGE_CLEANING_WIDTH_ESW_MM = 50.0
 ELECTROSHLAG_WELDING_CODE = '20'
 
 
-def is_electroslag_welding(welding_process: str) -> bool:
-    """Электрошлаковая сварка (код 20 по ГОСТ Р 59023.2-2020)."""
-    return (welding_process or '').strip() == ELECTROSHLAG_WELDING_CODE
-
-
 def build_titanium_edge_cleaning_requirement(welding_process: str) -> str:
     """
     Требования НП-104-18, п. 84 к зачистке кромок титановых сплавов.
@@ -169,3 +164,15 @@ def build_titanium_edge_cleaning_requirement(welding_process: str) -> str:
         f'побежалости. Ширина указанных участков — не менее {width_fmt} мм при '
         f'подготовке деталей под {weld_kind}.'
     )
+
+
+def is_electroslag_welding(welding_process: str) -> bool:
+    """Электрошлаковая сварка (код 20 по ГОСТ Р 59023.2-2020)."""
+    return (welding_process or '').strip() == ELECTROSHLAG_WELDING_CODE
+
+
+def get_titanium_min_edge_zone_width_mm(welding_process: str) -> float:
+    """Минимальная ширина ОШЗ/зачищенной зоны для титана (НП-104-18, п. 84)."""
+    if is_electroslag_welding(welding_process):
+        return TITANIUM_EDGE_CLEANING_WIDTH_ESW_MM
+    return TITANIUM_EDGE_CLEANING_WIDTH_ARC_MM

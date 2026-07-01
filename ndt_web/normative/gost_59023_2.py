@@ -703,6 +703,7 @@ def get_inspection_zone(
     thickness_mm: float,
     welding_method: str = '30',
     *,
+    material_type: str = 'steel',
     reinforcement_removed: bool = False,
     has_backing_ring: bool | None = None,
     backing_ring_thickness_mm: float | None = None,
@@ -745,6 +746,15 @@ def get_inspection_zone(
 
     haz_width = round(haz_width, 1)
 
+    if material_type == 'titanium':
+        from normative.np_104_18 import (
+            DOCUMENT_CODE as NP104_CODE,
+            get_titanium_min_edge_zone_width_mm,
+        )
+        min_haz = get_titanium_min_edge_zone_width_mm(welding_method)
+        haz_width = max(haz_width, min_haz)
+        haz_width = round(haz_width, 1)
+
     # Ширина контролируемой зоны (4.2.5)
     zone_width = e + 2 * haz_width
 
@@ -770,6 +780,10 @@ def get_inspection_zone(
     else:
         backing_thickness = 0.0
 
+    ref = 'ГОСТ Р 50.05.07-2018, п. 6.3.13; НП-105-18'
+    if material_type == 'titanium':
+        ref += f'; {NP104_CODE}, п. 84'
+
     return {
         # 4.2.2 — ширина валика и высота усиления
         'bead_width_mm': round(bead_width_surface, 1),
@@ -791,7 +805,7 @@ def get_inspection_zone(
         'film_width_min_mm': round(film_width_min, 1),
         # Детали расчёта
         'weld_note': weld.get('note', ''),
-        'ref': 'ГОСТ Р 50.05.07-2018, п. 6.3.13; НП-105-18',
+        'ref': ref,
     }
 
 

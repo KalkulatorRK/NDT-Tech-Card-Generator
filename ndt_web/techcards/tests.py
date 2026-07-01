@@ -1350,7 +1350,9 @@ class TemplateCommentsTests(TestCase):
             ]
             self.assertIn('Технологическая карта', body_title[0])
             self.assertIn('радиографического контроля', body_title)
-            self.assertTrue(any('№' in t and 'ТК-001' in t for t in body_title))
+            num_lines = [t for t in body_title if t.startswith('№')]
+            self.assertEqual(len(num_lines), 1)
+            self.assertEqual(num_lines[0], '№ ТК-001')
 
             fp_footer_table = section.first_page_footer.tables[0]
             dev_name_para = fp_footer_table.rows[2].cells[0].paragraphs[0]
@@ -1363,8 +1365,8 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('ТестОрг', header_text)
             self.assertNotIn('ФГУП МАРКС', header_text)
             self.assertNotIn('Иванов', header_text)
-            self.assertIn('Страница', header_text)
-            self.assertIn('страниц', header_text)
+            self.assertIn('страница', header_text.lower())
+            self.assertIn('страниц', header_text.lower())
 
             body = doc.element.body
             ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
@@ -1389,7 +1391,7 @@ class TemplateCommentsTests(TestCase):
 
             with zipfile.ZipFile(out) as zf:
                 header_xml = zf.read('word/header1.xml').decode('utf-8')
-            self.assertIn('Страница', header_xml)
+            self.assertIn('страница', header_xml.lower())
             self.assertIn('NUMPAGES', header_xml)
             self.assertIn('PAGE', header_xml)
 
@@ -1468,8 +1470,19 @@ class TemplateCommentsTests(TestCase):
             gen_breaks, gen_empty = _layout_stats(out)
             # +1 разрыв перед п. 4.3 (начало страницы 3)
             self.assertEqual(gen_breaks, tpl_breaks + 1)
-            # Перед п. 4.3 остаётся 1 пустая строка вместо 4 в шаблоне
-            self.assertGreaterEqual(gen_empty, tpl_empty - 5)
+            # Пустые строки схлопнуты — не более одной подряд
+            self.assertLess(gen_empty, tpl_empty)
+            doc = Document(out)
+            from techcards.generator import _is_empty_body_paragraph
+            max_run = 0
+            cur = 0
+            for child in doc.element.body:
+                if child.tag.split('}')[-1] == 'p' and _is_empty_body_paragraph(child):
+                    cur += 1
+                    max_run = max(max_run, cur)
+                else:
+                    cur = 0
+            self.assertLessEqual(max_run, 1)
 
     def test_section_43_single_line_gap_before_heading(self):
         from techcards.generator import generate_from_template, get_default_template_path
@@ -1586,7 +1599,7 @@ class TemplateCommentsTests(TestCase):
 
             with zipfile.ZipFile(out) as zf:
                 header_xml = zf.read('word/header1.xml').decode('utf-8')
-            self.assertIn('Страница ', header_xml)
+            self.assertIn('страница', header_xml.lower())
             self.assertNotIn('Страница    ', header_xml)
             self.assertIn('NUMPAGES', header_xml)
 
@@ -1686,8 +1699,8 @@ class TemplateCommentsTests(TestCase):
             if prev is not None:
                 self.assertTrue(_paragraph_has_page_break(prev))
 
-    def test_section_102_contains_acceptance_table(self):
-        """П. 10.2 — вложенная таблица норм по табл. 4.8 для стали кат. II."""
+    def test_title_card_number_single_instance(self):
+        """Номер техкарты на титуле — один раз, без дублирования фрагментов."""
         from techcards.generator import generate_from_template, get_default_template_path
         import tempfile
         from docx import Document
@@ -1695,44 +1708,7 @@ class TemplateCommentsTests(TestCase):
         template = get_default_template_path()
         if not template:
             self.skipTest('Шаблон DOCX не найден')
-        calc = RadiographicTechCardCalculator(self.pipe_input)
-        params = calc.calculate()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out = os.path.join(tmpdir, 'card.docx')
-            from django.conf import settings
-            static_root = str(settings.STATICFILES_DIRS[0])
-            generate_from_template(params, template, out, static_root=static_root)
-            doc = Document(out)
-            section10 = next(
-                t for t in doc.tables
-                if any('10.2' in c.text for row in t.rows for c in row.cells)
-            )
-            row_102 = next(
-                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
-            )
-            cell = row_102.cells[0]
-            self.assertIn('таблица N 4.8', cell.text)
-            self.assertIn('20,0', cell.text)
-            nested = cell.tables
-            self.assertEqual(len(nested), 1)
-            self.assertGreater(len(nested[0].rows), 1)
-            data_row = ' '.join(c.text for c in nested[0].rows[1].cells)
-            self.assertIn('2,5', data_row)
-
-    def test_section_102_aluminum_uses_table_410(self):
-        from techcards.generator import generate_from_template, get_default_template_path
-        import tempfile
-        from docx import Document
-
-        template = get_default_template_path()
-        if not template:
-            self.skipTest('Шаблон DOCX не найден')
-        data = dict(
-            self.pipe_input,
-            material='__aluminum__',
-            material_custom='АМг6',
-            weld_category='II',
-        )
+        data = dict(self.pipe_input, card_number='тк 67')
         calc = RadiographicTechCardCalculator(data)
         params = calc.calculate()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1741,22 +1717,18 @@ class TemplateCommentsTests(TestCase):
             static_root = str(settings.STATICFILES_DIRS[0])
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)
-            section10 = next(
-                t for t in doc.tables
-                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            num_para = next(
+                p for p in doc.paragraphs
+                if p.text.strip().startswith('№') and 'тк 67' in p.text
             )
-            row_102 = next(
-                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
-            )
-            self.assertIn('таблица N 4.10', row_102.cells[0].text)
+            self.assertEqual(num_para.text.strip(), '№ тк 67')
+            self.assertEqual(len(num_para.runs), 1)
 
-    def test_section_43_has_page_break_before_gap(self):
-        """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""
-        from techcards.generator import (
-            generate_from_template, get_default_template_path,
-            _is_empty_body_paragraph, _paragraph_has_page_break,
-        )
+    def test_header_page_number_format(self):
+        """Колонтитул: «страница N страниц M» без статичных цифр шаблона."""
+        from techcards.generator import generate_from_template, get_default_template_path
         import tempfile
+        import zipfile
         from docx import Document
 
         template = get_default_template_path()
@@ -1770,14 +1742,13 @@ class TemplateCommentsTests(TestCase):
             static_root = str(settings.STATICFILES_DIRS[0])
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)
-            para_43 = next(
-                p for p in doc.paragraphs if '4.3' in p.text and 'эскиз' in p.text.lower()
-            )
-            empty = 0
-            prev = para_43._element.getprevious()
-            while prev is not None and _is_empty_body_paragraph(prev):
-                empty += 1
-                prev = prev.getprevious()
-            self.assertEqual(empty, 1)
-            if prev is not None:
-                self.assertTrue(_paragraph_has_page_break(prev))
+            page_cell = doc.sections[0].header.tables[0].rows[1].cells[2]
+            self.assertIn('страница', page_cell.text.lower())
+            self.assertIn('страниц', page_cell.text.lower())
+            self.assertNotRegex(page_cell.text, r'\d')
+            with zipfile.ZipFile(out) as zf:
+                header_xml = zf.read('word/header1.xml').decode('utf-8')
+            self.assertIn('страница', header_xml.lower())
+            self.assertIn('PAGE', header_xml)
+            self.assertIn('NUMPAGES', header_xml)
+            self.assertNotIn('Страница 1', header_xml)

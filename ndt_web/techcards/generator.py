@@ -1209,7 +1209,68 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
         _set_cell_text(nested.rows[1].cells[ci], val, font_size=9)
 
 
+def _collapse_excessive_empty_paragraphs(doc: Document, max_consecutive: int = 1):
+    """
+    Схлопывает серии пустых абзацев в теле документа до max_consecutive.
+    Убирает большие отступы от верхнего колонтитула между блоками.
+    """
+    body = doc.element.body
+    to_remove = []
+    run_len = 0
+    for child in list(body):
+        tag = child.tag.split('}')[-1]
+        if tag == 'p' and _is_empty_body_paragraph(child):
+            run_len += 1
+            if run_len > max_consecutive:
+                to_remove.append(child)
+        else:
+            run_len = 0
+    for el in to_remove:
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+
+
+def _clear_cell_paragraphs(cell):
+    """Удаляет все абзацы ячейки таблицы (для полной пересборки содержимого)."""
+    tc = cell._tc
+    for child in list(tc):
+        if child.tag.split('}')[-1] == 'p':
+            tc.remove(child)
+
+
 def _trim_empty_paragraphs_before(doc: Document, *needles: str, keep: int = 1):
+    """
+    Оставляет не более keep пустых абзацев перед целевым параграфом.
+    Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
+    """
+    para = None
+    for p in doc.paragraphs:
+        lower = p.text.lower()
+        if all(n.lower() in lower for n in needles):
+            para = p
+            break
+    if para is None:
+        return
+
+    target_el = para._element
+    parent = target_el.getparent()
+    if parent is None:
+        return
+
+    children = list(parent)
+    idx = children.index(target_el)
+    empty_before = []
+    for i in range(idx - 1, -1, -1):
+        child = children[i]
+        if not _is_empty_body_paragraph(child):
+            break
+        empty_before.append(child)
+
+    for el in empty_before[keep:]:
+        parent.remove(el)
+
+
     """
     Оставляет не более keep пустых абзацев перед целевым параграфом.
     Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
@@ -1444,6 +1505,9 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # П. 4.3 — начало страницы 3, зазор в одну строку от верхнего колонтитула
     _ensure_section_43_on_page_three(doc)
 
+    # Убрать множественные пустые строки между блоками (не более 1 подряд)
+    _collapse_excessive_empty_paragraphs(doc, max_consecutive=1)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
     return output_path
@@ -1534,7 +1598,7 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
 
 def _insert_page_number_field(para):
     """
-    Вставляет в параграф нумерацию «Страница N    M страниц».
+    Вставляет в параграф нумерацию «страница N страниц M».
     Используется для колонтитулов Word (поля PAGE / NUMPAGES).
     """
     def _field_run(instr_text: str):
@@ -1550,11 +1614,10 @@ def _insert_page_number_field(para):
         run._r.append(instr)
         run._r.append(fc_end)
 
-    para.add_run('Страница ')
+    para.add_run('страница ')
     _field_run(' PAGE ')
-    para.add_run(' ')
+    para.add_run(' страниц ')
     _field_run(' NUMPAGES ')
-    para.add_run(' страниц')
 
 
 def _remove_docx_comments(doc: Document):
@@ -1678,52 +1741,34 @@ def _replace_certificate_in_cell(cell, certificate: str):
 
 
 def _fill_header_card_number_cell(cell, card_num: str):
-    """Заполняет ячейку «№» в шапке, не пересобирая параграф."""
+    """Заполняет ячейку «№» в шапке одной строкой без дублирования."""
     display = f'№ {card_num}'.strip() if card_num else '№'
-    if not cell.paragraphs:
-        cell.add_paragraph(display)
-        return
-    para = cell.paragraphs[0]
-    if para.runs:
-        para.runs[0].text = display
-        for run in para.runs[1:]:
-            run.text = ''
-    else:
-        para.add_run(display)
+    _clear_cell_paragraphs(cell)
+    para = cell.add_paragraph()
+    run = para.add_run(display)
+    run.font.size = Pt(12)
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
 def _fill_body_title_page(doc: Document, params: dict):
     """
-    Титульный лист в теле документа оставляем как в шаблоне:
-    крупный заголовок и строка «№ …» (номер дублируется в шапке).
+    Титульный лист: строка «№ …» в одном экземпляре (без дублирования run-фрагментов).
     """
     card_num = (params.get('card_number') or '').strip()
     if not card_num:
         return
+    display = f'№ {card_num}'
     for para in doc.paragraphs:
         stripped = para.text.strip()
         if not stripped.startswith('№'):
             continue
-        if stripped in ('№', '№ '):
-            if len(para.runs) >= 2:
-                para.runs[1].text = f' {card_num}'
-            elif para.runs:
-                para.runs[0].text = f'№ {card_num}'
-            else:
-                para.add_run(f'№ {card_num}')
-        else:
-            _replace_in_paragraph_runs(para, {
-                stripped: f'№ {card_num}',
-                '№': f'№ {card_num}',
-            })
-            if card_num not in para.text:
-                if para.runs:
-                    para.runs[0].text = f'№ {card_num}'
-                    for run in para.runs[1:]:
-                        run.text = ''
-                else:
-                    para.add_run(f'№ {card_num}')
+        ref = _reference_run_in_paragraph(para)
+        _clear_paragraph_content(para)
+        run = para.add_run(display)
+        if ref is not None:
+            _copy_run_font(ref, run)
+        elif not run.font.size:
+            run.font.size = Pt(12)
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         return
 
@@ -1865,16 +1910,12 @@ def _find_footer_table(part):
 
 def _fill_page_number_cell(cell):
     """Заменяет статичную нумерацию шаблона полями PAGE / NUMPAGES."""
-    para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
-    ref = _reference_run_in_paragraph(para)
-    for extra in cell.paragraphs[1:]:
-        _clear_paragraph_content(extra)
-    _clear_paragraph_content(para)
+    _clear_cell_paragraphs(cell)
+    para = cell.add_paragraph()
     _insert_page_number_field(para)
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in para.runs:
-        if ref is not None:
-            _copy_run_font(ref, run)
-        elif not run.font.size:
+        if not run.font.size:
             run.font.size = Pt(12)
 
 

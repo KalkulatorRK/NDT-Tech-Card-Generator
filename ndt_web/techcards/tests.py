@@ -1055,6 +1055,40 @@ class WeldingProcessFilterTests(TestCase):
         codes = [c[0] for c in form.fields['weld_category'].choices]
         self.assertIn('IIн', codes)
 
+    def test_weld_category_titanium_excludes_in(self):
+        """Для титана доступны только I, II, III (табл. 4.11)."""
+        from techcards.forms import TechCardStep2Form
+        from normative.gost_59023_2 import MATERIAL_TITANIUM
+
+        form = TechCardStep2Form(initial={
+            'object_type': 'pipe',
+            'material': MATERIAL_TITANIUM,
+            'material_custom': 'ВТ6',
+            'weld_category': 'III',
+            'wall_thickness': 12,
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+        })
+        codes = [c[0] for c in form.fields['weld_category'].choices]
+        self.assertEqual(codes, ['I', 'II', 'III'])
+
+    def test_weld_category_aluminum_excludes_in(self):
+        from techcards.forms import TechCardStep2Form
+        from normative.gost_59023_2 import MATERIAL_ALUMINUM
+
+        form = TechCardStep2Form(initial={
+            'object_type': 'flat',
+            'material': MATERIAL_ALUMINUM,
+            'material_custom': 'АМг6',
+            'weld_category': 'II',
+            'wall_thickness': 10,
+            'joint_designation': 'С-1',
+            'welding_process': '53',
+        })
+        codes = [c[0] for c in form.fields['weld_category'].choices]
+        self.assertNotIn('Iн', codes)
+        self.assertNotIn('IIн', codes)
+
 
 class DocumentKindTests(TestCase):
     """Вид документа: методический vs нормативный."""
@@ -1710,6 +1744,35 @@ class TemplateCommentsTests(TestCase):
                 row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
             )
             self.assertIn('таблица N 4.10', row_102.cells[0].text)
+
+    def test_section_102_row_has_no_fixed_height(self):
+        """П. 10.2 — без фиксированной высоты строки после вставки таблицы норм."""
+        from techcards.generator import generate_from_template, get_default_template_path
+        from docx.oxml.ns import qn
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+        calc = RadiographicTechCardCalculator(self.pipe_input)
+        params = calc.calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            section10 = next(
+                t for t in doc.tables
+                if any('10.2' in c.text for row in t.rows for c in row.cells)
+            )
+            row_102 = next(
+                row for row in section10.rows if row.cells[0].text.strip().startswith('10.2')
+            )
+            tr_pr = row_102._tr.find(qn('w:trPr'))
+            if tr_pr is not None:
+                self.assertIsNone(tr_pr.find(qn('w:trHeight')))
 
     def test_section_43_has_page_break_before_gap(self):
         """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""

@@ -95,3 +95,31 @@ class NP105AcceptanceCriteriaTests(SimpleTestCase):
         codes = [c[0] for c in get_weld_category_choices('aluminum')]
         self.assertNotIn('Iн', codes)
         self.assertIn('III', codes)
+
+    def test_weld_category_choices_titanium_excludes_in(self):
+        from normative.np_105_18 import get_weld_category_choices
+        codes = [c[0] for c in get_weld_category_choices('titanium')]
+        self.assertNotIn('Iн', codes)
+        self.assertEqual(codes, ['I', 'II', 'III'])
+
+    def test_resolve_material_type_for_categories_titanium(self):
+        from normative.np_105_18 import resolve_material_type_for_categories
+        from normative.gost_59023_2 import MATERIAL_TITANIUM
+
+        self.assertEqual(
+            resolve_material_type_for_categories(MATERIAL_TITANIUM, 'ВТ6', 'III'),
+            'titanium',
+        )
+        self.assertEqual(
+            resolve_material_type_for_categories(MATERIAL_TITANIUM, 'ВТ6', 'Iн'),
+            'titanium',
+        )
+
+    def test_resolve_material_type_for_categories_aluminum(self):
+        from normative.np_105_18 import resolve_material_type_for_categories
+        from normative.gost_59023_2 import MATERIAL_ALUMINUM
+
+        self.assertEqual(
+            resolve_material_type_for_categories(MATERIAL_ALUMINUM, 'АМг6', 'II'),
+            'aluminum',
+        )

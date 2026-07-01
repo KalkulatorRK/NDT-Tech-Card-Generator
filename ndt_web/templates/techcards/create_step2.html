@@ -334,9 +334,7 @@ function updateWeldCategoryChoices() {
 
   var mat = materialSel ? materialSel.value : '';
   var current = categorySelect.value;
-  var type = (current === 'Iн' || current === 'IIн')
-    ? 'steel'
-    : resolveMaterialTypeForCategories(mat);
+  var type = resolveMaterialTypeForCategories(mat);
   var choices = WELD_CATEGORY_CHOICES[type] || WELD_CATEGORY_CHOICES.steel;
 
   categorySelect.innerHTML = '';

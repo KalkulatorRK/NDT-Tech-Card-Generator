@@ -1221,6 +1221,19 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
         val = row_values[ci] if ci < len(row_values) else '—'
         _set_cell_text(nested.rows[1].cells[ci], val, font_size=9)
 
+    _clear_table_row_height(section_table.rows[row_idx])
+
+
+def _clear_table_row_height(row):
+    """Снимает фиксированную высоту строки таблицы (убирает лишний зазор в ячейке)."""
+    tr = row._tr
+    tr_pr = tr.find(qn('w:trPr'))
+    if tr_pr is None:
+        return
+    row_height = tr_pr.find(qn('w:trHeight'))
+    if row_height is not None:
+        tr_pr.remove(row_height)
+
 
 def _collapse_excessive_empty_paragraphs(doc: Document, max_consecutive: int = 1):
     """
@@ -1253,68 +1266,6 @@ def _clear_cell_paragraphs(cell):
 
 
 def _trim_empty_paragraphs_before(doc: Document, *needles: str, keep: int = 1):
-    """
-    Оставляет не более keep пустых абзацев перед целевым параграфом.
-    Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
-    """
-    para = None
-    for p in doc.paragraphs:
-        lower = p.text.lower()
-        if all(n.lower() in lower for n in needles):
-            para = p
-            break
-    if para is None:
-        return
-
-    target_el = para._element
-    parent = target_el.getparent()
-    if parent is None:
-        return
-
-    children = list(parent)
-    idx = children.index(target_el)
-    empty_before = []
-    for i in range(idx - 1, -1, -1):
-        child = children[i]
-        if not _is_empty_body_paragraph(child):
-            break
-        empty_before.append(child)
-
-    for el in empty_before[keep:]:
-        parent.remove(el)
-
-
-    """
-    Оставляет не более keep пустых абзацев перед целевым параграфом.
-    Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.
-    """
-    para = None
-    for p in doc.paragraphs:
-        lower = p.text.lower()
-        if all(n.lower() in lower for n in needles):
-            para = p
-            break
-    if para is None:
-        return
-
-    target_el = para._element
-    parent = target_el.getparent()
-    if parent is None:
-        return
-
-    children = list(parent)
-    idx = children.index(target_el)
-    empty_before = []
-    for i in range(idx - 1, -1, -1):
-        child = children[i]
-        if not _is_empty_body_paragraph(child):
-            break
-        empty_before.append(child)
-
-    for el in empty_before[keep:]:
-        parent.remove(el)
-
-
     """
     Оставляет не более keep пустых абзацев перед целевым параграфом.
     Используется для п. 4.3 — зазор в одну строку от верхнего колонтитула.

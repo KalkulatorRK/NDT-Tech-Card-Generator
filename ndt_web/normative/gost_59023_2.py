@@ -130,7 +130,7 @@ JOINT_IMAGES = {
     'С-19': 'gost/С_19.gif',
     'С-21': 'gost/С_21.gif',
     'С-22': 'gost/С_22.gif',
-    'С-22-1': 'gost/С_22.gif',
+    'С-22-1': 'gost/С_22_1.gif',
     'С-25': 'gost/С_25.gif',
     'С-27': 'gost/С_27.gif',
     'С-42': 'gost/С_42.gif',
@@ -382,15 +382,17 @@ JOINT_TYPES = {
         'name': 'Стыковое, V-образная разделка, комбинированная/аргонодуговая (Dн ≤ 750 мм)',
         'joint_type': 'butt',
         'material': 'austenite',
-        'groove': 'V-образная',
+        'groove': 'V-образная (45°±2°)',
         'methods': ['40', '52', '53'],
-        'sketch': 'weld_C22.svg',
-        # Табл. 9.29 ГОСТ Р 59023.2-2020
+        'sketch': 'weld_C22_1.svg',
+        'gost_table': '9.29',
+        # Табл. 9.29 ГОСТ Р 59023.2-2020: (S, e, g±, e_tol)
         'dimensions': [
-            (1.5, 1.5, 6.0, 1.0, 0.5, 1.5),
-            (2.0, 2.0, 7.0, 2.5),
-            (2.5, 2.5, 8.0, 3.0),
-            (3.5, 3.5, 9.0, 3.5),
+            (1.5, 1.5, 6.0, 1.0, 0.5, 1.5, 2.0),
+            (2.0, 2.0, 7.0, 1.0, 0.5, 1.5, 3.0),
+            (2.5, 2.5, 8.0, 1.0, 0.5, 1.5, 3.0),
+            (3.0, 3.0, 9.0, 1.0, 0.5, 1.5, 3.0),
+            (3.5, 3.5, 10.0, 1.0, 0.5, 1.5, 3.0),
         ],
     },
     'С-25': {
@@ -609,6 +611,8 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
     Формат кортежа dimensions:
         4 элемента: (S_min, S_max, e, g_nom)  — g_min/g_max рассчитываются по умолчанию
         6 элементов: (S_min, S_max, e, g_nom, g_min, g_max) — точные значения
+        7 элементов: (S_min, S_max, e, e1, g_nom, g_min, g_max) — e1 ≠ e
+                     (S_min, S_max, e, g_nom, g_min, g_max, e_tol) — e_tol при g_nom < 4
 
     :param joint_code: условное обозначение соединения
     :param thickness_mm: номинальная толщина стенки, мм
@@ -641,12 +645,19 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
         }
 
     e = match_row[2]
+    e_tol = None
     # e1 — ширина валика на внутренней поверхности; по умолчанию = e
-    if len(match_row) >= 7:
+    if len(match_row) >= 7 and match_row[3] >= 4:
         e1 = match_row[3]
         g_nom = match_row[4]
         g_min = match_row[5]
         g_max = match_row[6]
+    elif len(match_row) >= 7:
+        e1 = e
+        g_nom = match_row[3]
+        g_min = match_row[4]
+        g_max = match_row[5]
+        e_tol = match_row[6]
     elif len(match_row) >= 6:
         e1 = e
         g_nom = match_row[3]
@@ -658,10 +669,18 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
         g_min = max(0.0, g_nom - 1.5)
         g_max = g_nom + 1.5
 
-    e_tol = _default_e_tolerance_mm(e)
+    if e_tol is None:
+        e_tol = _default_e_tolerance_mm(e)
     e1_tol = _default_e_tolerance_mm(e1)
 
-    note = f'По Таблице ГОСТ Р 59023.2-2020 для {joint_code}, S={thickness_mm} мм'
+    table_ref = info.get('gost_table', '')
+    if table_ref:
+        note = (
+            f'По табл. {table_ref} ГОСТ Р 59023.2-2020 для {joint_code}, '
+            f'S={thickness_mm} мм'
+        )
+    else:
+        note = f'По таблице ГОСТ Р 59023.2-2020 для {joint_code}, S={thickness_mm} мм'
     if match_row[0] > thickness_mm or match_row[1] < thickness_mm:
         note = (
             f'Приближённо для {joint_code}, S={thickness_mm} мм '

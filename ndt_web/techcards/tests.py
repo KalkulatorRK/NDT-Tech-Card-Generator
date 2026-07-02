@@ -638,14 +638,30 @@ class SchemeDisplayTests(TestCase):
         self.assertGreater(effective['f_min_mm'], nominal['f_min_mm'])
 
     def test_joint_c22_1_in_choices_and_weld_width(self):
-        from normative.gost_59023_2 import get_joint_type_choices, get_weld_width
+        from normative.gost_59023_2 import (
+            get_joint_type_choices, get_weld_width, get_joint_image_path,
+        )
 
         codes = [c for c, _ in get_joint_type_choices()]
         self.assertIn('С-22-1', codes)
+        self.assertEqual(get_joint_image_path('С-22-1'), 'gost/С_22_1.gif')
 
         weld = get_weld_width('С-22-1', 2.0)
         self.assertEqual(weld['e_mm'], 7.0)
-        self.assertEqual(weld['g_nom'], 2.5)
+        self.assertEqual(weld['g_nom'], 1.0)
+        self.assertEqual(weld['g_min_mm'], 0.5)
+        self.assertEqual(weld['g_max_mm'], 1.5)
+        self.assertEqual(weld['e_tol_mm'], 3.0)
+        self.assertEqual(weld['e_display'], '7,0 ±3,0')
+        self.assertIn('9.29', weld['note'])
+
+        weld_15 = get_weld_width('С-22-1', 1.5)
+        self.assertEqual(weld_15['e_mm'], 6.0)
+        self.assertEqual(weld_15['e_tol_mm'], 2.0)
+
+        weld_35 = get_weld_width('С-22-1', 3.5)
+        self.assertEqual(weld_35['e_mm'], 10.0)
+        self.assertEqual(weld_35['g_nom'], 1.0)
 
     def test_calculator_uses_effective_diameter_for_two_wall_scheme(self):
         from techcards.generator import RadiographicTechCardCalculator

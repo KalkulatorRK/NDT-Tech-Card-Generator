@@ -651,8 +651,8 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(weld['g_nom'], 1.0)
         self.assertEqual(weld['g_min_mm'], 0.5)
         self.assertEqual(weld['g_max_mm'], 1.5)
-        self.assertEqual(weld['e_tol_mm'], 3.0)
-        self.assertEqual(weld['e_display'], '7,0 ±3,0')
+        self.assertEqual(weld['e_tol_mm'], 2.0)
+        self.assertEqual(weld['e_display'], '7,0 ±2,0')
         self.assertIn('9.29', weld['note'])
 
         weld_15 = get_weld_width('С-22-1', 1.5)

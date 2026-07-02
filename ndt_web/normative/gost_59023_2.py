@@ -687,8 +687,11 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
             f'(ближайший диапазон {match_row[0]}–{match_row[1]} мм)'
         )
 
+    e_max = round(e + e_tol, 1)
+
     return {
         'e_mm': e,
+        'e_max_mm': e_max,
         'e1_mm': e1,
         'e_tol_mm': e_tol,
         'e1_tol_mm': e1_tol,
@@ -757,6 +760,8 @@ def get_inspection_zone(
     """
     weld = get_weld_width(joint_code, thickness_mm)
     e = weld.get('e_mm') or (thickness_mm * 1.5)
+    e_tol = weld.get('e_tol_mm', _default_e_tolerance_mm(e))
+    e_max = weld.get('e_max_mm', round(e + e_tol, 1))
     e1 = weld.get('e1_mm', e)
     g_nom = weld.get('g_nom') or 2.0
     g_min = weld.get('g_min_mm', max(0.0, g_nom - 1.5))
@@ -791,8 +796,9 @@ def get_inspection_zone(
         haz_width = max(haz_width, min_haz)
         haz_width = round(haz_width, 1)
 
-    # Ширина контролируемой зоны (4.2.5)
-    zone_width = e + 2 * haz_width
+    # Ширина контролируемой зоны (4.2.5): e_max + 2×a
+    # e_max — наибольшее допускаемое значение ширины шва (e + предельное отклонение)
+    zone_width = e_max + 2 * haz_width
 
     # Минимальная ширина снимка по ГОСТ Р 50.05.07-2018 п.6.3.13
     if welding_method == '20':

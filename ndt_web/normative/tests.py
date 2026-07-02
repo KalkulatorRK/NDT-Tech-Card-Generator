@@ -149,11 +149,15 @@ class NP104TitaniumPreparationTests(SimpleTestCase):
 
 class InspectionZoneTests(SimpleTestCase):
     def test_titanium_thin_wall_haz_is_at_least_20mm(self):
-        from normative.gost_59023_2 import get_inspection_zone
+        from normative.gost_59023_2 import get_inspection_zone, get_weld_width
 
+        weld = get_weld_width('С-1', 3.0)
         zone = get_inspection_zone('С-1', 3.0, '53', material_type='titanium')
         self.assertEqual(zone['haz_width_mm'], 20.0)
-        self.assertEqual(zone['zone_width_mm'], zone['bead_width_mm'] + 40.0)
+        self.assertEqual(
+            zone['zone_width_mm'],
+            weld['e_max_mm'] + 2 * zone['haz_width_mm'],
+        )
         self.assertIn('НП-104-18', zone['ref'])
 
     def test_steel_thin_wall_keeps_default_haz(self):

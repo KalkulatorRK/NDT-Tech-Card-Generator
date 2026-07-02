@@ -663,6 +663,16 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(weld_35['e_mm'], 10.0)
         self.assertEqual(weld_35['g_nom'], 1.0)
 
+    def test_joint_c22_1_zone_width_uses_e_max(self):
+        from normative.gost_59023_2 import get_inspection_zone, get_weld_width
+
+        weld = get_weld_width('С-22-1', 3.0)
+        zone = get_inspection_zone('С-22-1', 3.0, '40', material_type='steel')
+        self.assertEqual(weld['e_mm'], 9.0)
+        self.assertEqual(weld['e_max_mm'], 12.0)
+        self.assertEqual(zone['haz_width_mm'], 5.0)
+        self.assertEqual(zone['zone_width_mm'], 22.0)
+
     def test_calculator_uses_effective_diameter_for_two_wall_scheme(self):
         from techcards.generator import RadiographicTechCardCalculator
 

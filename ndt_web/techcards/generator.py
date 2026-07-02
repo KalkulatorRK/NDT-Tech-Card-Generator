@@ -120,6 +120,13 @@ def _label_matches_value_key(label_text: str, key: str) -> bool:
 
 def _match_value_for_label(label_text: str, value_map: dict):
     """Возвращает значение для метки (приоритет у более длинных ключей)."""
+    label_stripped = label_text.strip()
+    section_m = re.match(r'^(\d+(?:\.\d+)+)\.?\s', label_stripped)
+    if section_m:
+        section_key = section_m.group(1).rstrip('.')
+        if section_key in value_map:
+            return value_map[section_key]
+
     for key in sorted(value_map.keys(), key=len, reverse=True):
         if not _label_matches_value_key(label_text, key):
             continue
@@ -129,6 +136,8 @@ def _match_value_for_label(label_text: str, value_map: dict):
                 'околошовной', '4.2.6',
             )):
                 continue
+        if not key[0].isdigit() and section_m:
+            continue
         return value_map[key]
     return None
 
@@ -935,7 +944,7 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 4: Тип и размеры ----
         '4.1': _OBJECT_TYPE_NAMES.get(object_type, ''),
         '4.2.1': outer_d_display,
-        'толщина': _fmt_mm(S),
+        '4.2.1 S': _fmt_mm(S),
         '4.2.2 длин': flat_length_display,
         '4.2.2': params.get('e_display', ''),
         '4.2.2 e1': params.get('e1_display', ''),
@@ -969,13 +978,7 @@ def _build_value_map(params: dict) -> dict:
 
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
         '6.1': src.get('energy_display', ''),
-        '6.2': (
-            f'S_K = {params.get("s_k_mm", "—")} мм → '
-            f'K ≤ {params.get("required_sensitivity_norm_mm", params.get("required_sensitivity_mm", "—")):.3f} мм '
-            f'(НП-105-18, Табл. {params.get("acceptance_table_ref", "4.8")}, '
-            f'кат. {params.get("weld_category", "")});  '
-            f'Sрад(f) = {params.get("rad_thickness", {}).get("formula_f", "—")}'
-        ),
+        '6.2': _fmt_mm(params.get('s_k_mm', '')),
         '6.3': (
             f'K ≤ {params.get("sensitivity_k_display_mm", params.get("required_sensitivity_mm", "—")):.3f} мм'
             if params.get('sensitivity_k_display_mm') is not None
@@ -1428,7 +1431,7 @@ def _fill_dimension_rows(doc: Document, value_map: dict):
 
             if '4.2.1' in label and 'внешний' in label and len(ucells) >= 4:
                 _set_cell_text(ucells[1], value_map.get('4.2.1', '—'))
-                _set_cell_text(ucells[3], value_map.get('толщина', ''))
+                _set_cell_text(ucells[3], value_map.get('4.2.1 S', ''))
                 continue
 
             if ('длинна' in label or 'длина' in label) and '4.2.2' in label:
@@ -2219,7 +2222,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
 
     section('6. ПАРАМЕТРЫ И СХЕМА КОНТРОЛЯ', [
         ('6.1 Энергия / напряжение', src.get('energy_display')),
-        ('6.2 Толщина для расчёта (Sк), мм', params.get('wall_thickness')),
+        ('6.2 Толщина для расчёта (Sк), мм', _fmt_mm(params.get('s_k_mm', ''))),
         ('6.3 Требуемая чувствительность (К)', params.get('sensitivity_desc')),
         ('6.5 Расстояние источник–детектор (SFD), мм', params.get('sfd_mm')),
         ('Расстояние объект–детектор (OFD), мм', params.get('ofd_mm')),
@@ -2501,7 +2504,7 @@ def _generate_docx_fallback(params: dict, output_path: str) -> str:
         '3.2': '3.2 Объём контроля',
         '4.1': '4.1 Тип контролируемого элемента',
         '4.2.1': '4.2.1 Наружный диаметр, мм',
-        'толщина': 'Толщина стенки (S), мм',
+        '4.2.1 S': 'Толщина стенки (S), мм',
         '5.1': '5.1 Источник излучения',
         '5.2': '5.2 Размер фокусного пятна, мм',
         '5.3': '5.3 Тип и номер ИКИ',

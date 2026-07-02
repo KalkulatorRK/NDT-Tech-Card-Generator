@@ -673,6 +673,56 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(zone['haz_width_mm'], 5.0)
         self.assertEqual(zone['zone_width_mm'], 22.0)
 
+    def test_docx_section_62_uses_sk_not_wall_thickness(self):
+        """П. 6.2 техкарты: Sк из расчёта, не номинальная толщина S."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path, _unique_cells,
+            _build_value_map, _match_value_for_label, _fmt_mm,
+        )
+        import tempfile
+        from docx import Document
+        from django.conf import settings
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+
+        data = {
+            'object_type': 'pipe',
+            'material': '08Х18Н10Т',
+            'wall_thickness': 3.0,
+            'outer_diameter': 58.0,
+            'joint_designation': 'С-22-1',
+            'welding_process': '40',
+            'weld_category': 'III',
+            'scheme_type': '5v',
+            'source_code': 'xray100',
+            'film_code': 'R5',
+        }
+        calc = RadiographicTechCardCalculator(data)
+        params = calc.calculate()
+        self.assertEqual(params['s_k_mm'], 6.0)
+
+        vmap = _build_value_map(params)
+        label = '6.2. Толщина, для определения чувствительности контроля (Sк), мм'
+        self.assertEqual(vmap['6.2'], '6,0')
+        self.assertEqual(_match_value_for_label(label, vmap), '6,0')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            generate_from_template(
+                params, template, out,
+                static_root=str(settings.STATICFILES_DIRS[0]),
+            )
+            doc = Document(out)
+            for table in doc.tables:
+                for row in table.rows:
+                    ucells = _unique_cells(row)
+                    if ucells and '6.2' in ucells[0].text:
+                        self.assertEqual(ucells[1].text.strip(), '6,0')
+                        return
+            self.fail('Строка 6.2 не найдена в DOCX')
+
     def test_calculator_uses_effective_diameter_for_two_wall_scheme(self):
         from techcards.generator import RadiographicTechCardCalculator
 

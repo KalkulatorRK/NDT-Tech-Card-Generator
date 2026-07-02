@@ -168,6 +168,25 @@ for _code, _walls in SCHEME_WALL_COUNT.items():
         SCHEME_INFO[_code]['wall_count'] = _walls
 
 
+def effective_outer_diameter_mm(
+    nominal_d_mm: float,
+    g_max_mm: float,
+    scheme_code: str,
+) -> float:
+    """
+    Эффективный наружный диаметр D для расчёта расстояния f.
+
+    При просвечивании через две стенки (схемы 5в, 5г, 5д):
+        D = Dн + g_max + g_max
+    """
+    d_nom = float(nominal_d_mm or 0)
+    if d_nom <= 0:
+        return 0.0
+    if SCHEME_WALL_COUNT.get(scheme_code, 1) == 2:
+        return round(d_nom + 2 * float(g_max_mm or 0), 1)
+    return round(d_nom, 1)
+
+
 def clamp_f_mm(value) -> Optional[float]:
     """
     Нормализует расстояние f для техкарты: отрицательные значения → 0 мм.

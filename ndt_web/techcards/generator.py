@@ -61,6 +61,7 @@ from normative.np_105_18 import (
 from normative.calculations import (
     calc_exposure_parameters, recommend_scheme,
     calc_geometric_unsharpness_full, SCHEME_INFO, clamp_f_mm,
+    effective_outer_diameter_mm,
 )
 
 
@@ -546,20 +547,23 @@ class RadiographicTechCardCalculator:
         Использует алгоритмы из normative.calculations (порт из KalkulatorRK2).
         """
         S = self.params['wall_thickness']
-        D = self.params['outer_diameter']
-        # Внутренний диаметр: D - 2×S
-        d_inner = D - 2 * S if D else 0
+        D_nom = self.params['outer_diameter']
+        d_inner = D_nom - 2 * S if D_nom else 0
         self.params['d_inner_mm'] = round(d_inner, 1)
 
         focal = self.params['source_focal_spot_mm']
         sensitivity_mm = self.params.get('required_sensitivity_mm', 0.5)
+        g_max = self.params.get('g_max_mm', 3.5)
 
         # Схема просвечивания — выбор пользователя или авторекомендация
         scheme = self.data.get('scheme_type', '').strip()
         if not scheme:
-            recommended = recommend_scheme(D, d_inner)
+            recommended = recommend_scheme(D_nom, d_inner)
             scheme = recommended[0] if recommended else '4_6'
             self.params['scheme_auto_selected'] = True
+
+        d_outer = effective_outer_diameter_mm(D_nom, g_max, scheme)
+        self.params['d_outer_effective_mm'] = d_outer
 
         sens = sensitivity_mm if sensitivity_mm > 0 else 0.5
         calc_kwargs = dict(
@@ -567,7 +571,7 @@ class RadiographicTechCardCalculator:
             focal_spot_mm=focal,
             sensitivity_mm=sens,
             thickness_mm=S,
-            d_outer_mm=D or 0,
+            d_outer_mm=d_outer or 0,
             d_inner_mm=d_inner,
         )
 

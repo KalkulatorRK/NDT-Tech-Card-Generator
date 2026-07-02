@@ -621,6 +621,52 @@ class SchemeDisplayTests(TestCase):
         )
         self.assertGreaterEqual(result.get('f_min_mm', 0), 0)
 
+    def test_effective_outer_diameter_two_walls_includes_gmax(self):
+        from normative.calculations import effective_outer_diameter_mm, calc_exposure_parameters
+
+        self.assertEqual(effective_outer_diameter_mm(219.0, 3.5, '5v'), 226.0)
+        self.assertEqual(effective_outer_diameter_mm(219.0, 3.5, '5a'), 219.0)
+
+        nominal = calc_exposure_parameters(
+            scheme='5v', focal_spot_mm=2.0, sensitivity_mm=0.5,
+            d_outer_mm=219.0, d_inner_mm=200.0,
+        )
+        effective = calc_exposure_parameters(
+            scheme='5v', focal_spot_mm=2.0, sensitivity_mm=0.5,
+            d_outer_mm=226.0, d_inner_mm=200.0,
+        )
+        self.assertGreater(effective['f_min_mm'], nominal['f_min_mm'])
+
+    def test_joint_c22_1_in_choices_and_weld_width(self):
+        from normative.gost_59023_2 import get_joint_type_choices, get_weld_width
+
+        codes = [c for c, _ in get_joint_type_choices()]
+        self.assertIn('С-22-1', codes)
+
+        weld = get_weld_width('С-22-1', 2.0)
+        self.assertEqual(weld['e_mm'], 7.0)
+        self.assertEqual(weld['g_nom'], 2.5)
+
+    def test_calculator_uses_effective_diameter_for_two_wall_scheme(self):
+        from techcards.generator import RadiographicTechCardCalculator
+
+        data = {
+            'object_type': 'pipe',
+            'material': '12Х18Н10Т',
+            'wall_thickness': 10.0,
+            'outer_diameter': 219.0,
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'scheme_type': '5v',
+            'source_code': 'X-300kV',
+            'focal_spot_mm': 2.0,
+        }
+        params = RadiographicTechCardCalculator(data).calculate()
+        g_max = params['g_max_mm']
+        self.assertEqual(params['d_outer_effective_mm'], 219.0 + 2 * g_max)
+        self.assertGreater(params.get('f_calculated_mm', 0), 0)
+
 
 class NormativeDocumentModelTests(TestCase):
     """Тесты модели NormativeDocument."""

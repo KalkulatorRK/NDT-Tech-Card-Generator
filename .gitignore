@@ -29,5 +29,9 @@ ndt_web/db.sqlite3
 ndt_web/staticfiles/
 ndt_web/media/
 
+# MCP gateway
+mcp_gateway/**/__pycache__
+mcp_gateway/**/*.pyc
+
 # MCP secrets (Cursor local only)
 .env.mcp

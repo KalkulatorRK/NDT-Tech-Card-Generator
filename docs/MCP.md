@@ -1,6 +1,6 @@
 # MCP для «Карта-НК»
 
-Настройка [Model Context Protocol](https://cursor.com/docs/mcp) в Cursor: ассистент получает доступ к GitHub, базе Neon и нормативным документам проекта.
+Настройка [Model Context Protocol](https://cursor.com/docs/mcp) в Cursor: ассистент получает доступ к GitHub, базе Neon, нормативным документам и **API pravo.gov.ru**.
 
 > ЮKassa в MCP **не подключена** (по решению команды).
 
@@ -8,6 +8,7 @@
 
 | Сервер | Назначение |
 |--------|------------|
+| **`karta-nk-gateway`** | **Единый gateway:** pravo.gov.ru (поиск/скачивание НПА), далее — деплой, БД, gost.ru |
 | `github` | Issues, PR, коммиты, diff репозитория |
 | `neon-postgres` | SQL-запросы к PostgreSQL (Neon) |
 | `normative-docs` | Чтение файлов в `ndt_web/normative_docs/` |
@@ -19,13 +20,20 @@
 
 ## Быстрый старт (5–10 минут)
 
-### 1. Node.js
+### 1. Python и Node.js
 
-Нужен **Node.js 18+** (для `npx`). Проверка:
+- **Python 3.10+** — для `karta-nk-gateway`
+- **Node.js 18+** — для остальных MCP (`npx`)
 
 ```bash
+python3 -V
 node -v
-npx -v
+```
+
+Установка зависимостей gateway:
+
+```bash
+pip install -r mcp_gateway/requirements.txt
 ```
 
 ### 2. Переменные окружения
@@ -55,9 +63,46 @@ Get-Content .env.mcp | ForEach-Object {
 ### 3. Проверка в Cursor
 
 1. **Cursor Settings → Tools & MCP**
-2. Должны быть серверы: `github`, `neon-postgres`, `normative-docs`, `karta-nk-project`
+2. Должны быть серверы: `karta-nk-gateway`, `github`, `neon-postgres`, `normative-docs`, `karta-nk-project`
 3. Статус — зелёный / Connected
 4. При ошибках: **Output → MCP Logs**
+
+---
+
+## pravo.gov.ru (`karta-nk-gateway`)
+
+Официальный портал правовой информации: приказы Ростехнадзора (НП-038, НП-105 и др.), постановления, PDF.
+
+**API:** `http://publication.pravo.gov.ru` — бесплатный, только чтение, ключ не нужен.
+
+### Инструменты MCP
+
+| Tool | Описание |
+|------|----------|
+| `pravo_search_documents` | Поиск НПА по названию, номеру, тексту |
+| `pravo_get_document` | Метаданные документа по `eoNumber` |
+| `pravo_download_pdf` | Скачать PDF в `ndt_web/normative_docs/` |
+
+### Примеры запросов ассистенту
+
+- «Найди на pravo.gov.ru приказы Ростехнадзора с номером 105»
+- «Скачай PDF документа с eoNumber 7001202606190004 в normative_docs»
+- «Покажи метаданные НП-038-16 на pravo.gov.ru»
+
+### Параметры поиска
+
+- `name` — фрагмент наименования (например, «Ростехнадзор», «НП-105»)
+- `number` — номер документа (например, «105»)
+- `document_text` — поиск по тексту документа
+- `number_search_type`: `0` — точное совпадение, `1` — содержит (по умолчанию), `2` — начинается с
+- `page_size`: 10, 30, 100 или 200
+
+PDF скачивается по URL вида `http://publication.pravo.gov.ru/File/pdf/{eoNumber}`.
+
+### Ограничения
+
+- На pravo.gov.ru публикуются **НПА** (приказы, постановления). **ГОСТ** — на gost.ru (отдельный источник, в gateway позже).
+- Не все документы имеют PDF; при ошибке проверьте `eoNumber` через `pravo_get_document`.
 
 ---
 
@@ -166,7 +211,9 @@ export NEON_MCP_DATABASE_URL='postgresql://...?sslmode=require'
 
 ## Добавление серверов позже
 
-Отредактируйте `.cursor/mcp.json`. Идеи:
+`karta-nk-gateway` расширяется новыми модулями (Neon SQL, Render deploy, gost.ru). По мере готовности отдельные MCP (`github`, `neon-postgres`, …) можно убрать из `.cursor/mcp.json`.
+
+Дополнительно:
 
 - **Brave Search** — `@modelcontextprotocol/server-brave-search` + `BRAVE_API_KEY`
 - **Memory** — `@modelcontextprotocol/server-memory` (заметки между сессиями)
@@ -179,8 +226,13 @@ export NEON_MCP_DATABASE_URL='postgresql://...?sslmode=require'
 ## Файлы
 
 ```
-.cursor/mcp.json      ← конфиг MCP (в git)
-.env.mcp.example      ← шаблон секретов (в git)
-.env.mcp              ← ваши секреты (НЕ в git)
-docs/MCP.md           ← эта инструкция
+.cursor/mcp.json              ← конфиг MCP (в git)
+.env.mcp.example              ← шаблон секретов (в git)
+.env.mcp                      ← ваши секреты (НЕ в git)
+docs/MCP.md                   ← эта инструкция
+mcp_gateway/                  ← единый MCP-gateway (Python)
+  requirements.txt
+  karta_nk_gateway/
+    server.py                 ← точка входа MCP
+    pravo.py                  ← клиент publication.pravo.gov.ru
 ```

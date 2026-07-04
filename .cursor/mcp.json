@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "karta-nk-gateway": {
+      "command": "python3",
+      "args": ["-m", "karta_nk_gateway"],
+      "cwd": "${workspaceFolder}/mcp_gateway",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/mcp_gateway"
+      }
+    },
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],

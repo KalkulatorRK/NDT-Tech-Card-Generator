@@ -28,3 +28,6 @@ ndt_web/**/*.pyc
 ndt_web/db.sqlite3
 ndt_web/staticfiles/
 ndt_web/media/
+
+# MCP secrets (Cursor local only)
+.env.mcp

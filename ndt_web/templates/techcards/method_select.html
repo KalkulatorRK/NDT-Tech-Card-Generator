@@ -1,10 +1,23 @@
 {% extends "base.html" %}
+{% load credit_words %}
 {% block title %}Выбор метода контроля{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <h2 class="mb-2"><i class="bi bi-file-earmark-plus me-2" style="color:var(--primary);"></i>Создание технологической карты</h2>
   <p class="text-muted mb-4">Выберите метод неразрушающего контроля и документ (нормативный или методический).</p>
+
+  {% if user.is_authenticated and user_balance %}
+  <div class="info-box mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span class="credit-inline">
+      {% include "includes/credit_icon.html" with size="sm" %}
+      <span>Оплаченных {{ user_balance.techcard_credits|credit_word_filter }} на балансе: <strong>{{ user_balance.techcard_credits }}</strong></span>
+    </span>
+    <a href="{% url 'tariffs' %}" class="btn btn-sm btn-outline-primary">
+      {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Пополнить
+    </a>
+  </div>
+  {% endif %}
 
   {% for method_name, docs in methods.items %}
   <div class="card mb-4">

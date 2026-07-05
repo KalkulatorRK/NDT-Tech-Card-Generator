@@ -313,5 +313,10 @@ class GostJointCatalogTests(SimpleTestCase):
         self.assertTrue((base / get_joint_image_path('С-2')).exists())
         self.assertTrue((base / get_joint_image_path('ТС-1')).exists())
 
+        for code in ('С-32', 'У-15', 'У-16', 'У-19', 'Т-6', 'Т-7', 'Т-8'):
+            path = get_joint_image_path(code)
+            self.assertTrue(path, msg=f'{code}: путь не задан')
+            self.assertTrue((base / path).exists(), msg=f'{code}: файл {path}')
+
         missing = [c for c in iter_joint_codes() if not get_joint_image_path(c)]
-        self.assertLessEqual(len(missing), 10, msg=f'нет эскизов: {missing}')
+        self.assertEqual(missing, [], msg=f'нет эскизов: {missing}')

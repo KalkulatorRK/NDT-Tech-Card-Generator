@@ -20,7 +20,53 @@ RTF_NAME = (
     'атомных энергетических..._Текст.rtf'
 )
 
-JOINT_CODE_RE = re.compile(r'\b((?:ТС|ТУ|[СУТ])-\d+(?:-\d+)?)\b')
+JOINT_CODE_RE = re.compile(r'(?:ТС|ТУ|[СУТ])-?\d+(?:-\d+)?')
+
+
+def normalize_joint_code(raw: str, known_codes: frozenset[str]) -> str | None:
+    """
+    Приводит обозначение из RTF к каноническому виду (С32 → С-32, С1-2 → С-1-2).
+
+    Принимает только коды из каталога JOINT_TYPES, отсекая марки сплавов (Т1-0 и т.п.).
+    """
+    raw = raw.strip()
+    if raw in known_codes:
+        return raw
+
+    m = re.match(r'^(ТС|ТУ|[СУТ])-(\d+(?:-\d+)?)$', raw)
+    if m:
+        candidate = raw
+        if candidate in known_codes:
+            return candidate
+
+    m = re.match(r'^(ТС|ТУ|[СУТ])(\d+(?:-\d+)?)$', raw)
+    if m:
+        candidate = f'{m.group(1)}-{m.group(2)}'
+        if candidate in known_codes:
+            return candidate
+
+    m = re.match(r'^(ТС|ТУ|[СУТ])(\d+)$', raw)
+    if m:
+        prefix, digits = m.group(1), m.group(2)
+        for split_at in range(1, len(digits)):
+            candidate = f'{prefix}-{digits[:split_at]}-{digits[split_at:]}'
+            if candidate in known_codes:
+                return candidate
+        candidate = f'{prefix}-{digits}'
+        if candidate in known_codes:
+            return candidate
+
+    return None
+
+
+def find_joint_code_in_cells(cells: list[bytes], known_codes: frozenset[str]) -> str | None:
+    for cell in cells:
+        text = _rtf_cell_text(cell)
+        for match in JOINT_CODE_RE.finditer(text):
+            code = normalize_joint_code(match.group(0), known_codes)
+            if code:
+                return code
+    return None
 
 
 def _rtf_cell_text(raw: bytes) -> str:
@@ -72,12 +118,20 @@ def _find_weld_column_indices(cells: list[bytes]) -> tuple[int | None, int | Non
     return edge_idx, weld_idx
 
 
-def extract_joint_images(rtf_path: Path, out_dir: Path) -> dict[str, str]:
+def extract_joint_images(
+    rtf_path: Path,
+    out_dir: Path,
+    known_codes: frozenset[str] | None = None,
+) -> dict[str, str]:
     """
     Извлекает эскизы шва в разрезе для каждого условного обозначения.
 
     :return: {код_шва: относительный путь от static/img/welds/}
     """
+    if known_codes is None:
+        from normative.gost_59023_2 import ALL_JOINT_CODES
+        known_codes = frozenset(ALL_JOINT_CODES)
+
     data = rtf_path.read_bytes()
     rows = data.split(b'\\row')
     weld_col_idx: int | None = None
@@ -93,16 +147,18 @@ def extract_joint_images(rtf_path: Path, out_dir: Path) -> dict[str, str]:
         if weld_col_idx is None or weld_col_idx >= len(cells):
             continue
 
-        joint_code = None
-        for cell in cells:
-            match = JOINT_CODE_RE.search(_rtf_cell_text(cell))
-            if match:
-                joint_code = match.group(1)
-                break
+        joint_code = find_joint_code_in_cells(cells, known_codes)
         if not joint_code:
             continue
 
         image = _extract_image_from_cell(cells[weld_col_idx])
+        if not image:
+            best: tuple[str, bytes] | None = None
+            for cell in cells:
+                candidate = _extract_image_from_cell(cell)
+                if candidate and (best is None or len(candidate[1]) > len(best[1])):
+                    best = candidate
+            image = best
         if not image:
             continue
 

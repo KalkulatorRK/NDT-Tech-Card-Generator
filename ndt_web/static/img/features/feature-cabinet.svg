@@ -1,29 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" fill="none" role="img" aria-hidden="true">
   <defs>
-    <linearGradient id="cb-bg" x1="14" y1="8" x2="74" y2="80" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFD98A"/>
-      <stop offset="50%" stop-color="#FFB347"/>
-      <stop offset="100%" stop-color="#F08A24"/>
-    </linearGradient>
-    <linearGradient id="cb-folder" x1="26" y1="30" x2="64" y2="66" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.98"/>
-      <stop offset="100%" stop-color="#FFE8C2" stop-opacity="0.9"/>
-    </linearGradient>
-    <linearGradient id="cb-shine" x1="20" y1="14" x2="52" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.78"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="cb-shadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#E07A18" flood-opacity="0.34"/>
+    <filter id="cb-shadow" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#E07A18" flood-opacity="0.28"/>
     </filter>
   </defs>
-  <g filter="url(#cb-shadow)">
-    <rect x="14" y="12" width="60" height="60" rx="22" fill="url(#cb-bg)"/>
-    <path d="M26 36h10a4 4 0 0 1 4 4v2H26a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4z" fill="#FFF3DC" opacity="0.95"/>
-    <path d="M22 42h40a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4V46a4 4 0 0 1 4-4z" fill="url(#cb-folder)"/>
-    <rect x="30" y="50" width="14" height="3" rx="1.5" fill="#FFB347" opacity="0.55"/>
-    <rect x="30" y="57" width="22" height="3" rx="1.5" fill="#FFB347" opacity="0.38"/>
-    <circle cx="56" cy="54" r="8" fill="#FF9F2E" opacity="0.85"/>
-    <path d="M53 54h6M56 51v6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+  <ellipse cx="44" cy="74" rx="24" ry="5" fill="#E07A18" opacity="0.14"/>
+  <g filter="url(#cb-shadow)" transform="translate(44 46)">
+    <g transform="translate(-34 -8)">
+      <path d="M8 36 L48 56 L48 36 L8 16 Z" fill="#FFE0B2"/>
+      <path d="M8 16 L48 36 L48 30 L8 10 Z" fill="#FFCC80"/>
+      <path d="M4 30 L44 50 L44 30 L4 10 Z" fill="#FFD180"/>
+      <path d="M4 10 L44 30 L44 24 L4 4 Z" fill="#FFB74D"/>
+      <path d="M0 24 L40 44 L40 24 L0 4 Z" fill="#FFB347"/>
+      <path d="M0 4 L40 24 L40 18 L0 -2 Z" fill="#F08A24"/>
+      <path d="M8 12h10a3 3 0 0 1 3 3v1H8a3 3 0 0 1-3-3v-1a3 3 0 0 1 3-3z" fill="#FFF3E0" opacity="0.9"/>
+      <path d="M6 16h24a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V19a3 3 0 0 1 3-3z" fill="#FFF8E1" opacity="0.95"/>
+      <rect x="10" y="22" width="10" height="2" rx="1" fill="#F08A24" opacity="0.45"/>
+      <rect x="10" y="27" width="14" height="2" rx="1" fill="#F08A24" opacity="0.35"/>
+      <circle cx="28" cy="24" r="5" fill="#FF9800" opacity="0.85"/>
+      <path d="M26 24h4M28 22v4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

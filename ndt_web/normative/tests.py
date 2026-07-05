@@ -165,3 +165,44 @@ class InspectionZoneTests(SimpleTestCase):
 
         zone = get_inspection_zone('С-1', 3.0, '53', material_type='steel')
         self.assertEqual(zone['haz_width_mm'], 5.0)
+
+
+class GostJointCatalogTests(SimpleTestCase):
+    """Каталог типов сварных соединений ГОСТ Р 59023.2-2020."""
+
+    def test_catalog_includes_supplement_joint_types(self):
+        from normative.gost_59023_2 import JOINT_TYPES, ALL_JOINT_CODES
+
+        self.assertGreater(len(JOINT_TYPES), 26)
+        self.assertIn('С-2', JOINT_TYPES)
+        self.assertIn('С-10', JOINT_TYPES)
+        self.assertEqual(len(ALL_JOINT_CODES), len(JOINT_TYPES))
+
+    def test_joint_codes_sorted_by_material_and_table(self):
+        from normative.gost_59023_2 import ALL_JOINT_CODES, _joint_sort_key
+
+        sort_keys = [_joint_sort_key(code) for code in ALL_JOINT_CODES]
+        self.assertEqual(sort_keys, sorted(sort_keys))
+
+    def test_joint_choices_filtered_by_material_class(self):
+        from normative.gost_59023_2 import get_joint_type_choices
+
+        perlit_codes = [c for c, _ in get_joint_type_choices('perlit')]
+        austenite_codes = [c for c, _ in get_joint_type_choices('austenite')]
+        self.assertIn('С-1', perlit_codes)
+        self.assertNotIn('С-42', perlit_codes)
+        self.assertIn('С-42', austenite_codes)
+
+    def test_dual_bead_row_parsing(self):
+        from normative.gost_59023_2 import (
+            _parse_dimension_row, get_weld_width, get_inspection_zone,
+        )
+
+        parsed = _parse_dimension_row((10.0, 20.0, 15.0, 12.0, 2.0, 0.5, 3.5), 'dual')
+        self.assertEqual(parsed['e_mm'], 15.0)
+        self.assertEqual(parsed['e1_mm'], 12.0)
+
+        weld = get_weld_width('С-22-1', 3.0)
+        zone = get_inspection_zone('С-22-1', 3.0, '40')
+        self.assertEqual(zone['effective_e_max_mm'], weld['effective_e_max_mm'])
+        self.assertEqual(zone['zone_width_mm'], weld['effective_e_max_mm'] + 2 * zone['haz_width_mm'])

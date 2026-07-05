@@ -673,6 +673,23 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(zone['haz_width_mm'], 5.0)
         self.assertEqual(zone['zone_width_mm'], 22.0)
 
+    def test_joint_designation_rejects_group_header(self):
+        from techcards.forms import TechCardStep2Form
+
+        data = {
+            'object_type': 'pipe',
+            'material': '08Х18Н10Т',
+            'wall_thickness': 10.0,
+            'outer_diameter': 219.0,
+            'joint_designation': '__group_С-1__',
+            'welding_process': '40',
+            'weld_category': 'III',
+            'joint_mobility': 'non_rotating',
+        }
+        form = TechCardStep2Form(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('joint_designation', form.errors)
+
     def test_docx_section_62_uses_sk_not_wall_thickness(self):
         """П. 6.2 техкарты: Sк из расчёта, не номинальная толщина S."""
         from techcards.generator import (

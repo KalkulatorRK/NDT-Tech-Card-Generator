@@ -58,64 +58,6 @@
               {% if form.flat_length_mm.help_text %}<div class="form-text">{{ form.flat_length_mm.help_text }}</div>{% endif %}
             </div>
 
-            <!-- Разделитель: Тип сварного соединения -->
-            <div class="col-12 mt-2">
-              <div class="card-header-section mb-3">
-                <i class="bi bi-diagram-3 me-2"></i>Тип сварного соединения (ГОСТ Р 59023.2-2020)
-              </div>
-            </div>
-
-            <!-- Условное обозначение шва -->
-            <div class="col-12">
-              <label class="form-label fw-semibold">
-                {{ form.joint_designation.label }}
-                <span class="tooltip-icon" data-bs-toggle="tooltip"
-                  title="С — стыковое, У — угловое, Т — тавровое. Номер обозначает тип разделки кромок и способ сварки.">?</span>
-              </label>
-              {{ form.joint_designation }}
-              {% if form.joint_designation.errors %}<div class="text-danger small">{{ form.joint_designation.errors.0 }}</div>{% endif %}
-              {% if form.joint_designation.help_text %}<div class="form-text">{{ form.joint_designation.help_text }}</div>{% endif %}
-            </div>
-
-            <!-- Эскиз шва в разрезе (ГОСТ Р 59023.2-2020, столбец «шва сварного соединения») -->
-            <div class="col-12" id="joint-sketch-block" style="display:none;">
-              <div class="border rounded p-3 bg-light">
-                <div class="row align-items-center">
-                  <div class="col-md-3 text-center">
-                    <img id="joint-sketch-img" src="" alt="Шов сварного соединения в разрезе"
-                         class="joint-gost-image"
-                         style="max-height:180px; max-width:100%; object-fit:contain;">
-                    <div class="text-muted small mt-1">Шов сварного соединения (в разрезе)</div>
-                  </div>
-                  <div class="col-md-9">
-                    <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
-                    <!-- Рассчитанные размеры зон (заполняются по AJAX) -->
-                    <div id="joint-dimensions" class="mt-2" style="font-size:0.85rem; display:none;">
-                      <div class="row g-2">
-                        <div class="col-6">
-                          <strong>Ширина шва (e):</strong>
-                          <span id="dim-e" class="text-primary fw-bold">—</span> мм
-                        </div>
-                        <div class="col-6">
-                          <strong>Высота усиления (g):</strong>
-                          <span id="dim-g" class="text-primary fw-bold">—</span> мм
-                        </div>
-                        <div class="col-6">
-                          <strong>Ширина ОШЗ (a):</strong>
-                          <span id="dim-haz" class="text-primary fw-bold">—</span> мм
-                        </div>
-                        <div class="col-6">
-                          <strong>Контролируемая зона:</strong>
-                          <span id="dim-zone" class="text-success fw-bold">—</span> мм
-                        </div>
-                      </div>
-                      <div class="mt-1 text-muted" id="dim-note" style="font-size:0.78rem;"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Способ сварки -->
             <div class="col-md-6">
               <label class="form-label fw-semibold">{{ form.welding_process.label }}</label>
@@ -178,6 +120,72 @@
               {{ form.backing_ring_thickness_mm }}
               {% if form.backing_ring_thickness_mm.help_text %}<div class="form-text">{{ form.backing_ring_thickness_mm.help_text }}</div>{% endif %}
             </div>
+
+            <!-- Разделитель: Тип сварного соединения (в конце формы) -->
+            <div class="col-12 mt-2">
+              <div class="card-header-section mb-3">
+                <i class="bi bi-diagram-3 me-2"></i>Тип сварного соединения (ГОСТ Р 59023.2-2020)
+              </div>
+            </div>
+
+            <!-- Условное обозначение шва -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                {{ form.joint_designation.label }}
+                <span class="tooltip-icon" data-bs-toggle="tooltip"
+                  title="С — стыковое, У — угловое, Т — тавровое. Номер обозначает тип разделки кромок и способ сварки.">?</span>
+              </label>
+              {{ form.joint_designation }}
+              {% if form.joint_designation.errors %}<div class="text-danger small">{{ form.joint_designation.errors.0 }}</div>{% endif %}
+              {% if form.joint_designation.help_text %}<div class="form-text">{{ form.joint_designation.help_text }}</div>{% endif %}
+            </div>
+
+            <!-- Эскиз шва в разрезе (ГОСТ Р 59023.2-2020, столбец «шва сварного соединения») -->
+            <div class="col-12" id="joint-sketch-block" style="display:none;">
+              <div class="border rounded p-3 bg-light">
+                <div class="row align-items-center">
+                  <div class="col-md-3 text-center">
+                    <img id="joint-sketch-img" src="" alt="Шов сварного соединения в разрезе"
+                         class="joint-gost-image"
+                         style="max-height:180px; max-width:100%; object-fit:contain;">
+                    <div class="text-muted small mt-1">Шов сварного соединения (в разрезе)</div>
+                  </div>
+                  <div class="col-md-9">
+                    <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
+                    <!-- Рассчитанные размеры зон (заполняются по AJAX) -->
+                    <div id="joint-dimensions" class="mt-2" style="font-size:0.85rem; display:none;">
+                      <div class="row g-2">
+                        <div class="col-6" id="dim-e-group">
+                          <strong>Ширина шва (e):</strong>
+                          <span id="dim-e" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6" id="dim-e1-group" style="display:none;">
+                          <strong>Ширина обратного валика (e1):</strong>
+                          <span id="dim-e1" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Высота усиления (g):</strong>
+                          <span id="dim-g" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Ширина ОШЗ (a):</strong>
+                          <span id="dim-haz" class="text-primary fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6">
+                          <strong>Контролируемая зона:</strong>
+                          <span id="dim-zone" class="text-success fw-bold">—</span> мм
+                        </div>
+                        <div class="col-6" id="dim-effective-group" style="display:none;">
+                          <strong>Расчётная ширина (max e, e1):</strong>
+                          <span id="dim-effective" class="text-success fw-bold">—</span> мм
+                        </div>
+                      </div>
+                      <div class="mt-1 text-muted" id="dim-note" style="font-size:0.78rem;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="form-actions-sticky">
@@ -203,8 +211,20 @@
 // При выборе типа соединения запрашиваем данные и показываем эскиз
 
 var JOINT_DATA = {{ joint_data_json|safe }};
+var JOINT_CODES_ORDERED = {{ joint_codes_ordered_json|safe }};
 var WELDING_LABELS = {{ welding_labels_json|safe }};
 var WELDS_STATIC = '{% static "img/welds/" %}';
+
+var JOINT_GROUP_LABELS = {
+  'perlit|butt': '— Стыковые, перлитные стали —',
+  'perlit|corner': '— Угловые, перлитные стали —',
+  'perlit|tee': '— Тавровые, перлитные стали —',
+  'austenite|butt': '— Стыковые, аустенитные стали —',
+  'austenite|corner': '— Угловые, аустенитные стали —',
+  'austenite|tee': '— Тавровые, аустенитные стали —',
+  'titanium|butt': '— Титановые сплавы —',
+  'aluminum|butt': '— Алюминиевые сплавы —',
+};
 
 var jointSelect = document.getElementById('id_joint_designation');
 var sketchBlock = document.getElementById('joint-sketch-block');
@@ -212,6 +232,83 @@ var sketchImg = document.getElementById('joint-sketch-img');
 var sketchInfo = document.getElementById('joint-sketch-info');
 var dimensionsBlock = document.getElementById('joint-dimensions');
 var processSelect = document.getElementById('id_welding_process');
+
+function resolveMaterialClassForJoints(material, materialCustom) {
+  if (material === '__titanium__') return 'titanium';
+  if (material === '__aluminum__') return 'aluminum';
+  var grade = (materialCustom || material || '').toUpperCase();
+  var austeniteMarkers = ['08Х', '12Х18', '10Х17', '03Х18', 'Х18', 'Х19'];
+  for (var i = 0; i < austeniteMarkers.length; i++) {
+    if (grade.indexOf(austeniteMarkers[i]) >= 0) return 'austenite';
+  }
+  if (material && material !== '__titanium__' && material !== '__aluminum__') return 'perlit';
+  return null;
+}
+
+function jointMatchesThickness(code, thickness) {
+  var info = JOINT_DATA[code];
+  if (!info || !info.thickness_ranges || !info.thickness_ranges.length) return true;
+  if (!thickness || isNaN(thickness)) return true;
+  return info.thickness_ranges.some(function (range) {
+    return range[0] <= thickness && thickness <= range[1];
+  });
+}
+
+function rebuildJointChoices(selectedValue) {
+  if (!jointSelect) return;
+  var current = selectedValue || jointSelect.value;
+  var matSel = document.getElementById('id_material');
+  var customEl = document.getElementById('id_material_custom');
+  var thickEl = document.getElementById('id_wall_thickness');
+  var material = matSel ? matSel.value : '';
+  var materialCustomVal = customEl ? customEl.value.trim() : '';
+  var thickness = parseFloat(thickEl ? thickEl.value : '');
+  var materialClass = resolveMaterialClassForJoints(material, materialCustomVal);
+
+  jointSelect.innerHTML = '';
+  var empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = '— Выберите тип сварного соединения —';
+  jointSelect.appendChild(empty);
+
+  var lastGroup = null;
+  (JOINT_CODES_ORDERED || []).forEach(function (code) {
+    var info = JOINT_DATA[code];
+    if (!info) return;
+    if (materialClass && info.material !== materialClass) return;
+    if (!jointMatchesThickness(code, thickness)) return;
+
+    var groupKey = info.material + '|' + info.joint_type;
+    if (groupKey !== lastGroup) {
+      var groupLabel = JOINT_GROUP_LABELS[groupKey];
+      if (groupLabel) {
+        var groupOpt = document.createElement('option');
+        groupOpt.value = '__group_' + code + '__';
+        groupOpt.textContent = groupLabel;
+        groupOpt.disabled = true;
+        jointSelect.appendChild(groupOpt);
+      }
+      lastGroup = groupKey;
+    }
+
+    var tableSuffix = info.gost_table ? ', табл. ' + info.gost_table : '';
+    var opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = code + ' — ' + info.name + tableSuffix + ' (' + info.methods.join(', ') + ')';
+    jointSelect.appendChild(opt);
+  });
+
+  if (current && JOINT_DATA[current]) {
+    var stillValid = Array.from(jointSelect.options).some(function (o) {
+      return o.value === current;
+    });
+    jointSelect.value = stillValid ? current : '';
+  } else {
+    jointSelect.value = '';
+  }
+
+  updateJointUI(jointSelect.value);
+}
 
 function rebuildWeldingChoices(allowedMethods, selectedValue) {
   if (!processSelect) return;
@@ -257,6 +354,7 @@ function updateJointUI(jointCode) {
   }
 
   sketchInfo.innerHTML = '<strong>' + jointCode + '</strong> — ' + info.name +
+    (info.gost_table ? ' <span class="text-muted">(табл. ' + info.gost_table + ')</span>' : '') +
     '<br><span class="text-muted">Допустимые способы сварки: ' + info.methods.join(', ') +
     ' | Разделка: ' + info.groove + '</span>';
 
@@ -284,6 +382,26 @@ function calculateZones(jointCode) {
     .then(function(data) {
       if (data.error) return;
       document.getElementById('dim-e').textContent = data.e_display || data.bead_width_mm || '—';
+      var e1Group = document.getElementById('dim-e1-group');
+      var effectiveGroup = document.getElementById('dim-effective-group');
+      var showE1 = data.bead_mode === 'dual' || (
+        data.bead_width_inner_mm != null &&
+        data.bead_width_mm != null &&
+        Math.abs(data.bead_width_inner_mm - data.bead_width_mm) > 0.05
+      );
+      if (e1Group) {
+        e1Group.style.display = showE1 ? '' : 'none';
+      }
+      if (showE1) {
+        document.getElementById('dim-e1').textContent = data.e1_display || data.bead_width_inner_mm || '—';
+      }
+      if (effectiveGroup) {
+        var showEffective = showE1 && data.effective_e_mm != null;
+        effectiveGroup.style.display = showEffective ? '' : 'none';
+        if (showEffective) {
+          document.getElementById('dim-effective').textContent = data.effective_e_max_mm || data.effective_e_mm || '—';
+        }
+      }
       document.getElementById('dim-g').textContent = data.g_display || data.bead_height_mm || '—';
       document.getElementById('dim-haz').textContent = data.haz_width_mm || '—';
       document.getElementById('dim-zone').textContent = data.zone_width_mm || '—';
@@ -301,13 +419,15 @@ if (jointSelect) {
   jointSelect.addEventListener('change', function() {
     updateJointUI(this.value);
   });
-  updateJointUI(jointSelect.value);
 }
 
 // Пересчёт зон при изменении толщины или способа сварки
 var thicknessInput = document.getElementById('id_wall_thickness');
 if (thicknessInput) {
   thicknessInput.addEventListener('change', function() {
+    rebuildJointChoices(jointSelect ? jointSelect.value : '');
+  });
+  thicknessInput.addEventListener('input', function() {
     if (jointSelect) calculateZones(jointSelect.value);
   });
 }
@@ -401,10 +521,16 @@ if (materialSel) {
   materialSel.addEventListener('change', function() {
     updateMaterialUI();
     updateWeldCategoryChoices();
-    if (jointSelect) calculateZones(jointSelect.value);
+    rebuildJointChoices(jointSelect ? jointSelect.value : '');
   });
   updateMaterialUI();
   updateWeldCategoryChoices();
+}
+if (materialCustom) {
+  materialCustom.addEventListener('input', function() {
+    rebuildJointChoices(jointSelect ? jointSelect.value : '');
+    if (jointSelect) calculateZones(jointSelect.value);
+  });
 }
 if (weldingCustomSel) {
   weldingCustomSel.addEventListener('change', function() {
@@ -441,5 +567,7 @@ if (objectTypeSelect) {
   });
   toggleDiameterField(objectTypeSelect.value);
 }
+
+rebuildJointChoices(jointSelect ? jointSelect.value : '');
 </script>
 {% endblock %}

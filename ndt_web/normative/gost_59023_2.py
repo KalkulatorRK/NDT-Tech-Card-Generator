@@ -10,6 +10,11 @@
 Данные введены из оригинального текста документа (RTF).
 """
 
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
 # ------------------------------------------------------------------
 # Коды способов сварки (раздел 3.2 ГОСТ Р 59023.2-2020)
 # ------------------------------------------------------------------
@@ -141,12 +146,21 @@ JOINT_IMAGES = {
 }
 
 
+def _welds_static_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / 'static' / 'img' / 'welds'
+
+
 def get_joint_image_path(joint_code: str) -> str:
     """Относительный путь к изображению шва (от static/img/welds/)."""
-    if joint_code in JOINT_IMAGES:
-        return JOINT_IMAGES[joint_code]
+    base = _welds_static_dir()
+    for candidate in (
+        JOINT_IMAGES.get(joint_code),
+        JOINT_TYPES.get(joint_code, {}).get('sketch', ''),
+    ):
+        if candidate and (base / candidate).exists():
+            return candidate
     info = JOINT_TYPES.get(joint_code, {})
-    return info.get('sketch', '')
+    return info.get('sketch', JOINT_IMAGES.get(joint_code, ''))
 
 
 # ------------------------------------------------------------------
@@ -552,23 +566,114 @@ JOINT_TYPES = {
     },
 }
 
-# Список всех обозначений для выпадающего списка формы (сортированный)
-ALL_JOINT_CODES = sorted(JOINT_TYPES.keys())
+from normative.gost_59023_joint_supplement import (  # noqa: E402
+    SUPPLEMENT_JOINT_IMAGES,
+    SUPPLEMENT_JOINT_TYPES,
+)
+
+JOINT_TYPES.update(SUPPLEMENT_JOINT_TYPES)
+JOINT_IMAGES.update(SUPPLEMENT_JOINT_IMAGES)
+
+JOINT_MATERIAL_ORDER = ('perlit', 'austenite', 'titanium', 'aluminum')
+JOINT_TYPE_ORDER = ('butt', 'corner', 'tee')
 
 
-def get_joint_type_choices(material_class: str = None):
+def _joint_code_sort_key(code: str) -> tuple:
+    m = re.match(r'^([СУТ])-(\d+(?:-\d+)?)$', code)
+    if not m:
+        return (code, 0, 0)
+    prefix, num_part = m.group(1), m.group(2)
+    parts = [int(p) for p in num_part.split('-')]
+    return (prefix, parts[0], parts[1] if len(parts) > 1 else 0)
+
+
+def _joint_sort_key(code: str) -> tuple:
+    info = JOINT_TYPES.get(code, {})
+    material = info.get('material', 'perlit')
+    material_idx = JOINT_MATERIAL_ORDER.index(material) if material in JOINT_MATERIAL_ORDER else 99
+    joint_type = info.get('joint_type', 'butt')
+    type_idx = JOINT_TYPE_ORDER.index(joint_type) if joint_type in JOINT_TYPE_ORDER else 99
+    table_ref = info.get('gost_table', '9.999')
+    try:
+        table_num = float(table_ref)
+    except (TypeError, ValueError):
+        table_num = 999.0
+    return (material_idx, type_idx, table_num, _joint_code_sort_key(code))
+
+
+ALL_JOINT_CODES = sorted(JOINT_TYPES.keys(), key=_joint_sort_key)
+
+
+def get_joint_thickness_ranges(joint_code: str) -> list[tuple[float, float]]:
+    """Диапазоны номинальной толщины S из таблицы ГОСТ для типа соединения."""
+    info = JOINT_TYPES.get(joint_code, {})
+    return [(row[0], row[1]) for row in info.get('dimensions', [])]
+
+
+def resolve_material_class(material: str = '', material_custom: str = '') -> str | None:
+    if material == MATERIAL_TITANIUM:
+        return 'titanium'
+    if material == MATERIAL_ALUMINUM:
+        return 'aluminum'
+    grade = (material_custom or material or '').upper()
+    austenite_markers = ('08Х', '12Х18', '10Х17', '03Х18', 'Х18', 'Х19')
+    if any(marker in grade for marker in austenite_markers):
+        return 'austenite'
+    if material and material not in (MATERIAL_TITANIUM, MATERIAL_ALUMINUM):
+        return 'perlit'
+    return None
+
+
+def iter_joint_codes(
+    material_class: str | None = None,
+    wall_thickness_mm: float | None = None,
+) -> list[str]:
+    codes = []
+    for code in sorted(JOINT_TYPES.keys(), key=_joint_sort_key):
+        info = JOINT_TYPES[code]
+        if material_class and info.get('material') != material_class:
+            continue
+        if wall_thickness_mm is not None:
+            dims = info.get('dimensions') or []
+            if dims and not any(row[0] <= wall_thickness_mm <= row[1] for row in dims):
+                continue
+        codes.append(code)
+    return codes
+
+
+def get_joint_type_choices(
+    material_class: str = None,
+    wall_thickness_mm: float | None = None,
+):
     """
     Возвращает список кортежей типов соединений для выпадающего списка.
 
-    :param material_class: фильтр по классу металла ('perlit', 'austenite', None = все)
+    Сортировка: класс металла → тип (С/У/Т) → таблица ГОСТ → код.
     """
     choices = [('', '— Выберите тип сварного соединения —')]
-    for code, info in JOINT_TYPES.items():
-        if material_class and info['material'] != material_class:
-            continue
+    last_group = None
+    for code in iter_joint_codes(material_class, wall_thickness_mm):
+        info = JOINT_TYPES[code]
+        group = (info.get('material', 'perlit'), info.get('joint_type', 'butt'))
+        if group != last_group and len(choices) > 1:
+            label = {
+                ('perlit', 'butt'): '— Стыковые, перлитные стали —',
+                ('perlit', 'corner'): '— Угловые, перлитные стали —',
+                ('perlit', 'tee'): '— Тавровые, перлитные стали —',
+                ('austenite', 'butt'): '— Стыковые, аустенитные стали —',
+                ('austenite', 'corner'): '— Угловые, аустенитные стали —',
+                ('austenite', 'tee'): '— Тавровые, аустенитные стали —',
+                ('titanium', 'butt'): '— Титановые сплавы —',
+                ('aluminum', 'butt'): '— Алюминиевые сплавы —',
+            }.get(group)
+            if label:
+                choices.append((f'__group_{code}__', label))
+            last_group = group
+        table_ref = info.get('gost_table')
+        table_suffix = f', табл. {table_ref}' if table_ref else ''
         choices.append((
             code,
-            f"{code} — {info['name']} ({', '.join(info['methods'])})"
+            f"{code} — {info['name']}{table_suffix} ({', '.join(info['methods'])})"
         ))
     return choices
 
@@ -600,6 +705,62 @@ def format_dimension_with_tolerance(value_mm: float, tolerance_mm: float) -> str
         f'{value_mm:.1f}'.replace('.', ',')
         + f' ±{tolerance_mm:.1f}'.replace('.', ',')
     )
+
+
+def _parse_dimension_row(row: tuple, bead_mode: str = 'equal') -> dict:
+    """
+    Разбирает строку таблицы ГОСТ Р 59023.2-2020.
+
+    Форматы:
+        (S_min, S_max, e, g)
+        (S_min, S_max, e, g, g_min, g_max)
+        (S_min, S_max, e, e1, g, g_min, g_max) — отдельные e и e1
+        (S_min, S_max, e, g, g_min, g_max, e_tol) — допуск e (табл. 9.29)
+    """
+    if len(row) < 4:
+        raise ValueError(f'Некорректная строка dimensions: {row}')
+
+    s_min, s_max, e = row[0], row[1], row[2]
+    e_tol = None
+    e1 = e
+    g_nom = row[3]
+    g_min = max(0.0, g_nom - 1.5)
+    g_max = g_nom + 1.5
+
+    if len(row) >= 7 and row[3] >= 4 and row[4] >= 0.5:
+        # (S, e, e1, g, g_min, g_max)
+        e1 = row[3]
+        g_nom = row[4]
+        g_min = row[5]
+        g_max = row[6]
+    elif len(row) >= 7:
+        g_nom = row[3]
+        g_min = row[4]
+        g_max = row[5]
+        e_tol = row[6]
+    elif len(row) >= 6:
+        g_nom = row[3]
+        g_min = row[4]
+        g_max = row[5]
+
+    if bead_mode == 'equal':
+        e1 = e
+    elif bead_mode == 'outer_only':
+        e1 = 0.0
+    elif bead_mode == 'dual' and len(row) < 7:
+        # Отдельный e1 задан в 7-элементной строке; иначе e1 не известен — берём e
+        pass
+
+    return {
+        's_min': s_min,
+        's_max': s_max,
+        'e_mm': e,
+        'e1_mm': e1,
+        'g_nom': g_nom,
+        'g_min_mm': g_min,
+        'g_max_mm': g_max,
+        'e_tol_mm': e_tol,
+    }
 
 
 def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
@@ -644,34 +805,17 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
             'note': 'Нет данных',
         }
 
-    e = match_row[2]
-    e_tol = None
-    # e1 — ширина валика на внутренней поверхности; по умолчанию = e
-    if len(match_row) >= 7 and match_row[3] >= 4:
-        e1 = match_row[3]
-        g_nom = match_row[4]
-        g_min = match_row[5]
-        g_max = match_row[6]
-    elif len(match_row) >= 7:
-        e1 = e
-        g_nom = match_row[3]
-        g_min = match_row[4]
-        g_max = match_row[5]
-        e_tol = match_row[6]
-    elif len(match_row) >= 6:
-        e1 = e
-        g_nom = match_row[3]
-        g_min = match_row[4]
-        g_max = match_row[5]
-    else:
-        e1 = e
-        g_nom = match_row[3]
-        g_min = max(0.0, g_nom - 1.5)
-        g_max = g_nom + 1.5
+    parsed = _parse_dimension_row(match_row, info.get('bead_mode', 'equal'))
+    e = parsed['e_mm']
+    e1 = parsed['e1_mm']
+    e_tol = parsed['e_tol_mm']
+    g_nom = parsed['g_nom']
+    g_min = parsed['g_min_mm']
+    g_max = parsed['g_max_mm']
 
     if e_tol is None:
         e_tol = _default_e_tolerance_mm(e)
-    e1_tol = _default_e_tolerance_mm(e1)
+    e1_tol = _default_e_tolerance_mm(e1) if e1 else 0.0
 
     table_ref = info.get('gost_table', '')
     if table_ref:
@@ -688,13 +832,18 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
         )
 
     e_max = round(e + e_tol, 1)
+    e1_max = round(e1 + e1_tol, 1) if e1 else 0.0
 
     return {
         'e_mm': e,
         'e_max_mm': e_max,
         'e1_mm': e1,
+        'e1_max_mm': e1_max,
+        'effective_e_mm': max(e, e1),
+        'effective_e_max_mm': max(e_max, e1_max),
         'e_tol_mm': e_tol,
         'e1_tol_mm': e1_tol,
+        'bead_mode': info.get('bead_mode', 'equal'),
         'e_display': format_dimension_with_tolerance(e, e_tol),
         'e1_display': format_dimension_with_tolerance(e1, e1_tol),
         'g_nom': g_nom,
@@ -763,6 +912,10 @@ def get_inspection_zone(
     e_tol = weld.get('e_tol_mm', _default_e_tolerance_mm(e))
     e_max = weld.get('e_max_mm', round(e + e_tol, 1))
     e1 = weld.get('e1_mm', e)
+    e1_max = weld.get('e1_max_mm', round(e1 + weld.get('e1_tol_mm', _default_e_tolerance_mm(e1)), 1))
+    effective_e = weld.get('effective_e_mm', max(e, e1))
+    effective_e_max = weld.get('effective_e_max_mm', max(e_max, e1_max))
+    bead_mode = weld.get('bead_mode', 'equal')
     g_nom = weld.get('g_nom') or 2.0
     g_min = weld.get('g_min_mm', max(0.0, g_nom - 1.5))
     g_max = weld.get('g_max_mm', g_nom + 1.5)
@@ -772,7 +925,7 @@ def get_inspection_zone(
         g_min = 0.0
         g_max = 0.0
 
-    # Ширина валика усиления
+    # Ширина валика на поверхности (e — лицевая сторона; e1 — обратная при dual)
     bead_width_surface = e
 
     # Ширина ОШЗ (4.2.4) — по НП-105-18 и ГОСТ Р 50.05.07-2018
@@ -796,19 +949,18 @@ def get_inspection_zone(
         haz_width = max(haz_width, min_haz)
         haz_width = round(haz_width, 1)
 
-    # Ширина контролируемой зоны (4.2.5): e_max + 2×a
-    # e_max — наибольшее допускаемое значение ширины шва (e + предельное отклонение)
-    zone_width = e_max + 2 * haz_width
+    # Ширина контролируемой зоны (4.2.5): max(e_max, e1_max) + 2×a
+    zone_width = effective_e_max + 2 * haz_width
 
     # Минимальная ширина снимка по ГОСТ Р 50.05.07-2018 п.6.3.13
     if welding_method == '20':
         film_width_min = max(50.0, zone_width)
     elif thickness_mm <= 5:
-        film_width_min = e
+        film_width_min = effective_e
     elif thickness_mm <= 20:
-        film_width_min = e + 10
+        film_width_min = effective_e + 10
     else:
-        film_width_min = e + 40
+        film_width_min = effective_e + 40
 
     auto_backing = joint_uses_backing(joint_code, welding_method)
     user_backing = bool(has_backing_ring)
@@ -830,6 +982,9 @@ def get_inspection_zone(
         # 4.2.2 — ширина валика и высота усиления
         'bead_width_mm': round(bead_width_surface, 1),
         'bead_width_inner_mm': round(e1, 1),
+        'effective_e_mm': round(effective_e, 1),
+        'effective_e_max_mm': round(effective_e_max, 1),
+        'bead_mode': bead_mode,
         'e_display': weld.get('e_display', format_dimension_with_tolerance(e, weld.get('e_tol_mm', 1.5))),
         'e1_display': weld.get('e1_display', format_dimension_with_tolerance(e1, weld.get('e1_tol_mm', 1.5))),
         'bead_height_mm': round(g_nom, 1),

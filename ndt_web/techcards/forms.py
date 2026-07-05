@@ -22,7 +22,7 @@ from normative.gost_59023_2 import (
     get_welding_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
-    resolve_material_type,
+    resolve_material_type, resolve_material_class,
 )
 from normative.np_105_18 import (
     get_weld_category_choices,
@@ -205,7 +205,7 @@ class TechCardStep2Form(forms.Form):
     )
     # Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020)
     joint_designation = forms.ChoiceField(
-        choices=get_joint_type_choices(),
+        choices=[('', '— Выберите тип сварного соединения —')],
         label='Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020) *',
         widget=forms.Select(attrs={
             'class': 'form-select',
@@ -302,16 +302,28 @@ class TechCardStep2Form(forms.Form):
         material = ''
         material_custom = ''
         weld_category = ''
+        wall_thickness = None
         if self.is_bound:
             joint = self.data.get('joint_designation', '')
             material = self.data.get('material', '')
             material_custom = (self.data.get('material_custom') or '').strip()
             weld_category = self.data.get('weld_category', '')
+            thickness_raw = self.data.get('wall_thickness', '')
         else:
             joint = self.initial.get('joint_designation', '')
             material = self.initial.get('material', '')
             material_custom = (self.initial.get('material_custom') or '').strip()
             weld_category = self.initial.get('weld_category', '')
+            thickness_raw = self.initial.get('wall_thickness', '')
+        try:
+            wall_thickness = float(thickness_raw) if thickness_raw not in ('', None) else None
+        except (TypeError, ValueError):
+            wall_thickness = None
+
+        material_class = resolve_material_class(material, material_custom)
+        self.fields['joint_designation'].choices = get_joint_type_choices(
+            material_class, wall_thickness,
+        )
         if joint:
             self.fields['welding_process'].choices = (
                 get_welding_process_choices_for_joint(joint)
@@ -389,10 +401,18 @@ class TechCardStep2Form(forms.Form):
         return cleaned
 
     def clean_joint_designation(self):
-        """Проверяем что обозначение шва выбрано."""
+        """Проверяем что обозначение шва выбрано и не является заголовком группы."""
         designation = self.cleaned_data.get('joint_designation')
         if not designation:
             raise forms.ValidationError('Выберите условное обозначение сварного соединения.')
+        if designation.startswith('__group_'):
+            raise forms.ValidationError(
+                'Выберите конкретный тип сварного соединения из списка, а не заголовок группы.'
+            )
+        if designation not in JOINT_TYPES:
+            raise forms.ValidationError(
+                f'Неизвестное обозначение сварного соединения: {designation}.'
+            )
         return designation
 
 

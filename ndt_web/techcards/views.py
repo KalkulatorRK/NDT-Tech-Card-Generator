@@ -280,17 +280,25 @@ def create_step2_view(request, doc_code):
     else:
         form = TechCardStep2Form(initial=_step2_form_initial(request))
 
-    from normative.gost_59023_2 import JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path
+    from normative.gost_59023_2 import (
+        JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
+        iter_joint_codes, get_joint_thickness_ranges,
+    )
     from normative.np_105_18 import get_weld_category_choices
-    joint_data = {
-        code: {
+    joint_data = {}
+    for code in iter_joint_codes():
+        info = JOINT_TYPES[code]
+        joint_data[code] = {
             'name': info['name'],
             'methods': info['methods'],
             'groove': info['groove'],
             'image': get_joint_image_path(code),
+            'material': info.get('material', 'perlit'),
+            'joint_type': info.get('joint_type', 'butt'),
+            'gost_table': info.get('gost_table', ''),
+            'bead_mode': info.get('bead_mode', 'equal'),
+            'thickness_ranges': get_joint_thickness_ranges(code),
         }
-        for code, info in JOINT_TYPES.items()
-    }
     welding_labels = {
         code: f'{code} — {info["name"]}'
         for code, info in WELDING_PROCESSES.items()
@@ -303,6 +311,7 @@ def create_step2_view(request, doc_code):
         'total_steps': 4,
         'step_labels': ['Объект', 'Параметры', 'Источник', 'Подтверждение'],
         'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
+        'joint_codes_ordered_json': json.dumps(list(joint_data.keys()), ensure_ascii=False),
         'welding_labels_json': json.dumps(welding_labels, ensure_ascii=False),
         'weld_category_choices_json': json.dumps({
             'steel': get_weld_category_choices('steel'),

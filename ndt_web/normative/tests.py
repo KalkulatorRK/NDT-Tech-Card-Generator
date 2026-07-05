@@ -256,3 +256,30 @@ class GostJointCatalogTests(SimpleTestCase):
 
         t3 = get_weld_width('Т-3', 9.0, 'aluminum')
         self.assertEqual(t3['e_mm'], 12.0)
+
+    def test_sketch_inner_bead_for_c5_c34_group(self):
+        from normative.gost_59023_2 import get_weld_width, get_inspection_zone
+        from normative.gost_59023_sketch_beads import SKETCH_INNER_BEAD
+
+        expected_codes = [
+            'С-5', 'С-5-1', 'С-12', 'С-13', 'С-14', 'С-15', 'С-17',
+            'С-21', 'С-22', 'С-23', 'С-24', 'С-25', 'С-34',
+        ]
+        for code in expected_codes:
+            self.assertIn(code, SKETCH_INNER_BEAD, f'{code} должен быть в SKETCH_INNER_BEAD')
+
+        c5 = get_weld_width('С-5', 32.0)
+        self.assertEqual(c5['bead_mode'], 'dual')
+        self.assertEqual(c5['e1_mm'], 18.0)
+        self.assertEqual(c5['effective_e_max_mm'], max(c5['e_max_mm'], 22.0))
+
+        c14 = get_weld_width('С-14', 3.0)
+        self.assertEqual(c14['e1_mm'], 7.0)
+
+        c34 = get_weld_width('С-34', 100.0)
+        self.assertEqual(c34['e1_mm'], 13.0)
+        self.assertEqual(c34['g1_nom'], 3.0)
+
+        zone = get_inspection_zone('С-13', 70.0, '11')
+        self.assertEqual(zone['bead_width_inner_mm'], 25.0)
+        self.assertGreater(zone['effective_e_max_mm'], zone['bead_width_mm'])

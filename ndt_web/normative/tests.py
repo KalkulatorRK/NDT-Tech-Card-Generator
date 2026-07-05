@@ -173,9 +173,11 @@ class GostJointCatalogTests(SimpleTestCase):
     def test_catalog_includes_supplement_joint_types(self):
         from normative.gost_59023_2 import JOINT_TYPES, ALL_JOINT_CODES
 
-        self.assertGreater(len(JOINT_TYPES), 26)
+        self.assertGreaterEqual(len(JOINT_TYPES), 96)
         self.assertIn('С-2', JOINT_TYPES)
         self.assertIn('С-10', JOINT_TYPES)
+        self.assertIn('У-11', JOINT_TYPES)
+        self.assertIn('ТС-1', JOINT_TYPES)
         self.assertEqual(len(ALL_JOINT_CODES), len(JOINT_TYPES))
 
     def test_joint_codes_sorted_by_material_and_table(self):
@@ -186,7 +188,7 @@ class GostJointCatalogTests(SimpleTestCase):
 
     def test_joint_choices_include_all_types_with_applicability(self):
         from normative.gost_59023_2 import (
-            JOINT_TYPES, get_joint_type_choices, get_joint_material_applicability,
+            JOINT_TYPES, get_joint_type_choices, get_joint_applicability_text,
         )
 
         all_codes = [c for c, _ in get_joint_type_choices() if c and not c.startswith('__group_')]
@@ -195,14 +197,10 @@ class GostJointCatalogTests(SimpleTestCase):
         self.assertIn('С-42', all_codes)
 
         labels = dict(get_joint_type_choices())
-        self.assertIn(
-            get_joint_material_applicability('perlit'),
-            labels['С-1'],
-        )
-        self.assertIn(
-            get_joint_material_applicability('austenite'),
-            labels['С-42'],
-        )
+        self.assertIn('п. 5', labels['С-1'])
+        self.assertIn('п. 6', labels['С-1'])
+        self.assertIn('п. 7', get_joint_applicability_text('С-1'))
+        self.assertIn('п. 8', get_joint_applicability_text('С-1'))
 
         perlit_only = [c for c, _ in get_joint_type_choices('perlit')]
         self.assertIn('С-1', perlit_only)

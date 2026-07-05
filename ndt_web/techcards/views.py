@@ -284,6 +284,7 @@ def create_step2_view(request, doc_code):
         JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
         iter_joint_codes, get_joint_thickness_ranges,
         get_joint_material_applicability, format_joint_choice_label,
+        get_joint_applicability_text,
     )
     from normative.np_105_18 import get_weld_category_choices
     joint_data = {}
@@ -303,6 +304,8 @@ def create_step2_view(request, doc_code):
                 info.get('material', 'perlit'),
             ),
             'choice_label': format_joint_choice_label(code, info),
+            'applicability': info.get('applicability') or get_joint_applicability_text(code),
+            'gost_tables_all': info.get('gost_tables_all', []),
         }
     welding_labels = {
         code: f'{code} — {info["name"]}'
@@ -802,6 +805,7 @@ def get_joint_zones_ajax(request):
     result = get_inspection_zone(
         joint_code, thickness, method,
         material_type=resolve_material_type(material),
+        material=material,
         reinforcement_removed=reinforcement_removed,
         has_backing_ring=has_backing_ring,
         backing_ring_thickness_mm=backing_thickness,

@@ -574,6 +574,31 @@ from normative.gost_59023_joint_supplement import (  # noqa: E402
 JOINT_TYPES.update(SUPPLEMENT_JOINT_TYPES)
 JOINT_IMAGES.update(SUPPLEMENT_JOINT_IMAGES)
 
+from normative.gost_59023_extended_joints import (  # noqa: E402
+    JOINT_TYPES_EXT,
+    MATERIAL_VARIANTS,
+)
+from normative.gost_59023_table_catalog import (  # noqa: E402
+    GOST_SECTIONS,
+    TABLE_CATALOG,
+)
+
+JOINT_TYPES.update(JOINT_TYPES_EXT)
+
+# Индекс таблиц ГОСТ: (код, material_scope) → запись TABLE_CATALOG
+JOINT_TABLE_INDEX: dict[tuple[str, str], dict] = {}
+for _entry in TABLE_CATALOG:
+    for _code in _entry.get('joint_codes', []):
+        JOINT_TABLE_INDEX[(_code, _entry['material_scope'])] = _entry
+
+_SECTION_TABLE_SETS = {
+    '5': set(GOST_SECTIONS.get('section_5_steel', [])),
+    '6': set(GOST_SECTIONS.get('section_6_austenite', [])),
+    '7': set(GOST_SECTIONS.get('section_7_titanium_sheet', []))
+         | set(GOST_SECTIONS.get('section_7_titanium_tube', [])),
+    '8': set(GOST_SECTIONS.get('section_8_aluminum', [])),
+}
+
 JOINT_MATERIAL_ORDER = ('perlit', 'austenite', 'titanium', 'aluminum')
 JOINT_TYPE_ORDER = ('butt', 'corner', 'tee')
 
@@ -604,8 +629,12 @@ JOINT_GROUP_LABELS = {
     ('austenite', 'butt'): '— Стыковые, аустенитные стали (п. 6) —',
     ('austenite', 'corner'): '— Угловые, аустенитные стали (п. 6) —',
     ('austenite', 'tee'): '— Тавровые, аустенитные стали (п. 6) —',
-    ('titanium', 'butt'): '— Титановые сплавы (п. 7) —',
-    ('aluminum', 'butt'): '— Алюминиевые сплавы (п. 8) —',
+    ('titanium', 'butt'): '— Титановые стыковые, лист/труба (п. 7) —',
+    ('titanium', 'corner'): '— Титановые угловые, труба (п. 7) —',
+    ('titanium', 'tee'): '— Титановые тавровые, труба (п. 7) —',
+    ('aluminum', 'butt'): '— Алюминиевые стыковые (п. 8) —',
+    ('aluminum', 'corner'): '— Алюминиевые угловые (п. 8) —',
+    ('aluminum', 'tee'): '— Алюминиевые тавровые (п. 8) —',
 }
 
 
@@ -614,11 +643,74 @@ def get_joint_material_applicability(material: str) -> str:
     return GOST_MATERIAL_SECTIONS.get(material, {}).get('label', '')
 
 
+def resolve_catalog_material_scope(joint_code: str, material_class: str | None) -> str:
+    """Ключ material_scope в TABLE_CATALOG для кода и класса металла."""
+    if joint_code.startswith(('ТС-', 'ТУ-')):
+        return 'titanium_tube'
+    if material_class == 'titanium':
+        if (joint_code, 'titanium_tube') in JOINT_TABLE_INDEX:
+            return 'titanium_tube'
+        return 'titanium_sheet'
+    if material_class == 'aluminum':
+        return 'aluminum'
+    return 'steel'
+
+
+def get_joint_table_numbers(joint_code: str) -> set[str]:
+    return {
+        entry['table']
+        for entry in TABLE_CATALOG
+        if joint_code in entry.get('joint_codes', [])
+    }
+
+
+def get_joint_applicability_text(joint_code: str) -> str:
+    """Применимость типа соединения по п. 5–8 на основании таблиц раздела 9."""
+    tables = get_joint_table_numbers(joint_code)
+    labels = []
+    if tables & _SECTION_TABLE_SETS['5']:
+        labels.append(GOST_MATERIAL_SECTIONS['perlit']['label'])
+    if tables & _SECTION_TABLE_SETS['6']:
+        labels.append(GOST_MATERIAL_SECTIONS['austenite']['label'])
+    if tables & _SECTION_TABLE_SETS['7']:
+        labels.append(GOST_MATERIAL_SECTIONS['titanium']['label'])
+    if tables & _SECTION_TABLE_SETS['8']:
+        labels.append(GOST_MATERIAL_SECTIONS['aluminum']['label'])
+    return '; '.join(labels)
+
+
+def resolve_joint_profile(
+    joint_code: str,
+    material_class: str | None = None,
+) -> dict:
+    """
+    Профиль типа соединения с учётом класса металла (п. 5–8).
+
+    Для кодов с вариантами (С-1 для стали/Ti/Al) выбирается таблица
+    соответствующего material_scope.
+    """
+    base = dict(JOINT_TYPES.get(joint_code, {}))
+    if not base:
+        return base
+    scope = resolve_catalog_material_scope(joint_code, material_class)
+    catalog_entry = JOINT_TABLE_INDEX.get((joint_code, scope))
+    if catalog_entry:
+        base = dict(base)
+        base['gost_table'] = catalog_entry['table'].replace('9.', '9.')
+        if catalog_entry.get('methods'):
+            base['methods'] = list(catalog_entry['methods'])
+    base['material_scope'] = scope
+    base['applicability'] = get_joint_applicability_text(joint_code)
+    if joint_code in MATERIAL_VARIANTS:
+        base['material_variants'] = MATERIAL_VARIANTS[joint_code]
+    return base
+
+
 def format_joint_choice_label(code: str, info: dict) -> str:
     """Подпись пункта списка типов соединений с указанием применимости."""
     table_ref = info.get('gost_table')
     table_suffix = f', табл. {table_ref}' if table_ref else ''
-    applicability = get_joint_material_applicability(info.get('material', 'perlit'))
+    applicability = info.get('applicability') or get_joint_applicability_text(code)
     applicability_suffix = f' [{applicability}]' if applicability else ''
     return (
         f"{code} — {info['name']}{table_suffix}{applicability_suffix}"
@@ -626,7 +718,7 @@ def format_joint_choice_label(code: str, info: dict) -> str:
 
 
 def _joint_code_sort_key(code: str) -> tuple:
-    m = re.match(r'^([СУТ])-(\d+(?:-\d+)?)$', code)
+    m = re.match(r'^(ТС|ТУ|[СУТ])-(\d+(?:-\d+)?)$', code)
     if not m:
         return (code, 0, 0)
     prefix, num_part = m.group(1), m.group(2)
@@ -648,7 +740,17 @@ def _joint_sort_key(code: str) -> tuple:
     return (material_idx, type_idx, table_num, _joint_code_sort_key(code))
 
 
+def _enrich_joint_metadata() -> None:
+    for code, info in JOINT_TYPES.items():
+        if 'applicability' not in info:
+            info['applicability'] = get_joint_applicability_text(code)
+        tables = get_joint_table_numbers(code)
+        if tables and not info.get('gost_tables_all'):
+            info['gost_tables_all'] = sorted(tables, key=lambda t: float(t.split('.')[1]))
+
+
 ALL_JOINT_CODES = sorted(JOINT_TYPES.keys(), key=_joint_sort_key)
+_enrich_joint_metadata()
 
 
 def get_joint_thickness_ranges(joint_code: str) -> list[tuple[float, float]]:
@@ -711,9 +813,11 @@ def get_joint_type_choices(
             last_group = group
         choices.append((code, format_joint_choice_label(code, info)))
     return choices
-def get_joint_info(joint_code: str) -> dict:
+
+
+def get_joint_info(joint_code: str, material_class: str | None = None) -> dict:
     """Возвращает полную информацию о типе соединения."""
-    info = dict(JOINT_TYPES.get(joint_code, {}))
+    info = resolve_joint_profile(joint_code, material_class)
     if info:
         info['image'] = get_joint_image_path(joint_code)
     return info
@@ -796,7 +900,11 @@ def _parse_dimension_row(row: tuple, bead_mode: str = 'equal') -> dict:
     }
 
 
-def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
+def get_weld_width(
+    joint_code: str,
+    thickness_mm: float,
+    material_class: str | None = None,
+) -> dict:
     """
     Возвращает ширину шва (e), высоту усиления (g_nom, g_min, g_max)
     для заданного типа соединения и толщины стенки.
@@ -812,7 +920,7 @@ def get_weld_width(joint_code: str, thickness_mm: float) -> dict:
     :param thickness_mm: номинальная толщина стенки, мм
     :return: словарь с e_mm, g_nom, g_min_mm, g_max_mm, note
     """
-    info = JOINT_TYPES.get(joint_code)
+    info = resolve_joint_profile(joint_code, material_class)
     if not info:
         return {
             'e_mm': None, 'g_nom': 2.0,
@@ -925,6 +1033,8 @@ def get_inspection_zone(
     welding_method: str = '30',
     *,
     material_type: str = 'steel',
+    material_class: str | None = None,
+    material: str = '',
     reinforcement_removed: bool = False,
     has_backing_ring: bool | None = None,
     backing_ring_thickness_mm: float | None = None,
@@ -940,7 +1050,15 @@ def get_inspection_zone(
     :param welding_method: код способа сварки
     :return: словарь с параметрами зоны контроля
     """
-    weld = get_weld_width(joint_code, thickness_mm)
+    if material_class is None:
+        if material_type == 'titanium':
+            material_class = 'titanium'
+        elif material_type == 'aluminum':
+            material_class = 'aluminum'
+        else:
+            material_class = resolve_material_class(material) or 'perlit'
+
+    weld = get_weld_width(joint_code, thickness_mm, material_class)
     e = weld.get('e_mm') or (thickness_mm * 1.5)
     e_tol = weld.get('e_tol_mm', _default_e_tolerance_mm(e))
     e_max = weld.get('e_max_mm', round(e + e_tol, 1))

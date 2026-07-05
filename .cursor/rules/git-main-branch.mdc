@@ -1,0 +1,49 @@
+---
+description: Git — все изменения сразу в основную ветку деплоя
+alwaysApply: true
+---
+
+# Git: основная ветка деплоя
+
+## Основная ветка
+
+**`cursor/ndt-webapp-54ed`** — единственная ветка, с которой деплоится сайт (Render: nk-karta.onrender.com).
+
+Ветка `main` в репозитории **не используется** для деплоя.
+
+## Правило для агента и разработчиков
+
+После **каждой** завершённой задачи (фича, фикс, контент):
+
+1. Коммит и push в рабочую ветку `cursor/<описание>-8e9a` (если велась отдельная ветка).
+2. **Обязательно** слить изменения в `cursor/ndt-webapp-54ed` и запушить:
+   ```bash
+   git fetch origin
+   git checkout cursor/ndt-webapp-54ed
+   git pull origin cursor/ndt-webapp-54ed
+   git merge cursor/<описание>-8e9a   # или cherry-pick / fast-forward
+   git push origin cursor/ndt-webapp-54ed
+   ```
+3. PR (если создавался) — base branch всегда **`cursor/ndt-webapp-54ed`**.
+
+**Не оставлять** готовые изменения только в feature-ветке без merge в `cursor/ndt-webapp-54ed`.
+
+## Исключения
+
+- WIP / эксперименты, явно не готовые к prod — можно без merge, но пометить в PR как draft.
+- Локальные настройки MCP (`.env.mcp`) — **никогда** не коммитить.
+
+## Локальная папка (Cursor IDE)
+
+Cloud Agent коммитит на GitHub; локальная копия **не обновляется сама**.
+
+После работы агента разработчик выполняет:
+```bash
+git fetch origin
+git checkout cursor/ndt-webapp-54ed
+git pull origin cursor/ndt-webapp-54ed
+```
+
+## Именование веток агента
+
+Шаблон: `cursor/<краткое-описание>-8e9a` (только строчные буквы).

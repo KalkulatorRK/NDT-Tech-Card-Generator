@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load credit_words static %}
+{% load credit_words %}
 {% block title %}Главная{% endblock %}
 
 {% block content %}
@@ -31,7 +31,6 @@
       {% if user.is_authenticated and user_balance %}
       <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
         <div class="counter-box">
-          {% include "includes/credit_icon.html" with size="xl" %}
           <div class="counter-number">{{ user_balance.techcard_credits }}</div>
           <div class="counter-label">оплаченных {{ user_balance.techcard_credits|credit_word_filter }} доступно</div>
           <div class="mt-3" style="font-size:0.85rem;opacity:0.85;">
@@ -40,7 +39,7 @@
           </div>
           <a href="{% url 'tariffs' %}" class="btn btn-sm mt-3"
              style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);">
-            {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Пополнить
+            <i class="bi bi-plus-circle me-1"></i>Пополнить
           </a>
         </div>
       </div>
@@ -173,7 +172,7 @@
           <i class="bi bi-person-plus me-1"></i>Регистрация
         </a>
         <a href="{% url 'tariffs' %}" class="btn btn-outline-primary">
-          {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Тарифы
+          Тарифы
         </a>
       </div>
     </div>

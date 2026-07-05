@@ -64,7 +64,7 @@
         <li class="nav-item">
           <a class="nav-link {% if 'payments' in request.path %}active{% endif %}"
              href="{% url 'tariffs' %}">
-            {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Тарифы
+            <i class="bi bi-credit-card me-1"></i>Тарифы
           </a>
         </li>
         <li class="nav-item">
@@ -85,14 +85,6 @@
       <!-- Блок пользователя -->
       <ul class="navbar-nav ms-auto">
         {% if user.is_authenticated %}
-          {% if user_balance %}
-          <li class="nav-item d-flex align-items-center me-2">
-            <a class="credit-badge text-decoration-none" href="{% url 'tariffs' %}" title="Пополнить баланс">
-              {% include "includes/credit_icon.html" with size="sm" %}
-              <span>{{ user_balance.techcard_credits }}</span>
-            </a>
-          </li>
-          {% endif %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">

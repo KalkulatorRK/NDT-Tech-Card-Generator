@@ -30,7 +30,6 @@
 
         <!-- Счётчик кредитов -->
         <div class="counter-box mb-3">
-          {% include "includes/credit_icon.html" with size="xl" %}
           <div class="counter-number">{{ balance.techcard_credits }}</div>
           <div class="counter-label">{{ balance.techcard_credits|credit_word_filter }} доступно</div>
         </div>
@@ -60,7 +59,7 @@
         {% endif %}
 
         <a href="{% url 'tariffs' %}" class="btn btn-primary w-100 mb-2">
-          {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Пополнить баланс
+          <i class="bi bi-plus-circle me-1"></i>Пополнить баланс
         </a>
         <a href="{% url 'profile_edit' %}" class="btn btn-outline-secondary w-100 mb-2">
           <i class="bi bi-person-gear me-1"></i>Изменить профиль
@@ -135,7 +134,7 @@
                       </a>
                     {% else %}
                       <a href="{% url 'tariffs' %}" class="btn btn-sm btn-outline-warning">
-                        {% include "includes/credit_icon.html" with size="xs" extra_class="me-1" %}Пополнить
+                        <i class="bi bi-cart me-1"></i>Пополнить
                       </a>
                     {% endif %}
                   {% else %}

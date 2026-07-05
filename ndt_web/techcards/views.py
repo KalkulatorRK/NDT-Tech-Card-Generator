@@ -285,6 +285,7 @@ def create_step2_view(request, doc_code):
         iter_joint_codes, get_joint_thickness_ranges,
         get_joint_scoped_applicability, format_joint_choice_label,
         get_joint_applicability_for_display, get_joint_group_labels_for_ui,
+        get_joint_applicable_material_classes,
     )
     from normative.np_105_18 import get_weld_category_choices
     joint_data = {}
@@ -305,6 +306,7 @@ def create_step2_view(request, doc_code):
             else get_joint_applicability_for_display(code, info),
             'choice_label': format_joint_choice_label(code, info),
             'applicability': info.get('applicability') or get_joint_applicability_for_display(code, info),
+            'applicable_materials': get_joint_applicable_material_classes(code),
             'gost_tables_all': info.get('gost_tables_all', []),
             'group_key': info.get('group_key', ''),
         }

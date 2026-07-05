@@ -288,3 +288,30 @@ class GostJointCatalogTests(SimpleTestCase):
         zone = get_inspection_zone('С-13', 70.0, '11')
         self.assertEqual(zone['bead_width_inner_mm'], 25.0)
         self.assertGreater(zone['effective_e_max_mm'], zone['bead_width_mm'])
+
+    def test_joint_applicable_material_classes_dual_section(self):
+        from normative.gost_59023_2 import get_joint_applicable_material_classes
+
+        c12 = get_joint_applicable_material_classes('С-1-2')
+        self.assertIn('perlit', c12)
+        self.assertIn('austenite', c12)
+
+        c1 = get_joint_applicable_material_classes('С-1')
+        self.assertIn('perlit', c1)
+        self.assertIn('austenite', c1)
+        self.assertIn('titanium', c1)
+        self.assertIn('aluminum', c1)
+
+    def test_joint_image_path_resolves_gost_sketches(self):
+        from pathlib import Path
+        from normative.gost_59023_2 import (
+            get_joint_image_path, iter_joint_codes, _welds_static_dir,
+        )
+
+        base = _welds_static_dir()
+        self.assertTrue((base / get_joint_image_path('С-1-2')).exists())
+        self.assertTrue((base / get_joint_image_path('С-2')).exists())
+        self.assertTrue((base / get_joint_image_path('ТС-1')).exists())
+
+        missing = [c for c in iter_joint_codes() if not get_joint_image_path(c)]
+        self.assertLessEqual(len(missing), 10, msg=f'нет эскизов: {missing}')

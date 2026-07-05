@@ -336,7 +336,9 @@ function updateJointUI(jointCode) {
     matSel ? matSel.value : '',
     customEl ? customEl.value.trim() : ''
   );
-  if (userMaterialClass && info.material && userMaterialClass !== info.material) {
+  var applicable = info.applicable_materials || [];
+  if (userMaterialClass && applicable.length &&
+      applicable.indexOf(userMaterialClass) < 0) {
     sketchInfo.innerHTML += '<br><span class="text-warning">Выбранный материал объекта может не соответствовать области применения этого типа (см. п. 5–8 ГОСТ Р 59023.2-2020).</span>';
   }
 

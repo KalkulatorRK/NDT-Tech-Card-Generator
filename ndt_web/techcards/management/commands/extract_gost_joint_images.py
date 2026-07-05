@@ -20,7 +20,7 @@ RTF_NAME = (
     'атомных энергетических..._Текст.rtf'
 )
 
-JOINT_CODE_RE = re.compile(r'\b([СУТ]-\d+(?:-\d+)?)\b')
+JOINT_CODE_RE = re.compile(r'\b((?:ТС|ТУ|[СУТ])-\d+(?:-\d+)?)\b')
 
 
 def _rtf_cell_text(raw: bytes) -> str:

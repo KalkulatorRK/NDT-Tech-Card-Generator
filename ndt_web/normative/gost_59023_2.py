@@ -150,17 +150,58 @@ def _welds_static_dir() -> Path:
     return Path(__file__).resolve().parent.parent / 'static' / 'img' / 'welds'
 
 
+def _gost_image_stem(joint_code: str) -> str:
+    return joint_code.replace('-', '_')
+
+
+def _image_path_variants(rel_path: str) -> list[str]:
+    """Варианты png/gif для одного и того же эскиза ГОСТ."""
+    if not rel_path:
+        return []
+    variants = [rel_path]
+    if rel_path.endswith('.png'):
+        variants.append(rel_path[:-4] + '.gif')
+    elif rel_path.endswith('.gif'):
+        variants.append(rel_path[:-4] + '.png')
+    return variants
+
+
+def _joint_image_code_aliases(joint_code: str) -> list[str]:
+    """Альтернативные коды для поиска эскиза (ТС-1 → С-1, ТУ-3 → У-3)."""
+    aliases = [joint_code]
+    if joint_code.startswith('ТС-'):
+        aliases.append('С-' + joint_code[3:])
+    elif joint_code.startswith('ТУ-'):
+        aliases.append('У-' + joint_code[3:])
+    return aliases
+
+
+def _joint_image_candidates(joint_code: str) -> list[str]:
+    seen: set[str] = set()
+    candidates: list[str] = []
+
+    def add(path: str) -> None:
+        for variant in _image_path_variants(path):
+            if variant and variant not in seen:
+                seen.add(variant)
+                candidates.append(variant)
+
+    for code in _joint_image_code_aliases(joint_code):
+        add(JOINT_IMAGES.get(code, '') or '')
+        add(JOINT_TYPES.get(code, {}).get('sketch', '') or '')
+        for ext in ('gif', 'png'):
+            add(f'gost/{_gost_image_stem(code)}.{ext}')
+
+    return candidates
+
+
 def get_joint_image_path(joint_code: str) -> str:
     """Относительный путь к изображению шва (от static/img/welds/)."""
     base = _welds_static_dir()
-    for candidate in (
-        JOINT_IMAGES.get(joint_code),
-        JOINT_TYPES.get(joint_code, {}).get('sketch', ''),
-    ):
-        if candidate and (base / candidate).exists():
+    for candidate in _joint_image_candidates(joint_code):
+        if (base / candidate).exists():
             return candidate
-    info = JOINT_TYPES.get(joint_code, {})
-    return info.get('sketch', JOINT_IMAGES.get(joint_code, ''))
+    return ''
 
 
 # ------------------------------------------------------------------
@@ -859,6 +900,29 @@ def get_joint_table_numbers(joint_code: str) -> set[str]:
         for entry in TABLE_CATALOG
         if joint_code in entry.get('joint_codes', [])
     }
+
+
+def get_joint_applicable_material_classes(joint_code: str) -> list[str]:
+    """
+    Классы металла (п. 5–8), для которых тип соединения допустим по таблицам ГОСТ.
+
+    Используется для предупреждения о несоответствии материала объекта.
+    """
+    tables = get_joint_table_numbers(joint_code)
+    classes: list[str] = []
+    if tables & _SECTION_TABLE_SETS['5']:
+        classes.append('perlit')
+    if tables & _SECTION_TABLE_SETS['6']:
+        classes.append('austenite')
+    if tables & _SECTION_TABLE_SETS['7']:
+        classes.append('titanium')
+    if tables & _SECTION_TABLE_SETS['8']:
+        classes.append('aluminum')
+    if not classes:
+        material = JOINT_TYPES.get(joint_code, {}).get('material')
+        if material:
+            classes.append(material)
+    return classes
 
 
 def get_joint_applicability_text(joint_code: str) -> str:

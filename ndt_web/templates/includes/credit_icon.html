@@ -3,7 +3,5 @@
 <img src="{% static 'img/brand/credit-coin.png' %}"
      alt=""
      class="credit-icon credit-icon-{{ size|default:'md' }}{% if extra_class %} {{ extra_class }}{% endif %}"
-     width="{% if size == 'xs' %}16{% elif size == 'sm' %}20{% elif size == 'lg' %}40{% elif size == 'xl' %}56{% else %}28{% endif %}"
-     height="{% if size == 'xs' %}16{% elif size == 'sm' %}20{% elif size == 'lg' %}40{% elif size == 'xl' %}56{% else %}28{% endif %}"
      role="presentation"
      decoding="async">

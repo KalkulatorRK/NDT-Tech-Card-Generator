@@ -717,13 +717,23 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   vertical-align: middle;
   object-fit: contain;
   flex-shrink: 0;
+  width: auto;
+  height: auto;
+  aspect-ratio: 1;
+  max-width: none;
 }
 
-.credit-icon-xs { width: 16px; height: 16px; }
-.credit-icon-sm { width: 20px; height: 20px; }
-.credit-icon-md { width: 28px; height: 28px; }
-.credit-icon-lg { width: 40px; height: 40px; }
-.credit-icon-xl { width: 56px; height: 56px; }
+.credit-icon-xs { width: 16px; }
+.credit-icon-sm { width: 20px; }
+.credit-icon-md { width: 28px; }
+.credit-icon-lg { width: 40px; }
+.credit-icon-xl { width: 64px; }
+
+.counter-box .credit-icon-xl {
+  width: 72px;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+}
 
 .credit-badge {
   display: inline-flex;
@@ -760,11 +770,6 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-}
-
-.counter-box .credit-icon-xl {
-  margin-bottom: 0.5rem;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
 }
 
 .tariff-cards-count .credit-icon {

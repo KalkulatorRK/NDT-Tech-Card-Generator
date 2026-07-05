@@ -22,7 +22,7 @@ from normative.gost_59023_2 import (
     get_welding_material_choices,
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
-    resolve_material_type, resolve_material_class,
+    resolve_material_type,
 )
 from normative.np_105_18 import (
     get_weld_category_choices,
@@ -213,7 +213,8 @@ class TechCardStep2Form(forms.Form):
         }),
         help_text=(
             'С — стыковое, У — угловое, Т — тавровое. '
-            'Номер определяет тип разделки кромок.'
+            'Доступны все типы по ГОСТ Р 59023.2-2020; '
+            'в списке указана применимость по п. 5–8 (вид металла).'
         ),
     )
     welding_process = forms.ChoiceField(
@@ -302,28 +303,18 @@ class TechCardStep2Form(forms.Form):
         material = ''
         material_custom = ''
         weld_category = ''
-        wall_thickness = None
         if self.is_bound:
             joint = self.data.get('joint_designation', '')
             material = self.data.get('material', '')
             material_custom = (self.data.get('material_custom') or '').strip()
             weld_category = self.data.get('weld_category', '')
-            thickness_raw = self.data.get('wall_thickness', '')
         else:
             joint = self.initial.get('joint_designation', '')
             material = self.initial.get('material', '')
             material_custom = (self.initial.get('material_custom') or '').strip()
             weld_category = self.initial.get('weld_category', '')
-            thickness_raw = self.initial.get('wall_thickness', '')
-        try:
-            wall_thickness = float(thickness_raw) if thickness_raw not in ('', None) else None
-        except (TypeError, ValueError):
-            wall_thickness = None
 
-        material_class = resolve_material_class(material, material_custom)
-        self.fields['joint_designation'].choices = get_joint_type_choices(
-            material_class, wall_thickness,
-        )
+        self.fields['joint_designation'].choices = get_joint_type_choices()
         if joint:
             self.fields['welding_process'].choices = (
                 get_welding_process_choices_for_joint(joint)

@@ -283,6 +283,7 @@ def create_step2_view(request, doc_code):
     from normative.gost_59023_2 import (
         JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
         iter_joint_codes, get_joint_thickness_ranges,
+        get_joint_material_applicability, format_joint_choice_label,
     )
     from normative.np_105_18 import get_weld_category_choices
     joint_data = {}
@@ -298,6 +299,10 @@ def create_step2_view(request, doc_code):
             'gost_table': info.get('gost_table', ''),
             'bead_mode': info.get('bead_mode', 'equal'),
             'thickness_ranges': get_joint_thickness_ranges(code),
+            'material_applicability': get_joint_material_applicability(
+                info.get('material', 'perlit'),
+            ),
+            'choice_label': format_joint_choice_label(code, info),
         }
     welding_labels = {
         code: f'{code} — {info["name"]}'

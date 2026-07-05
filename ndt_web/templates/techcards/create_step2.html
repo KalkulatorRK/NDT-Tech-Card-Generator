@@ -58,17 +58,6 @@
               {% if form.flat_length_mm.help_text %}<div class="form-text">{{ form.flat_length_mm.help_text }}</div>{% endif %}
             </div>
 
-            <!-- Способ сварки -->
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">{{ form.welding_process.label }}</label>
-              {{ form.welding_process }}
-              {% if form.welding_process.help_text %}<div class="form-text">{{ form.welding_process.help_text }}</div>{% endif %}
-            </div>
-            <div class="col-md-6" id="welding-custom-group" style="display:none;">
-              <label class="form-label">{{ form.welding_process_custom.label }}</label>
-              {{ form.welding_process_custom }}
-            </div>
-
             <!-- Категория сварного шва -->
             <div class="col-md-6">
               <label class="form-label">{{ form.weld_category.label }}</label>
@@ -133,7 +122,7 @@
               <label class="form-label fw-semibold">
                 {{ form.joint_designation.label }}
                 <span class="tooltip-icon" data-bs-toggle="tooltip"
-                  title="С — стыковое, У — угловое, Т — тавровое. Номер обозначает тип разделки кромок и способ сварки.">?</span>
+                  title="С — стыковое, У — угловое, Т — тавровое. В списке — все типы ГОСТ Р 59023.2-2020 с указанием применимости по п. 5–8 (вид металла).">?</span>
               </label>
               {{ form.joint_designation }}
               {% if form.joint_designation.errors %}<div class="text-danger small">{{ form.joint_designation.errors.0 }}</div>{% endif %}
@@ -186,6 +175,17 @@
                 </div>
               </div>
             </div>
+
+            <!-- Способ сварки (после выбора типа соединения) -->
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.welding_process.label }}</label>
+              {{ form.welding_process }}
+              {% if form.welding_process.help_text %}<div class="form-text">{{ form.welding_process.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6" id="welding-custom-group" style="display:none;">
+              <label class="form-label">{{ form.welding_process_custom.label }}</label>
+              {{ form.welding_process_custom }}
+            </div>
           </div>
 
           <div class="form-actions-sticky">
@@ -216,14 +216,14 @@ var WELDING_LABELS = {{ welding_labels_json|safe }};
 var WELDS_STATIC = '{% static "img/welds/" %}';
 
 var JOINT_GROUP_LABELS = {
-  'perlit|butt': '— Стыковые, перлитные стали —',
-  'perlit|corner': '— Угловые, перлитные стали —',
-  'perlit|tee': '— Тавровые, перлитные стали —',
-  'austenite|butt': '— Стыковые, аустенитные стали —',
-  'austenite|corner': '— Угловые, аустенитные стали —',
-  'austenite|tee': '— Тавровые, аустенитные стали —',
-  'titanium|butt': '— Титановые сплавы —',
-  'aluminum|butt': '— Алюминиевые сплавы —',
+  'perlit|butt': '— Стыковые, перлитные стали (п. 5) —',
+  'perlit|corner': '— Угловые, перлитные стали (п. 5) —',
+  'perlit|tee': '— Тавровые, перлитные стали (п. 5) —',
+  'austenite|butt': '— Стыковые, аустенитные стали (п. 6) —',
+  'austenite|corner': '— Угловые, аустенитные стали (п. 6) —',
+  'austenite|tee': '— Тавровые, аустенитные стали (п. 6) —',
+  'titanium|butt': '— Титановые сплавы (п. 7) —',
+  'aluminum|butt': '— Алюминиевые сплавы (п. 8) —',
 };
 
 var jointSelect = document.getElementById('id_joint_designation');
@@ -245,25 +245,9 @@ function resolveMaterialClassForJoints(material, materialCustom) {
   return null;
 }
 
-function jointMatchesThickness(code, thickness) {
-  var info = JOINT_DATA[code];
-  if (!info || !info.thickness_ranges || !info.thickness_ranges.length) return true;
-  if (!thickness || isNaN(thickness)) return true;
-  return info.thickness_ranges.some(function (range) {
-    return range[0] <= thickness && thickness <= range[1];
-  });
-}
-
 function rebuildJointChoices(selectedValue) {
   if (!jointSelect) return;
   var current = selectedValue || jointSelect.value;
-  var matSel = document.getElementById('id_material');
-  var customEl = document.getElementById('id_material_custom');
-  var thickEl = document.getElementById('id_wall_thickness');
-  var material = matSel ? matSel.value : '';
-  var materialCustomVal = customEl ? customEl.value.trim() : '';
-  var thickness = parseFloat(thickEl ? thickEl.value : '');
-  var materialClass = resolveMaterialClassForJoints(material, materialCustomVal);
 
   jointSelect.innerHTML = '';
   var empty = document.createElement('option');
@@ -275,8 +259,6 @@ function rebuildJointChoices(selectedValue) {
   (JOINT_CODES_ORDERED || []).forEach(function (code) {
     var info = JOINT_DATA[code];
     if (!info) return;
-    if (materialClass && info.material !== materialClass) return;
-    if (!jointMatchesThickness(code, thickness)) return;
 
     var groupKey = info.material + '|' + info.joint_type;
     if (groupKey !== lastGroup) {
@@ -291,10 +273,9 @@ function rebuildJointChoices(selectedValue) {
       lastGroup = groupKey;
     }
 
-    var tableSuffix = info.gost_table ? ', табл. ' + info.gost_table : '';
     var opt = document.createElement('option');
     opt.value = code;
-    opt.textContent = code + ' — ' + info.name + tableSuffix + ' (' + info.methods.join(', ') + ')';
+    opt.textContent = info.choice_label || code;
     jointSelect.appendChild(opt);
   });
 
@@ -355,8 +336,19 @@ function updateJointUI(jointCode) {
 
   sketchInfo.innerHTML = '<strong>' + jointCode + '</strong> — ' + info.name +
     (info.gost_table ? ' <span class="text-muted">(табл. ' + info.gost_table + ')</span>' : '') +
+    '<br><span class="text-muted">Применимость: ' + (info.material_applicability || '—') + '</span>' +
     '<br><span class="text-muted">Допустимые способы сварки: ' + info.methods.join(', ') +
     ' | Разделка: ' + info.groove + '</span>';
+
+  var matSel = document.getElementById('id_material');
+  var customEl = document.getElementById('id_material_custom');
+  var userMaterialClass = resolveMaterialClassForJoints(
+    matSel ? matSel.value : '',
+    customEl ? customEl.value.trim() : ''
+  );
+  if (userMaterialClass && info.material && userMaterialClass !== info.material) {
+    sketchInfo.innerHTML += '<br><span class="text-warning">Выбранный материал объекта может не соответствовать области применения этого типа (см. п. 5–8 ГОСТ Р 59023.2-2020).</span>';
+  }
 
   sketchBlock.style.display = '';
   rebuildWeldingChoices(info.methods, processSelect ? processSelect.value : '');
@@ -425,7 +417,7 @@ if (jointSelect) {
 var thicknessInput = document.getElementById('id_wall_thickness');
 if (thicknessInput) {
   thicknessInput.addEventListener('change', function() {
-    rebuildJointChoices(jointSelect ? jointSelect.value : '');
+    if (jointSelect) calculateZones(jointSelect.value);
   });
   thicknessInput.addEventListener('input', function() {
     if (jointSelect) calculateZones(jointSelect.value);
@@ -521,14 +513,15 @@ if (materialSel) {
   materialSel.addEventListener('change', function() {
     updateMaterialUI();
     updateWeldCategoryChoices();
-    rebuildJointChoices(jointSelect ? jointSelect.value : '');
+    if (jointSelect && jointSelect.value) updateJointUI(jointSelect.value);
+    if (jointSelect) calculateZones(jointSelect.value);
   });
   updateMaterialUI();
   updateWeldCategoryChoices();
 }
 if (materialCustom) {
   materialCustom.addEventListener('input', function() {
-    rebuildJointChoices(jointSelect ? jointSelect.value : '');
+    if (jointSelect && jointSelect.value) updateJointUI(jointSelect.value);
     if (jointSelect) calculateZones(jointSelect.value);
   });
 }

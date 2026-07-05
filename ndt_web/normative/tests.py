@@ -184,14 +184,29 @@ class GostJointCatalogTests(SimpleTestCase):
         sort_keys = [_joint_sort_key(code) for code in ALL_JOINT_CODES]
         self.assertEqual(sort_keys, sorted(sort_keys))
 
-    def test_joint_choices_filtered_by_material_class(self):
-        from normative.gost_59023_2 import get_joint_type_choices
+    def test_joint_choices_include_all_types_with_applicability(self):
+        from normative.gost_59023_2 import (
+            JOINT_TYPES, get_joint_type_choices, get_joint_material_applicability,
+        )
 
-        perlit_codes = [c for c, _ in get_joint_type_choices('perlit')]
-        austenite_codes = [c for c, _ in get_joint_type_choices('austenite')]
-        self.assertIn('С-1', perlit_codes)
-        self.assertNotIn('С-42', perlit_codes)
-        self.assertIn('С-42', austenite_codes)
+        all_codes = [c for c, _ in get_joint_type_choices() if c and not c.startswith('__group_')]
+        self.assertEqual(len(all_codes), len(JOINT_TYPES))
+        self.assertIn('С-1', all_codes)
+        self.assertIn('С-42', all_codes)
+
+        labels = dict(get_joint_type_choices())
+        self.assertIn(
+            get_joint_material_applicability('perlit'),
+            labels['С-1'],
+        )
+        self.assertIn(
+            get_joint_material_applicability('austenite'),
+            labels['С-42'],
+        )
+
+        perlit_only = [c for c, _ in get_joint_type_choices('perlit')]
+        self.assertIn('С-1', perlit_only)
+        self.assertNotIn('С-42', perlit_only)
 
     def test_dual_bead_row_parsing(self):
         from normative.gost_59023_2 import (

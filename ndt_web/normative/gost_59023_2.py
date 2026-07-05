@@ -577,6 +577,53 @@ JOINT_IMAGES.update(SUPPLEMENT_JOINT_IMAGES)
 JOINT_MATERIAL_ORDER = ('perlit', 'austenite', 'titanium', 'aluminum')
 JOINT_TYPE_ORDER = ('butt', 'corner', 'tee')
 
+# Применимость типов соединений по разделам ГОСТ Р 59023.2-2020 (п. 5–8)
+GOST_MATERIAL_SECTIONS = {
+    'perlit': {
+        'section': '5',
+        'label': 'п. 5 — перлитные и высокохромистые стали',
+    },
+    'austenite': {
+        'section': '6',
+        'label': 'п. 6 — аустенитные стали и сплавы Fe-Ni',
+    },
+    'titanium': {
+        'section': '7',
+        'label': 'п. 7 — титановые сплавы',
+    },
+    'aluminum': {
+        'section': '8',
+        'label': 'п. 8 — алюминиевые сплавы',
+    },
+}
+
+JOINT_GROUP_LABELS = {
+    ('perlit', 'butt'): '— Стыковые, перлитные стали (п. 5) —',
+    ('perlit', 'corner'): '— Угловые, перлитные стали (п. 5) —',
+    ('perlit', 'tee'): '— Тавровые, перлитные стали (п. 5) —',
+    ('austenite', 'butt'): '— Стыковые, аустенитные стали (п. 6) —',
+    ('austenite', 'corner'): '— Угловые, аустенитные стали (п. 6) —',
+    ('austenite', 'tee'): '— Тавровые, аустенитные стали (п. 6) —',
+    ('titanium', 'butt'): '— Титановые сплавы (п. 7) —',
+    ('aluminum', 'butt'): '— Алюминиевые сплавы (п. 8) —',
+}
+
+
+def get_joint_material_applicability(material: str) -> str:
+    """Текст применимости типа соединения по п. 5–8 ГОСТ Р 59023.2-2020."""
+    return GOST_MATERIAL_SECTIONS.get(material, {}).get('label', '')
+
+
+def format_joint_choice_label(code: str, info: dict) -> str:
+    """Подпись пункта списка типов соединений с указанием применимости."""
+    table_ref = info.get('gost_table')
+    table_suffix = f', табл. {table_ref}' if table_ref else ''
+    applicability = get_joint_material_applicability(info.get('material', 'perlit'))
+    applicability_suffix = f' [{applicability}]' if applicability else ''
+    return (
+        f"{code} — {info['name']}{table_suffix}{applicability_suffix}"
+    )
+
 
 def _joint_code_sort_key(code: str) -> tuple:
     m = re.match(r'^([СУТ])-(\d+(?:-\d+)?)$', code)
@@ -648,7 +695,9 @@ def get_joint_type_choices(
     """
     Возвращает список кортежей типов соединений для выпадающего списка.
 
+    По умолчанию включает все типы из ГОСТ Р 59023.2-2020.
     Сортировка: класс металла → тип (С/У/Т) → таблица ГОСТ → код.
+    В подписи каждого пункта — применимость по п. 5–8 стандарта.
     """
     choices = [('', '— Выберите тип сварного соединения —')]
     last_group = None
@@ -656,28 +705,12 @@ def get_joint_type_choices(
         info = JOINT_TYPES[code]
         group = (info.get('material', 'perlit'), info.get('joint_type', 'butt'))
         if group != last_group and len(choices) > 1:
-            label = {
-                ('perlit', 'butt'): '— Стыковые, перлитные стали —',
-                ('perlit', 'corner'): '— Угловые, перлитные стали —',
-                ('perlit', 'tee'): '— Тавровые, перлитные стали —',
-                ('austenite', 'butt'): '— Стыковые, аустенитные стали —',
-                ('austenite', 'corner'): '— Угловые, аустенитные стали —',
-                ('austenite', 'tee'): '— Тавровые, аустенитные стали —',
-                ('titanium', 'butt'): '— Титановые сплавы —',
-                ('aluminum', 'butt'): '— Алюминиевые сплавы —',
-            }.get(group)
+            label = JOINT_GROUP_LABELS.get(group)
             if label:
                 choices.append((f'__group_{code}__', label))
             last_group = group
-        table_ref = info.get('gost_table')
-        table_suffix = f', табл. {table_ref}' if table_ref else ''
-        choices.append((
-            code,
-            f"{code} — {info['name']}{table_suffix} ({', '.join(info['methods'])})"
-        ))
+        choices.append((code, format_joint_choice_label(code, info)))
     return choices
-
-
 def get_joint_info(joint_code: str) -> dict:
     """Возвращает полную информацию о типе соединения."""
     info = dict(JOINT_TYPES.get(joint_code, {}))

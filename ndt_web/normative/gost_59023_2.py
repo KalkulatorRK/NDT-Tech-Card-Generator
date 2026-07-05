@@ -677,6 +677,15 @@ _SECTION_TABLE_SETS = {
 
 JOINT_MATERIAL_ORDER = ('perlit', 'austenite', 'titanium', 'aluminum')
 JOINT_TYPE_ORDER = ('butt', 'corner', 'tee')
+TITANIUM_SCOPE_ORDER = ('titanium_sheet', 'titanium_tube')
+ALUMINUM_SCOPE_ORDER = ('aluminum_butt', 'aluminum_corner_tee')
+
+GOST_ALUMINUM_BUTT_TABLES = frozenset(
+    GOST_SECTIONS.get('section_8_aluminum', [])[:9],
+)
+GOST_ALUMINUM_CORNER_TEE_TABLES = frozenset(
+    GOST_SECTIONS.get('section_8_aluminum', [])[9:],
+)
 
 # Применимость типов соединений по разделам ГОСТ Р 59023.2-2020 (п. 5–8)
 GOST_MATERIAL_SECTIONS = {
@@ -691,10 +700,17 @@ GOST_MATERIAL_SECTIONS = {
     'titanium': {
         'section': '7',
         'label': 'п. 7 — титановые сплавы',
+        'sheet': 'п. 7 — листовые детали из титановых сплавов (табл. 9.67–9.84)',
+        'tube': 'п. 7 — трубные детали из титановых сплавов (табл. 9.85–9.99)',
     },
     'aluminum': {
         'section': '8',
         'label': 'п. 8 — алюминиевые сплавы',
+        'butt': 'п. 8 — стыковые соединения из алюминиевых сплавов (табл. 9.100–9.108)',
+        'corner_tee': (
+            'п. 8 — угловые, тавровые и торцевые соединения '
+            'из алюминиевых сплавов (табл. 9.109–9.122)'
+        ),
     },
 }
 
@@ -705,13 +721,118 @@ JOINT_GROUP_LABELS = {
     ('austenite', 'butt'): '— Стыковые, аустенитные стали (п. 6) —',
     ('austenite', 'corner'): '— Угловые, аустенитные стали (п. 6) —',
     ('austenite', 'tee'): '— Тавровые, аустенитные стали (п. 6) —',
-    ('titanium', 'butt'): '— Титановые стыковые, лист/труба (п. 7) —',
-    ('titanium', 'corner'): '— Титановые угловые, труба (п. 7) —',
-    ('titanium', 'tee'): '— Титановые тавровые, труба (п. 7) —',
-    ('aluminum', 'butt'): '— Алюминиевые стыковые (п. 8) —',
-    ('aluminum', 'corner'): '— Алюминиевые угловые (п. 8) —',
-    ('aluminum', 'tee'): '— Алюминиевые тавровые (п. 8) —',
+    ('titanium', 'titanium_sheet', 'butt'): (
+        '— Титан: стыковые, листовые детали (п. 7, табл. 9.67–9.84) —'
+    ),
+    ('titanium', 'titanium_sheet', 'corner'): (
+        '— Титан: угловые, листовые детали (п. 7, табл. 9.67–9.84) —'
+    ),
+    ('titanium', 'titanium_tube', 'butt'): (
+        '— Титан: стыковые, трубные детали (п. 7, табл. 9.85–9.99) —'
+    ),
+    ('titanium', 'titanium_tube', 'corner'): (
+        '— Титан: угловые/тавровые, трубные детали (п. 7, табл. 9.85–9.99) —'
+    ),
+    ('aluminum', 'aluminum_butt'): (
+        '— Алюминий: стыковые (п. 8, табл. 9.100–9.108) —'
+    ),
+    ('aluminum', 'aluminum_corner_tee'): (
+        '— Алюминий: угловые, тавровые и торцевые (п. 8, табл. 9.109–9.122) —'
+    ),
 }
+
+
+def _table_num(table_ref: str) -> float | None:
+    try:
+        return float(table_ref.replace('9.', ''))
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_joint_list_scope(joint_code: str, info: dict) -> str:
+    """
+    Подгруппа п. 7–8 для группировки в списке типов соединений.
+
+    п. 7: лист (9.67–9.84) / труба (9.85–9.99);
+    п. 8: стыковые (9.100–9.108) / угловые, тавровые, торцевые (9.109–9.122).
+    """
+    material = info.get('material', 'perlit')
+    if material == 'titanium':
+        if joint_code.startswith(('ТС-', 'ТУ-')):
+            return 'titanium_tube'
+        table = info.get('gost_table', '')
+        num = _table_num(table)
+        if num is not None and 85 <= num <= 99:
+            return 'titanium_tube'
+        if num is not None and 67 <= num <= 84:
+            return 'titanium_sheet'
+        if (joint_code, 'titanium_tube') in JOINT_TABLE_INDEX:
+            if (joint_code, 'titanium_sheet') not in JOINT_TABLE_INDEX:
+                return 'titanium_tube'
+        return 'titanium_sheet'
+    if material == 'aluminum':
+        table = info.get('gost_table', '')
+        if table in GOST_ALUMINUM_BUTT_TABLES:
+            return 'aluminum_butt'
+        if table in GOST_ALUMINUM_CORNER_TEE_TABLES:
+            return 'aluminum_corner_tee'
+        num = _table_num(table)
+        if num is not None:
+            if num <= 108:
+                return 'aluminum_butt'
+            if num >= 109:
+                return 'aluminum_corner_tee'
+        if info.get('joint_type', 'butt') == 'butt':
+            return 'aluminum_butt'
+        return 'aluminum_corner_tee'
+    return material
+
+
+def get_joint_group_key(joint_code: str, info: dict) -> tuple:
+    """Ключ optgroup для выпадающего списка типов соединений."""
+    material = info.get('material', 'perlit')
+    if material == 'titanium':
+        scope = resolve_joint_list_scope(joint_code, info)
+        joint_type = info.get('joint_type', 'butt')
+        if scope == 'titanium_tube' and joint_type == 'tee':
+            joint_type = 'corner'
+        return (material, scope, joint_type)
+    if material == 'aluminum':
+        return (material, resolve_joint_list_scope(joint_code, info))
+    return (material, info.get('joint_type', 'butt'))
+
+
+def joint_group_key_to_str(group_key: tuple) -> str:
+    return '|'.join(str(part) for part in group_key)
+
+
+def get_joint_scoped_applicability(joint_code: str, info: dict | None = None) -> str:
+    """Применимость с учётом подраздела п. 7–8 (лист/труба, стыковые/угловые)."""
+    info = info or JOINT_TYPES.get(joint_code, {})
+    material = info.get('material', 'perlit')
+    if material == 'titanium':
+        scope = resolve_joint_list_scope(joint_code, info)
+        return GOST_MATERIAL_SECTIONS['titanium'][scope.split('_', 1)[1]]
+    if material == 'aluminum':
+        scope = resolve_joint_list_scope(joint_code, info)
+        key = 'butt' if scope == 'aluminum_butt' else 'corner_tee'
+        return GOST_MATERIAL_SECTIONS['aluminum'][key]
+    return get_joint_material_applicability(material)
+
+
+def get_joint_applicability_for_display(joint_code: str, info: dict | None = None) -> str:
+    """Применимость для подписи в UI — без «чужих» разделов п. 5–8."""
+    info = info or JOINT_TYPES.get(joint_code, {})
+    material = info.get('material', 'perlit')
+    if material in ('titanium', 'aluminum'):
+        return get_joint_scoped_applicability(joint_code, info)
+    tables = get_joint_table_numbers(joint_code)
+    labels = []
+    if tables & _SECTION_TABLE_SETS['5']:
+        labels.append(GOST_MATERIAL_SECTIONS['perlit']['label'])
+    if tables & _SECTION_TABLE_SETS['6']:
+        labels.append(GOST_MATERIAL_SECTIONS['austenite']['label'])
+    return '; '.join(labels)
 
 
 def get_joint_material_applicability(material: str) -> str:
@@ -776,7 +897,9 @@ def resolve_joint_profile(
         if catalog_entry.get('methods'):
             base['methods'] = list(catalog_entry['methods'])
     base['material_scope'] = scope
-    base['applicability'] = get_joint_applicability_text(joint_code)
+    base['applicability'] = get_joint_applicability_for_display(joint_code, base)
+    if material_class in ('titanium', 'aluminum'):
+        base['applicability'] = get_joint_scoped_applicability(joint_code, base)
     if joint_code in MATERIAL_VARIANTS:
         base['material_variants'] = MATERIAL_VARIANTS[joint_code]
     sketch_bead = get_sketch_inner_bead(joint_code)
@@ -789,7 +912,7 @@ def format_joint_choice_label(code: str, info: dict) -> str:
     """Подпись пункта списка типов соединений с указанием применимости."""
     table_ref = info.get('gost_table')
     table_suffix = f', табл. {table_ref}' if table_ref else ''
-    applicability = info.get('applicability') or get_joint_applicability_text(code)
+    applicability = info.get('applicability') or get_joint_applicability_for_display(code, info)
     applicability_suffix = f' [{applicability}]' if applicability else ''
     return (
         f"{code} — {info['name']}{table_suffix}{applicability_suffix}"
@@ -807,25 +930,49 @@ def _joint_code_sort_key(code: str) -> tuple:
 
 def _joint_sort_key(code: str) -> tuple:
     info = JOINT_TYPES.get(code, {})
-    material = info.get('material', 'perlit')
-    material_idx = JOINT_MATERIAL_ORDER.index(material) if material in JOINT_MATERIAL_ORDER else 99
-    joint_type = info.get('joint_type', 'butt')
-    type_idx = JOINT_TYPE_ORDER.index(joint_type) if joint_type in JOINT_TYPE_ORDER else 99
-    table_ref = info.get('gost_table', '9.999')
-    try:
-        table_num = float(table_ref)
-    except (TypeError, ValueError):
-        table_num = 999.0
-    return (material_idx, type_idx, table_num, _joint_code_sort_key(code))
+    group = get_joint_group_key(code, info)
+    material_idx = (
+        JOINT_MATERIAL_ORDER.index(group[0])
+        if group[0] in JOINT_MATERIAL_ORDER else 99
+    )
+    sub_idx = 99
+    type_idx = 99
+    if group[0] == 'titanium' and len(group) == 3:
+        sub_idx = (
+            TITANIUM_SCOPE_ORDER.index(group[1])
+            if group[1] in TITANIUM_SCOPE_ORDER else 99
+        )
+        type_idx = (
+            JOINT_TYPE_ORDER.index(group[2])
+            if group[2] in JOINT_TYPE_ORDER else 99
+        )
+    elif group[0] == 'aluminum' and len(group) == 2:
+        sub_idx = (
+            ALUMINUM_SCOPE_ORDER.index(group[1])
+            if group[1] in ALUMINUM_SCOPE_ORDER else 99
+        )
+    elif len(group) == 2:
+        type_idx = (
+            JOINT_TYPE_ORDER.index(group[1])
+            if group[1] in JOINT_TYPE_ORDER else 99
+        )
+    table_num = _table_num(info.get('gost_table', '')) or 999.0
+    return (material_idx, sub_idx, type_idx, table_num, _joint_code_sort_key(code))
 
 
 def _enrich_joint_metadata() -> None:
     for code, info in JOINT_TYPES.items():
-        if 'applicability' not in info:
-            info['applicability'] = get_joint_applicability_text(code)
+        info['list_scope'] = resolve_joint_list_scope(code, info)
+        info['group_key'] = joint_group_key_to_str(get_joint_group_key(code, info))
+        info['applicability'] = get_joint_applicability_for_display(code, info)
         tables = get_joint_table_numbers(code)
         if tables and not info.get('gost_tables_all'):
             info['gost_tables_all'] = sorted(tables, key=lambda t: float(t.split('.')[1]))
+
+
+def get_joint_group_labels_for_ui() -> dict[str, str]:
+    """Подписи optgroup для передачи в шаблон (JSON)."""
+    return {joint_group_key_to_str(key): label for key, label in JOINT_GROUP_LABELS.items()}
 
 
 ALL_JOINT_CODES = sorted(JOINT_TYPES.keys(), key=_joint_sort_key)
@@ -884,7 +1031,7 @@ def get_joint_type_choices(
     last_group = None
     for code in iter_joint_codes(material_class, wall_thickness_mm):
         info = JOINT_TYPES[code]
-        group = (info.get('material', 'perlit'), info.get('joint_type', 'butt'))
+        group = get_joint_group_key(code, info)
         if group != last_group and len(choices) > 1:
             label = JOINT_GROUP_LABELS.get(group)
             if label:
@@ -1270,8 +1417,8 @@ def get_inspection_zone(
 MATERIAL_CLASS_CHOICES = [
     ('perlit', 'Перлитные и высокохромистые стали (С-1...С-42)'),
     ('austenite', 'Аустенитные стали и Fe-Ni сплавы (С-11...С-42)'),
-    ('titanium', 'Титановые сплавы (ТС-1...ТУ-19, таблицы 9.67-9.84)'),
-    ('aluminum', 'Алюминиевые сплавы (С-1...У-15, таблицы 9.100-9.122)'),
+    ('titanium', 'Титановые сплавы (ТС-1…ТУ-19; табл. 9.67–9.84 лист, 9.85–9.99 труба)'),
+    ('aluminum', 'Алюминиевые сплавы (С-1…У-15; табл. 9.100–9.108 стыковые, 9.109–9.122 прочие)'),
 ]
 
 # ------------------------------------------------------------------

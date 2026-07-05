@@ -201,6 +201,11 @@ class GostJointCatalogTests(SimpleTestCase):
         self.assertIn('п. 6', labels['С-1'])
         self.assertIn('п. 7', get_joint_applicability_text('С-1'))
         self.assertIn('п. 8', get_joint_applicability_text('С-1'))
+        self.assertIn('9.85', labels['ТС-1'])
+        self.assertIn('трубные', labels['ТС-1'])
+        self.assertIn('листовые', labels['У-15'])
+        self.assertIn('9.111', labels['Т-3'])
+        self.assertIn('угловые, тавровые', labels['Т-3'])
 
         perlit_only = [c for c, _ in get_joint_type_choices('perlit')]
         self.assertIn('С-1', perlit_only)

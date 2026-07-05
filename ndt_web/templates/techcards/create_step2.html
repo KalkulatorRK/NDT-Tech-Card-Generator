@@ -110,7 +110,7 @@
               {% if form.backing_ring_thickness_mm.help_text %}<div class="form-text">{{ form.backing_ring_thickness_mm.help_text }}</div>{% endif %}
             </div>
 
-            <!-- Разделитель: Тип сварного соединения (в конце формы) -->
+            <!-- Разделитель: тип сварного соединения (в конце формы) -->
             <div class="col-12 mt-2">
               <div class="card-header-section mb-3">
                 <i class="bi bi-diagram-3 me-2"></i>Тип сварного соединения (ГОСТ Р 59023.2-2020)
@@ -122,14 +122,14 @@
               <label class="form-label fw-semibold">
                 {{ form.joint_designation.label }}
                 <span class="tooltip-icon" data-bs-toggle="tooltip"
-                  title="С — стыковое, У — угловое, Т — тавровое. В списке — все типы ГОСТ Р 59023.2-2020 с указанием применимости по п. 5–8 (вид металла).">?</span>
+                  title="С — стыковое, У — угловое, Т — тавровое. п. 7: титан (табл. 9.67–9.84 лист, 9.85–9.99 труба); п. 8: алюминий (табл. 9.100–9.108 стыковые, 9.109–9.122 угловые/тавровые/торцевые).">?</span>
               </label>
               {{ form.joint_designation }}
               {% if form.joint_designation.errors %}<div class="text-danger small">{{ form.joint_designation.errors.0 }}</div>{% endif %}
               {% if form.joint_designation.help_text %}<div class="form-text">{{ form.joint_designation.help_text }}</div>{% endif %}
             </div>
 
-            <!-- Эскиз шва в разрезе (ГОСТ Р 59023.2-2020, столбец «шва сварного соединения») -->
+            <!-- Эскиз шва в разрезе -->
             <div class="col-12" id="joint-sketch-block" style="display:none;">
               <div class="border rounded p-3 bg-light">
                 <div class="row align-items-center">
@@ -141,7 +141,6 @@
                   </div>
                   <div class="col-md-9">
                     <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
-                    <!-- Рассчитанные размеры зон (заполняются по AJAX) -->
                     <div id="joint-dimensions" class="mt-2" style="font-size:0.85rem; display:none;">
                       <div class="row g-2">
                         <div class="col-6" id="dim-e-group">
@@ -215,16 +214,7 @@ var JOINT_CODES_ORDERED = {{ joint_codes_ordered_json|safe }};
 var WELDING_LABELS = {{ welding_labels_json|safe }};
 var WELDS_STATIC = '{% static "img/welds/" %}';
 
-var JOINT_GROUP_LABELS = {
-  'perlit|butt': '— Стыковые, перлитные стали (п. 5) —',
-  'perlit|corner': '— Угловые, перлитные стали (п. 5) —',
-  'perlit|tee': '— Тавровые, перлитные стали (п. 5) —',
-  'austenite|butt': '— Стыковые, аустенитные стали (п. 6) —',
-  'austenite|corner': '— Угловые, аустенитные стали (п. 6) —',
-  'austenite|tee': '— Тавровые, аустенитные стали (п. 6) —',
-  'titanium|butt': '— Титановые сплавы (п. 7) —',
-  'aluminum|butt': '— Алюминиевые сплавы (п. 8) —',
-};
+var JOINT_GROUP_LABELS = {{ joint_group_labels_json|safe }};
 
 var jointSelect = document.getElementById('id_joint_designation');
 var sketchBlock = document.getElementById('joint-sketch-block');
@@ -260,7 +250,7 @@ function rebuildJointChoices(selectedValue) {
     var info = JOINT_DATA[code];
     if (!info) return;
 
-    var groupKey = info.material + '|' + info.joint_type;
+    var groupKey = info.group_key || (info.material + '|' + info.joint_type);
     if (groupKey !== lastGroup) {
       var groupLabel = JOINT_GROUP_LABELS[groupKey];
       if (groupLabel) {
@@ -336,7 +326,7 @@ function updateJointUI(jointCode) {
 
   sketchInfo.innerHTML = '<strong>' + jointCode + '</strong> — ' + info.name +
     (info.gost_table ? ' <span class="text-muted">(табл. ' + info.gost_table + ')</span>' : '') +
-    '<br><span class="text-muted">Применимость: ' + (info.material_applicability || '—') + '</span>' +
+    '<br><span class="text-muted">Применимость: ' + (info.applicability || info.material_applicability || '—') + '</span>' +
     '<br><span class="text-muted">Допустимые способы сварки: ' + info.methods.join(', ') +
     ' | Разделка: ' + info.groove + '</span>';
 

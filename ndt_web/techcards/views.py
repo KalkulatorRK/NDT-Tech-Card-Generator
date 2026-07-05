@@ -283,8 +283,8 @@ def create_step2_view(request, doc_code):
     from normative.gost_59023_2 import (
         JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
         iter_joint_codes, get_joint_thickness_ranges,
-        get_joint_material_applicability, format_joint_choice_label,
-        get_joint_applicability_text,
+        get_joint_scoped_applicability, format_joint_choice_label,
+        get_joint_applicability_for_display, get_joint_group_labels_for_ui,
     )
     from normative.np_105_18 import get_weld_category_choices
     joint_data = {}
@@ -300,12 +300,13 @@ def create_step2_view(request, doc_code):
             'gost_table': info.get('gost_table', ''),
             'bead_mode': info.get('bead_mode', 'equal'),
             'thickness_ranges': get_joint_thickness_ranges(code),
-            'material_applicability': get_joint_material_applicability(
-                info.get('material', 'perlit'),
-            ),
+            'material_applicability': get_joint_scoped_applicability(code, info)
+            if info.get('material') in ('titanium', 'aluminum')
+            else get_joint_applicability_for_display(code, info),
             'choice_label': format_joint_choice_label(code, info),
-            'applicability': info.get('applicability') or get_joint_applicability_text(code),
+            'applicability': info.get('applicability') or get_joint_applicability_for_display(code, info),
             'gost_tables_all': info.get('gost_tables_all', []),
+            'group_key': info.get('group_key', ''),
         }
     welding_labels = {
         code: f'{code} — {info["name"]}'
@@ -320,6 +321,9 @@ def create_step2_view(request, doc_code):
         'step_labels': ['Объект', 'Параметры', 'Источник', 'Подтверждение'],
         'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
         'joint_codes_ordered_json': json.dumps(list(joint_data.keys()), ensure_ascii=False),
+        'joint_group_labels_json': json.dumps(
+            get_joint_group_labels_for_ui(), ensure_ascii=False,
+        ),
         'welding_labels_json': json.dumps(welding_labels, ensure_ascii=False),
         'weld_category_choices_json': json.dumps({
             'steel': get_weld_category_choices('steel'),

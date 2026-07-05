@@ -636,6 +636,32 @@ class SchemeDisplayTests(TestCase):
             d_outer_mm=226.0, d_inner_mm=200.0,
         )
         self.assertGreater(effective['f_min_mm'], nominal['f_min_mm'])
+        self.assertIsNotNone(nominal.get('L_mm'))
+        self.assertAlmostEqual(nominal['L_mm'], 3.14159 * 219.0 / 2, delta=1.0)
+
+    def test_scheme_preview_5v_shows_L(self):
+        from techcards.views import build_scheme_preview_context
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.get(
+            '/ajax/scheme-preview/?scheme_type=5v&source_code=Ir-192'
+            '&focal_spot_mm=3.0&ofd_mm=5',
+        )
+        request.session = self.client.session
+        request.session['techcard_data'] = {
+            'wall_thickness': 12,
+            'outer_diameter': 344,
+            'material': '08Х17Н15М3Т',
+            'joint_designation': 'С-1',
+            'welding_process': '30',
+            'weld_category': 'III',
+            'object_type': 'pipe',
+        }
+        context = build_scheme_preview_context(request)
+        self.assertTrue(context['ready'])
+        self.assertIsNotNone(context.get('L_mm'))
+        self.assertGreater(context['L_mm'], 0)
 
     def test_joint_c22_1_in_choices_and_weld_width(self):
         from normative.gost_59023_2 import (

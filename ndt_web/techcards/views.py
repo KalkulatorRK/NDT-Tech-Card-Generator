@@ -866,6 +866,11 @@ def build_scheme_preview_context(request) -> dict:
     iqi_wire_number = params.get('iqi_wire_number')
     k_display_mm = params.get('sensitivity_k_display_mm', k_required_mm)
 
+    exposure = params.get('exposure_scheme') or {}
+    L_mm = params.get('L_calculated_mm')
+    if L_mm is None:
+        L_mm = exposure.get('L_mm')
+
     return {
         'ready': True,
         'scheme_selected': True,
@@ -875,7 +880,7 @@ def build_scheme_preview_context(request) -> dict:
         'scheme_desc': scheme_info.get('desc', ''),
         'f_mm': params.get('f_calculated_mm'),
         'N': params.get('N_calculated'),
-        'L_mm': params.get('L_calculated_mm'),
+        'L_mm': L_mm,
         'film_size': params.get('film_size_label', ''),
         'ug_mm': params.get('geometric_unsharpness_mm'),
         'ug_ok': params.get('geometric_unsharpness_ok', True),

@@ -608,6 +608,11 @@ class RadiographicTechCardCalculator:
         if calc_result.get('error'):
             self.warnings.append(f'Схема {scheme}: {calc_result["error"]}')
 
+        if scheme == '4_6' and calc_result.get('L_mm') is None:
+            zone_width = self.params.get('zone_width_mm')
+            if zone_width:
+                calc_result['L_mm'] = round(float(zone_width), 0)
+
         # Информация о схеме (описание, изображение)
         scheme_info = SCHEME_INFO.get(scheme, {})
 
@@ -625,11 +630,11 @@ class RadiographicTechCardCalculator:
             # Расчётные значения для справки (или None)
             self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
-            self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+            self.params['L_calculated_mm'] = calc_result.get('L_mm')
         else:
             self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
-            self.params['L_calculated_mm'] = calc_result.get('L_mm', '')
+            self.params['L_calculated_mm'] = calc_result.get('L_mm')
 
         self.params['scheme_formula'] = calc_result.get('formula', '')
         self.params['scheme_notes'] = calc_result.get('notes', '')

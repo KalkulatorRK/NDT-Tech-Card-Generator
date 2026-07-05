@@ -383,12 +383,14 @@ def calc_scheme_5v(focal_spot_mm: float, d_outer_mm: float,
     """
     C = _get_C(focal_spot_mm, sensitivity_mm)
     f = C * d_outer_mm
+    N = 2
+    L = math.pi * d_outer_mm / N if d_outer_mm and N else None
     return {
         'scheme': '5v',
         'C': round(C, 4),
         'f_min_mm': round(f, 1),
-        'N': 2,
-        'L_mm': None,
+        'N': N,
+        'L_mm': round(L, 0) if L else None,
         'formula': f'f = C × D = {C:.2f} × {d_outer_mm} = {f:.1f} мм',
         'notes': 'Минимум 2 экспозиции под углом 90° друг к другу.',
     }
@@ -688,33 +690,40 @@ def calc_exposure_parameters(
     """
     if scheme == '4_6':
         return _normalize_exposure_result(
-            calc_scheme_4_6(focal_spot_mm, thickness_mm, sensitivity_mm)
+            calc_scheme_4_6(focal_spot_mm, thickness_mm, sensitivity_mm),
+            d_outer_mm,
         )
     elif scheme == '5a':
         return _normalize_exposure_result(
-            calc_scheme_5a(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+            calc_scheme_5a(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm),
+            d_outer_mm,
         )
     elif scheme == '5b':
         return _normalize_exposure_result(
             calc_scheme_5b_iterative(
                 focal_spot_mm, d_outer_mm, d_inner_mm, film_length_mm, sensitivity_mm,
-            )
+            ),
+            d_outer_mm,
         )
     elif scheme == '5v':
         return _normalize_exposure_result(
-            calc_scheme_5v(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+            calc_scheme_5v(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm),
+            d_outer_mm,
         )
     elif scheme == '5g':
         return _normalize_exposure_result(
-            calc_scheme_5g(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+            calc_scheme_5g(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm),
+            d_outer_mm,
         )
     elif scheme == '5d':
         return _normalize_exposure_result(
-            calc_scheme_5d(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+            calc_scheme_5d(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm),
+            d_outer_mm,
         )
     elif scheme == '5zh':
         return _normalize_exposure_result(
-            calc_scheme_5zh(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm)
+            calc_scheme_5zh(focal_spot_mm, d_outer_mm, d_inner_mm, sensitivity_mm),
+            d_outer_mm,
         )
     else:
         return {
@@ -723,10 +732,18 @@ def calc_exposure_parameters(
         }
 
 
-def _normalize_exposure_result(result: dict) -> dict:
-    """Приводит f к неотрицательному значению для отображения в техкарте."""
+def _normalize_exposure_result(result: dict, d_outer_mm: float = 0) -> dict:
+    """Приводит f к неотрицательному значению и дополняет L при необходимости."""
     if result.get('f_min_mm') is not None:
         result['f_min_mm'] = clamp_f_mm(result['f_min_mm'])
+    if result.get('L_mm') is None:
+        N = result.get('N')
+        try:
+            n = int(N)
+        except (TypeError, ValueError):
+            n = 0
+        if d_outer_mm and n > 0:
+            result['L_mm'] = round(math.pi * d_outer_mm / n, 0)
     return result
 
 

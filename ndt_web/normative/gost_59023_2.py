@@ -222,11 +222,24 @@ JOINT_TYPES = {
         'name': 'Стыковое, V-образная разделка, флюс с подваркой / РДС',
         'joint_type': 'butt',
         'material': 'perlit',
-        'groove': 'V-образная (одностороняя)',
+        'groove': 'V-образная (двусторонняя)',
         'methods': ['11', '31'],
         'sketch': 'weld_C3.svg',
+        'gost_table': '9.6',
+        'bead_mode': 'dual',
+        # табл. 9.6: e, g — лицевой валик; e1, g1 — по эскизу (gost_59023_sketch_beads)
         'dimensions': [
-            (3.0, 5.0, 8.0, 2.0),
+            (3.0,  5.0,   8.0,  2.0,  0.5,  3.5,  2.0),
+            (5.0,  8.0,  12.0,  2.0),
+            (8.0, 11.0,  16.0,  2.0),
+            (11.0, 14.0,  19.0,  2.0),
+            (14.0, 17.0,  22.0,  2.5,  0.5,  4.5,  6.0),
+            (17.0, 20.0,  26.0,  2.5,  0.5,  4.5),
+            (20.0, 24.0,  30.0,  2.5,  0.5,  4.5),
+            (24.0, 28.0,  34.0,  3.0,  0.5,  5.0,  8.0),
+            (28.0, 32.0,  38.0,  3.0,  0.5,  5.0),
+            (32.0, 36.0,  42.0,  3.0,  0.5,  5.0),
+            (36.0, 40.0,  47.0,  3.0,  0.5,  5.0),
         ],
     },
     'С-4': {
@@ -578,12 +591,18 @@ from normative.gost_59023_extended_joints import (  # noqa: E402
     JOINT_TYPES_EXT,
     MATERIAL_VARIANTS,
 )
+from normative.gost_59023_sketch_beads import get_sketch_inner_bead  # noqa: E402
+from normative.gost_59023_rtf_dimensions import RTF_DIMENSIONS  # noqa: E402
 from normative.gost_59023_table_catalog import (  # noqa: E402
     GOST_SECTIONS,
     TABLE_CATALOG,
 )
 
 JOINT_TYPES.update(JOINT_TYPES_EXT)
+
+for _code, _dims in RTF_DIMENSIONS.items():
+    if _code in JOINT_TYPES and not JOINT_TYPES[_code].get('dimensions'):
+        JOINT_TYPES[_code]['dimensions'] = _dims
 
 # Индекс таблиц ГОСТ: (код, material_scope) → запись TABLE_CATALOG
 JOINT_TABLE_INDEX: dict[tuple[str, str], dict] = {}
@@ -703,6 +722,9 @@ def resolve_joint_profile(
     base['applicability'] = get_joint_applicability_text(joint_code)
     if joint_code in MATERIAL_VARIANTS:
         base['material_variants'] = MATERIAL_VARIANTS[joint_code]
+    sketch_bead = get_sketch_inner_bead(joint_code)
+    if sketch_bead:
+        base['sketch_inner_bead'] = sketch_bead
     return base
 
 
@@ -946,17 +968,32 @@ def get_weld_width(
             'note': 'Нет данных',
         }
 
-    parsed = _parse_dimension_row(match_row, info.get('bead_mode', 'equal'))
+    bead_mode = info.get('bead_mode', 'equal')
+    parsed = _parse_dimension_row(match_row, bead_mode)
     e = parsed['e_mm']
     e1 = parsed['e1_mm']
     e_tol = parsed['e_tol_mm']
     g_nom = parsed['g_nom']
     g_min = parsed['g_min_mm']
     g_max = parsed['g_max_mm']
+    g1_nom = None
+    g1_min = None
+    g1_max = None
+
+    sketch_bead = info.get('sketch_inner_bead') or get_sketch_inner_bead(joint_code)
+    if bead_mode == 'dual' and sketch_bead:
+        if e1 is None or abs(e1 - e) < 0.01:
+            e1 = sketch_bead['e1_mm']
+        g1_nom = sketch_bead.get('g1_nom')
+        g1_min = sketch_bead.get('g1_min_mm')
+        g1_max = sketch_bead.get('g1_max_mm')
 
     if e_tol is None:
         e_tol = _default_e_tolerance_mm(e)
-    e1_tol = _default_e_tolerance_mm(e1) if e1 else 0.0
+    if sketch_bead and bead_mode == 'dual':
+        e1_tol = sketch_bead.get('e1_tol_mm', _default_e_tolerance_mm(e1))
+    else:
+        e1_tol = _default_e_tolerance_mm(e1) if e1 else 0.0
 
     table_ref = info.get('gost_table', '')
     if table_ref:
@@ -984,12 +1021,20 @@ def get_weld_width(
         'effective_e_max_mm': max(e_max, e1_max),
         'e_tol_mm': e_tol,
         'e1_tol_mm': e1_tol,
-        'bead_mode': info.get('bead_mode', 'equal'),
+        'bead_mode': bead_mode,
         'e_display': format_dimension_with_tolerance(e, e_tol),
         'e1_display': format_dimension_with_tolerance(e1, e1_tol),
         'g_nom': g_nom,
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
+        'g1_nom': g1_nom,
+        'g1_min_mm': round(g1_min, 1) if g1_min is not None else None,
+        'g1_max_mm': round(g1_max, 1) if g1_max is not None else None,
+        'g1_display': (
+            format_dimension_with_tolerance(g1_nom, (g1_max - g1_nom))
+            if g1_nom is not None and g1_max is not None else None
+        ),
+        'sketch_bead_source': sketch_bead.get('source') if sketch_bead else None,
         'g_display': (
             f'{g_nom:g}±{g_max - g_nom:g}'.replace('.', ',')
             if abs((g_max - g_nom) - (g_nom - g_min)) < 0.05 and g_nom > 0 else
@@ -1142,6 +1187,10 @@ def get_inspection_zone(
         'g_display': weld.get('g_display', f'{g_nom:.1f}'.replace('.', ',')),
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
+        'g1_display': weld.get('g1_display'),
+        'g1_min_mm': weld.get('g1_min_mm'),
+        'g1_max_mm': weld.get('g1_max_mm'),
+        'sketch_bead_source': weld.get('sketch_bead_source'),
         'reinforcement_removed': reinforcement_removed,
         'backing_thickness_mm': round(backing_thickness, 1),
         'has_backing': has_backing,

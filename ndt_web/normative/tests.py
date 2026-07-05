@@ -219,3 +219,40 @@ class GostJointCatalogTests(SimpleTestCase):
         zone = get_inspection_zone('С-22-1', 3.0, '40')
         self.assertEqual(zone['effective_e_max_mm'], weld['effective_e_max_mm'])
         self.assertEqual(zone['zone_width_mm'], weld['effective_e_max_mm'] + 2 * zone['haz_width_mm'])
+
+    def test_sketch_inner_bead_for_dual_steel_joints(self):
+        from normative.gost_59023_2 import get_weld_width, get_inspection_zone
+
+        c12 = get_weld_width('С-1-2', 3.0)
+        self.assertEqual(c12['bead_mode'], 'dual')
+        self.assertEqual(c12['e1_mm'], 4.0)
+        self.assertEqual(c12['g1_nom'], 1.5)
+        self.assertEqual(c12['effective_e_max_mm'], 12.0)
+
+        c2 = get_weld_width('С-2', 20.0)
+        self.assertEqual(c2['e1_mm'], 18.0)
+        self.assertEqual(c2['g1_nom'], 2.0)
+
+        c3 = get_weld_width('С-3', 10.0)
+        self.assertEqual(c3['e1_mm'], 10.0)
+        self.assertEqual(c3['g1_nom'], 1.5)
+
+        zone = get_inspection_zone('С-2', 20.0, '10')
+        self.assertEqual(zone['bead_width_inner_mm'], 18.0)
+        self.assertIsNotNone(zone.get('g1_display'))
+
+    def test_rtf_dimensions_for_titanium_aluminum(self):
+        from normative.gost_59023_2 import JOINT_TYPES, get_weld_width
+        from normative.gost_59023_extended_joints import JOINT_TYPES_EXT
+
+        for code in JOINT_TYPES_EXT:
+            self.assertTrue(
+                JOINT_TYPES[code].get('dimensions'),
+                f'{code} должен иметь dimensions',
+            )
+
+        ts3 = get_weld_width('ТС-3', 7.0, 'titanium')
+        self.assertEqual(ts3['e_mm'], 10.0)
+
+        t3 = get_weld_width('Т-3', 9.0, 'aluminum')
+        self.assertEqual(t3['e_mm'], 12.0)

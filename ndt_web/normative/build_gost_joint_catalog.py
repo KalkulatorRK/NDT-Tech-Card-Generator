@@ -29,8 +29,13 @@ from pathlib import Path
 # Paths
 # ---------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-SOURCE_FILE = Path("/home/ubuntu/.cursor/projects/workspace/agent-tools/"
-                   "9b2c12c9-2849-4711-8ff7-29139a53b196.txt")
+SOURCE_FILE = Path('/home/ubuntu/.cursor/projects/workspace/agent-tools/'
+                   '9b2c12c9-2849-4711-8ff7-29139a53b196.txt')
+# Доп. размеры п. 7–8 (Ti/Al) — normative/gost_59023_rtf_dimensions.py
+RTF_SOURCE = Path(__file__).resolve().parent.parent / (
+    'normative_docs/ГОСТ Р 59023.2-2020 Сварка и наплавка оборудования '
+    'и трубопроводов атомных энергетических..._Текст.rtf'
+)
 OUT_CATALOG = HERE / "gost_59023_table_catalog.py"
 OUT_EXTENDED = HERE / "gost_59023_extended_joints.py"
 

@@ -637,7 +637,18 @@ class SchemeDisplayTests(TestCase):
         )
         self.assertGreater(effective['f_min_mm'], nominal['f_min_mm'])
         self.assertIsNotNone(nominal.get('L_mm'))
-        self.assertAlmostEqual(nominal['L_mm'], 3.14159 * 219.0 / 2, delta=1.0)
+        self.assertAlmostEqual(nominal['L_mm'], 3.14159 * 219.0 / 4, delta=1.0)
+
+    def test_scheme_5v_L_ellipse_formula(self):
+        from normative.calculations import calc_exposure_parameters
+
+        result = calc_exposure_parameters(
+            scheme='5v', focal_spot_mm=2.0, sensitivity_mm=0.5,
+            d_outer_mm=32.0, d_inner_mm=24.0,
+        )
+        self.assertEqual(result['N'], 2)
+        self.assertAlmostEqual(result['L_mm'], 32.0 * 3.14159 / 4, delta=0.2)
+        self.assertIn('эллипс', result.get('notes', '').lower())
 
     def test_scheme_preview_5v_shows_L(self):
         from techcards.views import build_scheme_preview_context

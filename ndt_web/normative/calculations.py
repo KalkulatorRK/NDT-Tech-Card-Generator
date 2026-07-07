@@ -375,6 +375,10 @@ def calc_scheme_5v(focal_spot_mm: float, d_outer_mm: float,
 
     Формула: f = C × D
 
+    Просветка «на эллипс»: соединение снимают за 2 экспозиции, но на одном
+    снимке одновременно попадают 2 участка шва, поэтому
+    L = D × π / 4 (длина участка за 1 экспозицию).
+
     :param focal_spot_mm: размер фокусного пятна Φ, мм
     :param d_outer_mm: наружный диаметр D, мм
     :param d_inner_mm: внутренний диаметр d, мм
@@ -384,15 +388,19 @@ def calc_scheme_5v(focal_spot_mm: float, d_outer_mm: float,
     C = _get_C(focal_spot_mm, sensitivity_mm)
     f = C * d_outer_mm
     N = 2
-    L = math.pi * d_outer_mm / N if d_outer_mm and N else None
+    L = math.pi * d_outer_mm / 4 if d_outer_mm else None
     return {
         'scheme': '5v',
         'C': round(C, 4),
         'f_min_mm': round(f, 1),
         'N': N,
-        'L_mm': round(L, 0) if L else None,
+        'L_mm': round(L, 1) if L else None,
         'formula': f'f = C × D = {C:.2f} × {d_outer_mm} = {f:.1f} мм',
-        'notes': 'Минимум 2 экспозиции под углом 90° друг к другу.',
+        'L_formula': f'L = D × π / 4 = {d_outer_mm} × 3,14 / 4 = {L:.1f} мм',
+        'notes': (
+            '2 экспозиции под углом 90°. Просветка на эллипс: на одном снимке '
+            'одновременно 2 участка шва, L = D×π/4.'
+        ),
     }
 
 

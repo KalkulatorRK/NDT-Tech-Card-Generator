@@ -246,9 +246,11 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
     if scheme.get('m') is not None:
         scheme_steps.append(f'Отношение m = d/D = {scheme.get("m")}')
     if params.get('scheme_formula') or scheme.get('formula'):
-        scheme_steps.append(f'Формула: {params.get("scheme_formula") or scheme.get("formula")}')
-    if scheme.get('formula'):
-        scheme_steps.append(f'Подстановка: {scheme.get("formula")}')
+        scheme_steps.append(f'Формула f: {params.get("scheme_formula") or scheme.get("formula")}')
+    if scheme.get('L_formula'):
+        scheme_steps.append(scheme['L_formula'])
+    elif params.get('L_formula'):
+        scheme_steps.append(params['L_formula'])
     scheme_steps.extend([
         f'Минимальное расстояние f = {scheme.get("f_min_mm", params.get("f_calculated_mm", "—"))} мм',
         f'Число экспозиций N ≥ {scheme.get("N", params.get("N_calculated", "—"))}',
@@ -271,7 +273,9 @@ def build_calculation_log(input_data: dict, params: dict) -> list[dict]:
         'logic': (
             'По выбранной схеме просвечивания рассчитываются минимальное расстояние '
             'источник–детектор f, число экспозиций N и длина участка L. '
-            'Коэффициент C = max(2Φ/K, 4). Для чертежа 3б применяется итерационный '
+            'Коэффициент C = max(2Φ/K, 4). Для чертежа 3в (просветка на эллипс) '
+            'L = D×π/4 — на одном снимке одновременно 2 участка шва при N=2. '
+            'Для чертежа 3б применяется итерационный алгоритм по ГОСТ 7512-82. '
             'алгоритм по ГОСТ 7512-82. Для чертежа 3ж по п. Г.5 ГОСТ Р 50.05.07-2018 '
             'f и N определяются опытным путём — расчётные значения справочные. '
             'Отрицательное расчётное f в техкарте указывается как 0 мм.'

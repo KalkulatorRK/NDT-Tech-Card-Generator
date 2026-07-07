@@ -882,6 +882,7 @@ def build_scheme_preview_context(request) -> dict:
         'scheme_desc': scheme_info.get('desc', ''),
         'f_mm': params.get('f_calculated_mm'),
         'N': params.get('N_calculated'),
+        'N_segments': exposure.get('N_segments') or params.get('N_segments'),
         'L_mm': L_mm,
         'film_size': params.get('film_size_label', ''),
         'ug_mm': params.get('geometric_unsharpness_mm'),

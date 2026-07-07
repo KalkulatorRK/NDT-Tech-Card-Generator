@@ -630,10 +630,12 @@ class RadiographicTechCardCalculator:
             # Расчётные значения для справки (или None)
             self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
+            self.params['N_segments'] = calc_result.get('N_segments')
             self.params['L_calculated_mm'] = calc_result.get('L_mm')
         else:
             self.params['f_calculated_mm'] = clamp_f_mm(calc_result.get('f_min_mm'))
             self.params['N_calculated'] = calc_result.get('N', '')
+            self.params['N_segments'] = calc_result.get('N_segments')
             self.params['L_calculated_mm'] = calc_result.get('L_mm')
 
         self.params['scheme_formula'] = calc_result.get('formula', '')
@@ -855,12 +857,20 @@ def _build_value_map(params: dict) -> dict:
             f_field = f'{sfd_used} мм'
 
         N_str = str(N_val) if N_val else '—'
+        N_segments_val = params.get('N_segments')
+        segments_str = str(N_segments_val) if N_segments_val else N_str
+
+        scheme_type = params.get('scheme_type', '')
+        L_formula = (scheme_result or {}).get('L_formula', '')
 
         if L_val:
-            l_field = (
-                f'{L_val} мм = π × {D} / {N_val}'
-                if D and N_val else f'{L_val} мм'
-            )
+            if scheme_type == '5v' and L_formula:
+                l_field = L_formula
+            else:
+                l_field = (
+                    f'{L_val} мм = π × {D} / {N_val}'
+                    if D and N_val else f'{L_val} мм'
+                )
         else:
             l_field = '350 × (длина шва / N) мм'
 
@@ -992,7 +1002,7 @@ def _build_value_map(params: dict) -> dict:
         '6.4': angle,
         '6.5': f_field,    # ← РАССЧИТАННОЕ расстояние f
         '6.6': N_str,      # ← РАССЧИТАННОЕ число экспозиций N
-        '6.7': N_str,      # ← Число контролируемых участков = N
+        '6.7': segments_str,  # ← Число контролируемых участков
         '6.8': l_field,    # ← РАССЧИТАННАЯ длина участка L
         '6.9': scheme_field,   # ← Схема просвечивания с описанием
 

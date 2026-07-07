@@ -56,7 +56,13 @@
         <div class="preview-metric">
           <span class="preview-metric-label">N</span>
           <span class="preview-metric-value">{{ N|default:"—" }} <small>шт.</small></span>
-          <span class="preview-metric-hint">число экспозиций</span>
+          <span class="preview-metric-hint">
+            {% if N_segments %}
+            число экспозиций, участков {{ N_segments }} шт.
+            {% else %}
+            число экспозиций
+            {% endif %}
+          </span>
         </div>
         <div class="preview-metric">
           <span class="preview-metric-label">L</span>

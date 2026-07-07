@@ -649,6 +649,32 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(result['N'], 2)
         self.assertAlmostEqual(result['L_mm'], 32.0 * 3.14159 / 4, delta=0.2)
         self.assertIn('эллипс', result.get('notes', '').lower())
+        self.assertEqual(result.get('N_segments'), 4)
+
+    def test_scheme_preview_5v_shows_ellipse_N_and_desc(self):
+        from techcards.views import build_scheme_preview_context
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.get(
+            '/ajax/scheme-preview/?scheme_type=5v&source_code=Ir-192'
+            '&focal_spot_mm=3.0&ofd_mm=5',
+        )
+        request.session = self.client.session
+        request.session['techcard_data'] = {
+            'wall_thickness': 12,
+            'outer_diameter': 344,
+            'material': '08Х17Н15М3Т',
+            'joint_designation': 'С-1',
+            'welding_process': '30',
+            'weld_category': 'III',
+            'object_type': 'pipe',
+        }
+        context = build_scheme_preview_context(request)
+        self.assertTrue(context['ready'])
+        self.assertEqual(context.get('N'), 2)
+        self.assertEqual(context.get('N_segments'), 4)
+        self.assertIn('эллипс', context.get('scheme_desc', '').lower())
 
     def test_scheme_preview_5v_shows_L(self):
         from techcards.views import build_scheme_preview_context

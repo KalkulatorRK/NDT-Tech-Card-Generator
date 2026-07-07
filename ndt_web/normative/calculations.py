@@ -388,12 +388,14 @@ def calc_scheme_5v(focal_spot_mm: float, d_outer_mm: float,
     C = _get_C(focal_spot_mm, sensitivity_mm)
     f = C * d_outer_mm
     N = 2
+    N_segments = 4
     L = math.pi * d_outer_mm / 4 if d_outer_mm else None
     return {
         'scheme': '5v',
         'C': round(C, 4),
         'f_min_mm': round(f, 1),
         'N': N,
+        'N_segments': N_segments,
         'L_mm': round(L, 1) if L else None,
         'formula': f'f = C × D = {C:.2f} × {d_outer_mm} = {f:.1f} мм',
         'L_formula': f'L = D × π / 4 = {d_outer_mm} × 3,14 / 4 = {L:.1f} мм',

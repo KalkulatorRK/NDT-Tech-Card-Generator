@@ -35,3 +35,6 @@ mcp_gateway/**/*.pyc
 
 # MCP secrets (Cursor local only)
 .env.mcp
+
+# Side project (lives in KalkulatorRK/projects-)
+video-converter/

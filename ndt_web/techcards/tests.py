@@ -1334,7 +1334,7 @@ class SessionSerializationTests(TestCase):
         user = User.objects.create_user(
             'step1user', email='step1@test.com', password='pass123', email_verified=True,
         )
-        UserBalance.objects.create(user=user, techcard_credits=10)
+        UserBalance.objects.create(user=user)
         NormativeDocument.objects.create(
             code='ГОСТ Р 50.05.07-2018',
             full_name='Радиографический контроль',

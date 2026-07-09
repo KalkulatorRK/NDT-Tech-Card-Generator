@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load credit_words %}
 {% block title %}Личный кабинет{% endblock %}
 
 {% block content %}
@@ -28,10 +27,18 @@
         </p>
         {% endif %}
 
-        <!-- Счётчик кредитов -->
+        <!-- Подписка -->
         <div class="counter-box mb-3">
-          <div class="counter-number">{{ balance.techcard_credits }}</div>
-          <div class="counter-label">{{ balance.techcard_credits|credit_word_filter }} доступно</div>
+          {% if subscription_status.active %}
+          <div class="counter-number">{{ subscription_status.generations_remaining }}</div>
+          <div class="counter-label">генераций осталось</div>
+          <div class="text-muted mt-1" style="font-size:0.78rem;">
+            {{ subscription_status.plan_name }} · до {{ subscription_status.period_end|date:"d.m.Y" }}
+          </div>
+          {% else %}
+          <div class="counter-number">—</div>
+          <div class="counter-label">нет активной подписки</div>
+          {% endif %}
         </div>
 
         <!-- Счётчик непрочитанных в личном чате -->
@@ -48,7 +55,7 @@
 
         <div class="text-muted mb-3" style="font-size:0.82rem;">
           <i class="bi bi-info-circle me-1"></i>
-          Ознакомительный кредит: первая техкарта по каждому документу (методическому или нормативному)
+          Ознакомительная генерация: первая техкарта по каждому документу бесплатно
         </div>
 
         {% if user.is_admin and admin_unread_total > 0 %}
@@ -59,7 +66,7 @@
         {% endif %}
 
         <a href="{% url 'tariffs' %}" class="btn btn-primary w-100 mb-2">
-          <i class="bi bi-plus-circle me-1"></i>Пополнить баланс
+          <i class="bi bi-plus-circle me-1"></i>{% if subscription_status.active %}Продлить подписку{% else %}Оформить подписку{% endif %}
         </a>
         <a href="{% url 'profile_edit' %}" class="btn btn-outline-secondary w-100 mb-2">
           <i class="bi bi-person-gear me-1"></i>Изменить профиль
@@ -134,7 +141,7 @@
                       </a>
                     {% else %}
                       <a href="{% url 'tariffs' %}" class="btn btn-sm btn-outline-warning">
-                        <i class="bi bi-cart me-1"></i>Пополнить
+                        <i class="bi bi-cart me-1"></i>Подписка
                       </a>
                     {% endif %}
                   {% else %}

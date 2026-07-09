@@ -2,7 +2,7 @@
 Модели приложения «Аккаунты».
 
 Содержит расширенную модель пользователя и связанные модели:
-баланс кредитов, история платежей и настройки профиля.
+учёт генераций техкарт, подписки и настройки профиля.
 """
 
 from django.contrib.auth.models import AbstractUser
@@ -103,11 +103,11 @@ class CustomUser(AbstractUser):
 
 class UserBalance(models.Model):
     """
-    Баланс кредитов пользователя.
+    Учёт генераций технологических карт пользователя.
 
-    Хранит количество оставшихся платных кредитов и информацию
-    о бесплатно использованных ознакомительных картах по каждому нормативному документу.
-    Один кредит = одна операция разработки технологической карты НК.
+    Хранит информацию об использованных ознакомительных генерациях
+    по каждому нормативному документу. Платные генерации списываются
+    с активной подписки (см. payments.UserSubscription).
     """
 
     user = models.OneToOneField(
@@ -115,7 +115,7 @@ class UserBalance(models.Model):
         verbose_name='Пользователь',
     )
     techcard_credits = models.IntegerField(
-        default=0, verbose_name='Оплаченных кредитов (остаток)',
+        default=0, verbose_name='Legacy-кредиты (не используется)',
     )
     # Словарь: {код_нормативного_документа: True/False}
     # True — бесплатная карта уже использована
@@ -134,45 +134,49 @@ class UserBalance(models.Model):
         verbose_name_plural = 'Балансы пользователей'
 
     def __str__(self):
-        return f'Баланс: {self.user} ({self.techcard_credits} кред.)'
+        return f'Учёт: {self.user} ({self.total_cards_created} карт)'
 
     def can_create_techcard(self, normative_doc_code: str) -> tuple[bool, str]:
         """
         Проверяет, может ли пользователь создать новую технологическую карту.
 
         :param normative_doc_code: код нормативного документа
-        :return: (доступно, причина)
+        :return: (доступно, причина: free | subscription | no_subscription)
         """
-        # Первая карта по каждому документу — бесплатно
         if normative_doc_code not in self.free_cards_used:
             return True, 'free'
-        # Наличие платных кредитов
-        if self.techcard_credits > 0:
-            return True, 'paid'
-        return False, 'no_credits'
+
+        from accounts.subscriptions import get_active_subscription
+        sub = get_active_subscription(self.user)
+        if sub and sub.generations_remaining > 0:
+            return True, 'subscription'
+
+        return False, 'no_subscription'
 
     def use_credit(self, normative_doc_code: str, was_free: bool = False) -> None:
         """
-        Расходует один кредит на создание техкарты.
+        Учитывает одну генерацию техкарты (ознакомительную или по подписке).
 
         :param normative_doc_code: код нормативного документа
-        :param was_free: использован ли ознакомительный кредит
+        :param was_free: использована ли ознакомительная генерация
         """
         if normative_doc_code not in self.free_cards_used:
-            # Используем бесплатную
             self.free_cards_used[normative_doc_code] = True
         elif not was_free:
-            # Используем платный кредит
-            self.techcard_credits = max(0, self.techcard_credits - 1)
+            from accounts.subscriptions import get_active_subscription
+            sub = get_active_subscription(self.user)
+            if sub:
+                sub.record_generation()
 
         self.total_cards_created += 1
         self.save()
 
     def add_credits(self, count: int) -> None:
         """
-        Пополняет счётчик платных кредитов.
+        Устаревший метод пополнения кредитов (совместимость).
 
-        :param count: количество добавляемых кредитов
+        Начисляет «legacy»-кредиты на techcard_credits — не используется
+        в новой модели подписок.
         """
         self.techcard_credits += count
         self.save()

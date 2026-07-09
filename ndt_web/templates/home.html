@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load credit_words static %}
+{% load static %}
 {% block title %}Главная{% endblock %}
 
 {% block content %}
@@ -28,18 +28,26 @@
         </div>
       </div>
 
-      {% if user.is_authenticated and user_balance %}
+      {% if user.is_authenticated and subscription_status %}
       <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
         <div class="counter-box">
-          <div class="counter-number">{{ user_balance.techcard_credits }}</div>
-          <div class="counter-label">оплаченных {{ user_balance.techcard_credits|credit_word_filter }} доступно</div>
+          {% if subscription_status.active %}
+          <div class="counter-number">{{ subscription_status.generations_remaining }}</div>
+          <div class="counter-label">генераций по подписке</div>
+          <div class="mt-2" style="font-size:0.85rem;opacity:0.85;">
+            {{ subscription_status.plan_name }} · до {{ subscription_status.period_end|date:"d.m.Y" }}
+          </div>
+          {% else %}
+          <div class="counter-number">0</div>
+          <div class="counter-label">нет активной подписки</div>
+          {% endif %}
           <div class="mt-3" style="font-size:0.85rem;opacity:0.85;">
             <i class="bi bi-gift me-1"></i>
-            Ознакомительные кредиты: первая карта по каждому документу
+            Ознакомительно: первая карта по каждому документу
           </div>
           <a href="{% url 'tariffs' %}" class="btn btn-sm mt-3"
              style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);">
-            <i class="bi bi-plus-circle me-1"></i>Пополнить
+            <i class="bi bi-plus-circle me-1"></i>Подписки
           </a>
         </div>
       </div>
@@ -155,7 +163,7 @@
     </div>
   </div>
 
-  <!-- ===== Тарифы (краткое описание) ===== -->
+  <!-- ===== Подписки (краткое описание) ===== -->
   {% if not user.is_authenticated %}
   <div class="card" style="background:linear-gradient(135deg,#f0f7ff,#e8f4fd);">
     <div class="row align-items-center">
@@ -163,8 +171,8 @@
         <h4><i class="bi bi-gift me-2" style="color:var(--primary);"></i>Ознакомьтесь с возможностями системы</h4>
         <p class="text-muted mb-0" style="font-size:0.9rem;">
           Ознакомьтесь с функциями системы автоматизированной разработки технологических карт НК.
-          Зарегистрируйтесь, чтобы воспользоваться ознакомительными кредитами для бесплатной
-          генерации технологических карт НК.
+          Зарегистрируйтесь, чтобы получить ознакомительную генерацию по каждому нормативному документу,
+          а затем оформите подписку с нужным лимитом генераций.
         </p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">
@@ -172,7 +180,7 @@
           <i class="bi bi-person-plus me-1"></i>Регистрация
         </a>
         <a href="{% url 'tariffs' %}" class="btn btn-outline-primary">
-          Тарифы
+          Подписки
         </a>
       </div>
     </div>

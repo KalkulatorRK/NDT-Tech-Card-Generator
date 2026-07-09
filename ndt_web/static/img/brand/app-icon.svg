@@ -1,27 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Карта-НК">
   <defs>
-    <linearGradient id="face-left" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1557B0"/>
-      <stop offset="55%" stop-color="#2B6FD6"/>
+    <linearGradient id="stack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1967D2"/>
+      <stop offset="45%" stop-color="#2B73D9"/>
       <stop offset="100%" stop-color="#4285F4"/>
     </linearGradient>
-    <linearGradient id="face-right" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#4285F4"/>
-      <stop offset="45%" stop-color="#5B95F6"/>
-      <stop offset="100%" stop-color="#7AB0FF"/>
-    </linearGradient>
     <clipPath id="top-face">
-      <path d="M0 -82 L96 -32 L0 18 L-96 -32 Z"/>
+      <path d="M0 -46 L98 -11 L0 24 L-98 -11 Z"/>
     </clipPath>
   </defs>
-  <g transform="translate(256 238)">
-    <path d="M96 18 L96 78 L0 128 L0 68 Z" fill="url(#face-right)"/>
-    <path d="M-96 18 L-96 78 L0 128 L0 68 Z" fill="url(#face-left)"/>
-    <path d="M0 -82 L96 -32 L0 18 L-96 -32 Z" fill="#FFFFFF" stroke="#DADCE0" stroke-width="2.5" stroke-linejoin="round"/>
+  <g transform="translate(256 252)">
+    <!-- нижняя стопка (как чёрный блок в эскизе) -->
+    <path d="M0 30 L98 65 L0 100 L-98 65 Z" fill="url(#stack)"/>
+    <!-- верхняя карточка -->
+    <path d="M0 -46 L98 -11 L0 24 L-98 -11 Z" fill="#FFFFFF" stroke="#2C2C2C" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- 4 линии по грани (Google colors) -->
     <g clip-path="url(#top-face)" stroke-linecap="round">
-      <line x1="-62" y1="-10" x2="52" y2="44" stroke="#4285F4" stroke-width="13"/>
-      <line x1="-62" y1="6" x2="52" y2="60" stroke="#EA4335" stroke-width="13"/>
-      <line x1="-62" y1="22" x2="52" y2="76" stroke="#FBBC05" stroke-width="13"/>
+      <line x1="-72" y1="-6" x2="68" y2="29" stroke="#4285F4" stroke-width="10"/>
+      <line x1="-72" y1="4" x2="68" y2="39" stroke="#EA4335" stroke-width="10"/>
+      <line x1="-72" y1="14" x2="68" y2="49" stroke="#FBBC05" stroke-width="10"/>
+      <line x1="-72" y1="24" x2="68" y2="59" stroke="#34A853" stroke-width="10"/>
     </g>
   </g>
 </svg>

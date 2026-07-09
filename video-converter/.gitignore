@@ -1,4 +1,5 @@
-workspace/
+workspace/*
+!workspace/.gitkeep
 uploads/
 output/
 .venv/

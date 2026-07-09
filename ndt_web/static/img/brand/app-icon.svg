@@ -1,17 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <g transform="translate(96 118)">
-    <path d="M72 198 L232 278 L232 118 L72 38 Z" fill="#FFF3B0"/>
-    <path d="M72 38 L232 118 L232 98 L72 18 Z" fill="#FFE98A"/>
-    <path d="M72 18 L232 98 L232 78 L72 -2 Z" fill="#FFF8D6" opacity="0.5"/>
-
-    <path d="M52 168 L212 248 L212 88 L52 8 Z" fill="#BBDEFB"/>
-    <path d="M52 8 L212 88 L212 68 L52 -12 Z" fill="#90CAF9"/>
-    <path d="M52 -12 L212 68 L212 48 L52 -32 Z" fill="#E3F2FD" opacity="0.55"/>
-
-    <path d="M32 138 L192 218 L192 58 L32 -22 Z" fill="#2196F3"/>
-    <path d="M32 -22 L192 58 L192 38 L32 -42 Z" fill="#1976D2"/>
-    <path d="M72 8 L152 48 L152 28 L72 -12 Z" fill="#1565C0" opacity="0.35"/>
-    <path d="M72 28 L152 68 L152 48 L72 8 Z" fill="#1565C0" opacity="0.25"/>
-    <path d="M72 48 L152 88 L152 68 L72 28 Z" fill="#1565C0" opacity="0.18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Карта-НК">
+  <defs>
+    <linearGradient id="side-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1967D2"/>
+      <stop offset="100%" stop-color="#4285F4"/>
+    </linearGradient>
+    <linearGradient id="side-right" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4285F4"/>
+      <stop offset="100%" stop-color="#669DF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-10%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#4285F4" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="#fff"/>
+  <g transform="translate(256 270)" filter="url(#shadow)">
+    <path d="M-98 42 L-98 108 L0 158 L0 92 Z" fill="url(#side-left)"/>
+    <path d="M98 42 L98 108 L0 158 L0 92 Z" fill="url(#side-right)"/>
+    <path d="M0 -72 L98 -22 L0 28 L-98 -22 Z" fill="#fff" stroke="#DADCE0" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M-58 -8 L38 42" stroke="#4285F4" stroke-width="14" stroke-linecap="round"/>
+    <path d="M-58 8 L38 58" stroke="#EA4335" stroke-width="14" stroke-linecap="round"/>
+    <path d="M-58 24 L38 74" stroke="#FBBC05" stroke-width="14" stroke-linecap="round"/>
   </g>
 </svg>

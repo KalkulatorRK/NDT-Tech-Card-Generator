@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Карта-НК — автоматизация разработки технологических карт неразрушающего контроля">
-  <meta name="theme-color" content="#2196F3">
+  <meta name="theme-color" content="#4285F4">
+  <meta property="og:image" content="{% if request %}{{ request.scheme }}://{{ request.get_host }}{% endif %}{% static 'img/brand/icon-512.png' %}">
+  <meta property="og:site_name" content="Карта-НК">
   <meta name="application-name" content="Карта-НК">
   <meta name="apple-mobile-web-app-title" content="Карта-НК">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -31,7 +33,7 @@
 <nav class="navbar navbar-expand-lg" role="navigation">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'home' %}">
-      <img src="{% static 'img/brand/app-icon.png' %}" alt="" class="navbar-logo-icon" width="40" height="40">
+      <img src="{% static 'img/brand/app-icon.svg' %}" alt="" class="navbar-logo-icon" width="40" height="40">
       <span>Карта<span class="accent">-НК</span></span>
     </a>
     <button class="navbar-toggler" type="button"
@@ -166,8 +168,9 @@
   <div class="container">
     <div class="row">
       <div class="col-md-4 mb-3">
-        <div class="footer-title">
-          <i class="bi bi-clipboard2-check me-1"></i>Карта-НК
+        <div class="footer-title d-flex align-items-center gap-2">
+          <img src="{% static 'img/brand/app-icon.svg' %}" alt="" width="28" height="28" class="footer-logo-icon">
+          Карта-НК
         </div>
         <p style="font-size:0.85rem;">
           Автоматизированная система разработки технологических карт

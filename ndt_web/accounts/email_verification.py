@@ -83,10 +83,12 @@ def _format_email_error(exc: Exception) -> str:
 def send_verification_email(user: CustomUser) -> None:
     """Отправляет письмо с ссылкой для подтверждения email."""
     verification_url = build_verification_url(user)
+    site_url = settings.SITE_URL.rstrip('/')
     context = {
         'user': user,
         'verification_url': verification_url,
         'site_name': 'Карта-НК',
+        'logo_url': f'{site_url}/static/img/brand/app-icon.png',
     }
     subject = 'Подтверждение регистрации на Карта-НК'
     message = render_to_string('accounts/email/verification_email.txt', context)

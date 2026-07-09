@@ -1,0 +1,19 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}">
+    <img src="{% static 'img/brand/app-icon.png' %}" alt="" width="28" height="28"
+         style="vertical-align:middle;margin-right:8px;border-radius:6px;">
+    Карта-НК — Администрирование
+  </a>
+</div>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #site-name a { color: var(--header-link-color); text-decoration: none; }
+</style>
+{% endblock %}

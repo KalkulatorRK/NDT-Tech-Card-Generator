@@ -29,6 +29,7 @@ from .generator import (
 from .calculation_reference import generate_calculation_reference_docx
 from .scheme_display import get_scheme_user_label, get_scheme_ui_data, SCHEME_CHOICES, get_schemes_for_object_type
 from accounts.models import UserBalance
+from accounts.subscriptions import get_subscription_status
 from normative.calculations import resolve_table_b_thickness_mm
 from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
@@ -53,16 +54,14 @@ def home_view(request):
         },
     ]
 
-    # Счётчик доступных кредитов для текущего пользователя
-    user_balance = None
+    subscription_status = None
     if request.user.is_authenticated:
-        balance, _ = UserBalance.objects.get_or_create(user=request.user)
-        user_balance = balance
+        subscription_status = get_subscription_status(request.user)
 
     context = {
         'normative_docs': normative_docs,
         'updates': updates,
-        'user_balance': user_balance,
+        'subscription_status': subscription_status,
     }
     return render(request, 'home.html', context)
 
@@ -108,6 +107,7 @@ def cabinet_view(request):
 
     context = {
         'balance': balance,
+        'subscription_status': get_subscription_status(user),
         'techcards': techcards,
         'docs_status': docs_status,
         'private_unread_count': private_unread_count,
@@ -229,8 +229,8 @@ def create_step1_view(request, doc_code):
     if not can_create:
         messages.error(
             request,
-            'Недостаточно кредитов для создания технологической карты. '
-            'Пожалуйста, пополните баланс в разделе «Оплата».'
+            'Нет доступных генераций по подписке. '
+            'Оформите или продлите подписку в разделе «Подписки».'
         )
         return redirect('tariffs')
 
@@ -564,7 +564,10 @@ def generate_card_view(request, doc_code):
 
     can_create, reason = balance.can_create_techcard(doc.code)
     if not can_create:
-        messages.error(request, 'Недостаточно кредитов.')
+        messages.error(
+            request,
+            'Нет доступных генераций по подписке. Оформите подписку в разделе «Подписки».',
+        )
         return redirect('tariffs')
 
     input_data = _get_session_data(request)
@@ -595,7 +598,6 @@ def generate_card_view(request, doc_code):
             was_free=was_free,
         )
 
-        # Расходуем кредит
         balance.use_credit(doc.code, was_free=was_free)
 
         # Очищаем данные из сессии

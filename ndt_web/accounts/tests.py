@@ -11,6 +11,8 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 
 from .models import CustomUser, UserBalance
+from .subscriptions import activate_subscription
+from payments.models import SubscriptionPlan
 from .email_verification import verify_email_token
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
@@ -58,70 +60,76 @@ class UserModelTests(TestCase):
 
 
 class UserBalanceTests(TestCase):
-    """Тесты модели UserBalance."""
+    """Тесты модели UserBalance и логики подписок."""
+
+    DOC_CODE = 'ГОСТ Р 50.05.07-2018'
 
     def setUp(self):
         self.user = User.objects.create_user('baluser', password='pass123')
         self.balance = UserBalance.objects.create(user=self.user)
-
-    def test_initial_credits_zero(self):
-        """Начальный баланс — 0 кредитов."""
-        self.assertEqual(self.balance.techcard_credits, 0)
+        self.plan = SubscriptionPlan.objects.create(
+            name='Тест',
+            duration_days=30,
+            generation_limit=5,
+            price=800,
+        )
 
     def test_free_card_available_initially(self):
-        """Первая бесплатная карта доступна."""
-        can, reason = self.balance.can_create_techcard('ГОСТ Р 50.05.07-2018')
+        """Первая ознакомительная карта доступна."""
+        can, reason = self.balance.can_create_techcard(self.DOC_CODE)
         self.assertTrue(can)
         self.assertEqual(reason, 'free')
 
-    def test_free_card_used_after_create(self):
-        """После использования бесплатной карты — нет повторного доступа без кредитов."""
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
-        can, reason = self.balance.can_create_techcard('ГОСТ Р 50.05.07-2018')
+    def test_no_subscription_after_free_used(self):
+        """После ознакомительной карты без подписки создание недоступно."""
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
+        can, reason = self.balance.can_create_techcard(self.DOC_CODE)
         self.assertFalse(can)
-        self.assertEqual(reason, 'no_credits')
+        self.assertEqual(reason, 'no_subscription')
 
-    def test_paid_credit_allows_create(self):
-        """Наличие платных кредитов разрешает создание карты."""
-        self.balance.add_credits(3)
-        # Потратим бесплатную сначала
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
-        can, reason = self.balance.can_create_techcard('ГОСТ Р 50.05.07-2018')
+    def test_subscription_allows_create(self):
+        """Активная подписка разрешает создание после ознакомительной карты."""
+        activate_subscription(self.user, self.plan)
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
+        can, reason = self.balance.can_create_techcard(self.DOC_CODE)
         self.assertTrue(can)
-        self.assertEqual(reason, 'paid')
+        self.assertEqual(reason, 'subscription')
 
-    def test_credits_decrease_on_use(self):
-        """Платный кредит уменьшается при использовании."""
-        self.balance.add_credits(5)
-        # Используем бесплатную сначала
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
-        # Теперь платная
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=False)
-        self.assertEqual(self.balance.techcard_credits, 4)
-
-    def test_add_credits(self):
-        """Метод add_credits пополняет баланс."""
-        self.balance.add_credits(10)
-        self.assertEqual(self.balance.techcard_credits, 10)
+    def test_subscription_generations_decrease_on_use(self):
+        """Генерация по подписке уменьшает остаток лимита."""
+        sub = activate_subscription(self.user, self.plan)
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
+        self.balance.use_credit(self.DOC_CODE, was_free=False)
+        sub.refresh_from_db()
+        self.assertEqual(sub.generations_used, 1)
 
     def test_total_cards_counter(self):
         """Счётчик общего количества карт увеличивается."""
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
         self.assertEqual(self.balance.total_cards_created, 1)
 
     def test_multiple_docs_independent_free(self):
-        """Бесплатные карты по разным документам независимы."""
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
-        # Для другого документа должна быть доступна бесплатная
+        """Ознакомительные карты по разным документам независимы."""
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
         can, reason = self.balance.can_create_techcard('НП-105-18')
         self.assertTrue(can)
         self.assertEqual(reason, 'free')
 
     def test_get_free_status(self):
         """get_free_status правильно отражает использование."""
-        self.assertTrue(self.balance.get_free_status('ГОСТ Р 50.05.07-2018'))
-        self.balance.use_credit('ГОСТ Р 50.05.07-2018', was_free=True)
-        self.assertFalse(self.balance.get_free_status('ГОСТ Р 50.05.07-2018'))
+        self.assertTrue(self.balance.get_free_status(self.DOC_CODE))
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
+        self.assertFalse(self.balance.get_free_status(self.DOC_CODE))
+
+    def test_subscription_exhausted_blocks_create(self):
+        """При исчерпании лимита подписки создание недоступно."""
+        sub = activate_subscription(self.user, self.plan)
+        self.balance.use_credit(self.DOC_CODE, was_free=True)
+        sub.generations_used = self.plan.generation_limit
+        sub.save(update_fields=['generations_used'])
+        can, reason = self.balance.can_create_techcard(self.DOC_CODE)
+        self.assertFalse(can)
+        self.assertEqual(reason, 'no_subscription')
 
 
 class AuthViewTests(TestCase):

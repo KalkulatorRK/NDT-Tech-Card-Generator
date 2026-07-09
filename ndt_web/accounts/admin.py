@@ -8,17 +8,17 @@ from django.utils.html import format_html
 from django.utils import timezone
 
 from .models import CustomUser, UserBalance
-from .credits import format_credits
+from .subscriptions import get_active_subscription
 
 
 class UserBalanceInline(admin.StackedInline):
-    """Встроенный блок баланса на странице пользователя."""
+    """Встроенный блок учёта генераций на странице пользователя."""
     model = UserBalance
     can_delete = False
-    verbose_name = 'Баланс кредитов'
-    verbose_name_plural = 'Баланс кредитов'
+    verbose_name = 'Учёт генераций'
+    verbose_name_plural = 'Учёт генераций'
     readonly_fields = ('total_cards_created', 'updated_at')
-    fields = ('techcard_credits', 'free_cards_used', 'total_cards_created', 'updated_at')
+    fields = ('free_cards_used', 'total_cards_created', 'updated_at')
 
 
 @admin.register(CustomUser)
@@ -29,7 +29,7 @@ class CustomUserAdmin(UserAdmin):
     readonly_fields = ('forum_blocked_at',)
     list_display = (
         'username', 'get_full_name', 'email', 'email_verified', 'organization',
-        'role', 'get_credits', 'forum_blocked', 'get_certificate_status',
+        'role', 'get_subscription', 'forum_blocked', 'get_certificate_status',
         'date_joined', 'is_active',
     )
     list_filter = ('role', 'is_active', 'is_staff', 'email_verified', 'forum_blocked', 'ndt_level')
@@ -54,13 +54,13 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
 
-    @admin.display(description='Кредиты', ordering='balance__techcard_credits')
-    def get_credits(self, obj):
-        """Отображает количество оставшихся кредитов."""
-        try:
-            return obj.balance.techcard_credits
-        except UserBalance.DoesNotExist:
+    @admin.display(description='Подписка')
+    def get_subscription(self, obj):
+        """Отображает текущую подписку пользователя."""
+        sub = get_active_subscription(obj)
+        if not sub:
             return '—'
+        return f'{sub.plan.name} ({sub.generations_remaining} ост.)'
 
     @admin.display(description='Удостоверение НК')
     def get_certificate_status(self, obj):
@@ -93,23 +93,9 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(UserBalance)
 class UserBalanceAdmin(admin.ModelAdmin):
-    """Административная страница балансов."""
+    """Административная страница учёта генераций."""
 
-    list_display = ('user', 'techcard_credits', 'total_cards_created', 'updated_at')
+    list_display = ('user', 'total_cards_created', 'updated_at')
     list_filter = ('updated_at',)
     search_fields = ('user__username', 'user__email')
     readonly_fields = ('total_cards_created', 'updated_at')
-
-    actions = ['add_10_credits', 'add_5_credits']
-
-    @admin.action(description='Добавить 10 кредитов')
-    def add_10_credits(self, request, queryset):
-        for balance in queryset:
-            balance.add_credits(10)
-        self.message_user(request, f'Добавлено 10 кредитов для {queryset.count()} пользователей.')
-
-    @admin.action(description='Добавить 5 кредитов')
-    def add_5_credits(self, request, queryset):
-        for balance in queryset:
-            balance.add_credits(5)
-        self.message_user(request, f'Добавлено 5 кредитов для {queryset.count()} пользователей.')

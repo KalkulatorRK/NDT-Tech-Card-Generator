@@ -1,7 +1,7 @@
 """
 Команда управления для первоначальной загрузки данных.
 
-Создаёт нормативные документы, тарифные планы и тестового суперпользователя.
+Создаёт нормативные документы, планы подписок и тестового суперпользователя.
 
 Использование:
     python manage.py init_data
@@ -11,14 +11,15 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 
 from techcards.models import NormativeDocument
-from payments.models import TariffPlan
+from payments.models import SubscriptionPlan
+from accounts.subscriptions import activate_subscription
 from accounts.models import UserBalance
 
 User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = 'Первоначальная загрузка данных (нормативные документы, тарифы, суперпользователь)'
+    help = 'Первоначальная загрузка данных (нормативные документы, подписки, суперпользователь)'
 
     def add_arguments(self, parser):
         parser.add_argument('--admin-password', type=str, default='admin',
@@ -28,8 +29,8 @@ class Command(BaseCommand):
         self.stdout.write('Загрузка нормативных документов...')
         self._create_normative_docs()
 
-        self.stdout.write('Загрузка тарифных планов...')
-        self._create_tariffs()
+        self.stdout.write('Загрузка планов подписок...')
+        self._create_subscription_plans()
 
         self.stdout.write('Создание тем форума...')
         self._create_forum_rooms()
@@ -104,22 +105,45 @@ class Command(BaseCommand):
             )
             self.stdout.write(f"  Документ: {doc_data['code']}")
 
-    def _create_tariffs(self):
-        """Создаёт тарифные планы."""
-        tariffs = [
-            {'cards_count': 1, 'price': 300, 'description': '1 кредит', 'is_popular': False},
-            {'cards_count': 2, 'price': 500, 'description': 'Экономия 100 руб.', 'is_popular': False},
-            {'cards_count': 3, 'price': 600, 'description': 'Экономия 300 руб.', 'is_popular': False},
-            {'cards_count': 5, 'price': 800, 'description': 'Экономия 700 руб.', 'is_popular': True},
-            {'cards_count': 10, 'price': 1500, 'description': 'Экономия 1500 руб.', 'is_popular': False},
+    def _create_subscription_plans(self):
+        """Создаёт планы подписки с лимитом генераций."""
+        plans = [
+            {
+                'name': 'Старт',
+                'duration_days': 30,
+                'generation_limit': 5,
+                'price': 800,
+                'description': '5 генераций за 1 месяц',
+                'is_popular': False,
+            },
+            {
+                'name': 'Базовый',
+                'duration_days': 30,
+                'generation_limit': 10,
+                'price': 1500,
+                'description': '10 генераций за 1 месяц',
+                'is_popular': True,
+            },
+            {
+                'name': 'Про',
+                'duration_days': 90,
+                'generation_limit': 30,
+                'price': 4000,
+                'description': '30 генераций за 3 месяца',
+                'is_popular': False,
+            },
         ]
 
-        for t in tariffs:
-            TariffPlan.objects.update_or_create(
-                cards_count=t['cards_count'],
-                defaults=t,
+        for plan_data in plans:
+            SubscriptionPlan.objects.update_or_create(
+                name=plan_data['name'],
+                defaults=plan_data,
             )
-            self.stdout.write(f"  Тариф: {t['cards_count']} кред. — {t['price']} руб.")
+            self.stdout.write(
+                f"  Подписка: {plan_data['name']} — "
+                f"{plan_data['generation_limit']} ген./{plan_data['duration_days']} дн. — "
+                f"{plan_data['price']} руб."
+            )
 
     def _create_forum_rooms(self):
         """Создаёт начальные публичные темы форума."""
@@ -221,7 +245,10 @@ class Command(BaseCommand):
             )
             admin.email_verified = True
             admin.save(update_fields=['email_verified'])
-            UserBalance.objects.create(user=admin, techcard_credits=100)
+            UserBalance.objects.create(user=admin)
+            pro_plan = SubscriptionPlan.objects.filter(name='Про').first()
+            if pro_plan:
+                activate_subscription(admin, pro_plan)
             self.stdout.write(f'  Создан суперпользователь: admin / {password}')
         else:
             self.stdout.write('  Суперпользователь "admin" уже существует.')

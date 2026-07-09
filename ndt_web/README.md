@@ -123,3 +123,9 @@ SITE_URL=https://ваш-домен.ru
 2. Установите `DEBUG=False`
 3. Настройте HTTPS
 4. Укажите корректные `ALLOWED_HOSTS`
+
+## Связанные проекты
+
+Вспомогательные утилиты, не входящие в Карта-НК, вынесены в отдельный репозиторий:
+
+- [KalkulatorRK/projects-](https://github.com/KalkulatorRK/projects-) — в т.ч. [Video Converter](https://github.com/KalkulatorRK/projects-/tree/main/video-converter) (локальный конвертер видео для Windows)

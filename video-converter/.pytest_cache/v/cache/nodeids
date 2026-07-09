@@ -1,0 +1,14 @@
+[
+  "tests/test_api.py::test_convert_synthetic_video",
+  "tests/test_api.py::test_health",
+  "tests/test_api.py::test_index_html",
+  "tests/test_api.py::test_jobs_path_not_found",
+  "tests/test_api.py::test_presets_api",
+  "tests/test_api.py::test_upload_rejects_bad_extension",
+  "tests/test_presets.py::test_get_preset_unknown",
+  "tests/test_presets.py::test_input_extensions_include_vob_and_avi",
+  "tests/test_presets.py::test_is_supported_input",
+  "tests/test_presets.py::test_list_presets_shape",
+  "tests/test_presets.py::test_mp4_h264_args",
+  "tests/test_presets.py::test_presets_not_empty"
+]

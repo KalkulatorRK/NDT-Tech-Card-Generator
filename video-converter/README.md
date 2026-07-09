@@ -6,6 +6,8 @@
 - **UI:** HTML/CSS/JS (localhost)  
 - **Запуск:** двойной клик по `run.bat`
 
+Часть монорепозитория [KalkulatorRK/projects-](https://github.com/KalkulatorRK/projects-).
+
 ## Поддерживаемые форматы
 
 ### Вход
@@ -89,7 +91,3 @@ video-converter/
 - Конвертация идёт **локально**, интернет не нужен.
 - Очередь обрабатывается **последовательно** (один FFmpeg).
 - Проект **не связан** с ndt_web / Карта-НК и не деплоится на Render.
-
-## Ветка
-
-Разработка: `cursor/video-converter-8e9a`

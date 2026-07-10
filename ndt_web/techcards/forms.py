@@ -237,6 +237,22 @@ class TechCardStep2Form(forms.Form):
         label='Категория сварного соединения (по НП-105-18) *',
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_weld_category'}),
     )
+    control_volume_pct = forms.ChoiceField(
+        choices=[
+            (100, '100 % — полный контроль'),
+            (50, '50 % — выборочный'),
+            (25, '25 % — выборочный'),
+            (10, '10 % — выборочный'),
+            (5, '5 % — выборочный'),
+        ],
+        initial=100,
+        label='Объём контроля, % (п. 3.2 техкарты) *',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_control_volume_pct'}),
+        help_text=(
+            'По НП-105-18, п. 70–72. Для кольцевых швов при D ≤ 250 мм контроль '
+            'проводится по всей протяжении — число экспозиций не уменьшается.'
+        ),
+    )
     joint_mobility = forms.ChoiceField(
         choices=[
             ('non_rotating', 'Неповоротное'),

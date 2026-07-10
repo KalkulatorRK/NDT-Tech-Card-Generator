@@ -320,3 +320,62 @@ class GostJointCatalogTests(SimpleTestCase):
 
         missing = [c for c in iter_joint_codes() if not get_joint_image_path(c)]
         self.assertEqual(missing, [], msg=f'нет эскизов: {missing}')
+
+
+class ControlVolumeTests(SimpleTestCase):
+    """Объём выборочного контроля (НП-105-18, п. 70–72)."""
+
+    def test_scale_exposure_examples_from_spec(self):
+        from normative.calculations import apply_control_volume_adjustment
+
+        n, n_seg, _ = apply_control_volume_adjustment(
+            N_full=2, N_segments_full=4, volume_pct=50,
+            apply_sample_scaling=True,
+        )
+        self.assertEqual(n, 1)
+        self.assertEqual(n_seg, 2)
+
+        n, n_seg, _ = apply_control_volume_adjustment(
+            N_full=2, N_segments_full=4, volume_pct=25,
+            apply_sample_scaling=True,
+        )
+        self.assertEqual(n, 1)
+        self.assertEqual(n_seg, 1)
+
+    def test_ring_d250_no_scaling(self):
+        from normative.calculations import (
+            requires_full_length_ring_control,
+            apply_control_volume_adjustment,
+        )
+
+        self.assertTrue(requires_full_length_ring_control('pipe', 219))
+        self.assertFalse(requires_full_length_ring_control('pipe', 300))
+        self.assertFalse(requires_full_length_ring_control('flat', 100))
+
+        n, n_seg, _ = apply_control_volume_adjustment(
+            N_full=2, N_segments_full=4, volume_pct=50,
+            apply_sample_scaling=False,
+        )
+        self.assertEqual(n, 2)
+        self.assertEqual(n_seg, 4)
+
+    def test_straight_seam_controlled_length(self):
+        from normative.calculations import apply_control_volume_adjustment
+
+        n, n_seg, controlled = apply_control_volume_adjustment(
+            N_full=5,
+            N_segments_full=5,
+            volume_pct=50,
+            apply_sample_scaling=True,
+            seam_length_mm=1500,
+            segment_length_mm=350,
+        )
+        self.assertGreaterEqual(n, 3)
+        self.assertGreaterEqual(controlled, 750)
+
+    def test_normalize_control_volume(self):
+        from normative.calculations import normalize_control_volume_pct
+
+        self.assertEqual(normalize_control_volume_pct(50), 50)
+        self.assertEqual(normalize_control_volume_pct('25'), 25)
+        self.assertEqual(normalize_control_volume_pct(33), 100)

@@ -1,26 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Карта-НК">
   <defs>
-    <linearGradient id="base-left" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563b8"/>
-      <stop offset="100%" stop-color="#3a7bd5"/>
+    <linearGradient id="g-red" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B5B"/>
+      <stop offset="100%" stop-color="#EA4335"/>
     </linearGradient>
-    <linearGradient id="base-right" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#3a7bd5"/>
-      <stop offset="100%" stop-color="#6ea3e8"/>
+    <linearGradient id="g-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#669DF6"/>
+      <stop offset="100%" stop-color="#4285F4"/>
     </linearGradient>
-    <linearGradient id="top-sheet" x1="0" y1="-70" x2="0" y2="50" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="35%" stop-color="#F3FBF9"/>
-      <stop offset="100%" stop-color="#9FE0D6"/>
+    <linearGradient id="g-green" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5BB974"/>
+      <stop offset="100%" stop-color="#34A853"/>
+    </linearGradient>
+    <linearGradient id="g-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDD663"/>
+      <stop offset="100%" stop-color="#FBBC05"/>
+    </linearGradient>
+    <linearGradient id="layer-mid" x1="18%" y1="0%" x2="82%" y2="100%">
+      <stop offset="0%" stop-color="#7BA9F7"/>
+      <stop offset="100%" stop-color="#4285F4"/>
+    </linearGradient>
+    <linearGradient id="layer-bot" x1="18%" y1="0%" x2="82%" y2="100%">
+      <stop offset="0%" stop-color="#D2E3FC"/>
+      <stop offset="100%" stop-color="#AECBFA"/>
+    </linearGradient>
+    <linearGradient id="side-mid" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3367D6"/>
+      <stop offset="100%" stop-color="#185ABC"/>
+    </linearGradient>
+    <linearGradient id="side-bot" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7BA9F7"/>
+      <stop offset="100%" stop-color="#4285F4"/>
+    </linearGradient>
+    <linearGradient id="side-top" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E8EAED"/>
+      <stop offset="100%" stop-color="#BDC1C6"/>
     </linearGradient>
   </defs>
-  <g transform="translate(256 262)">
-    <!-- синее основание (как в эскизе) -->
-    <path d="M-98 72 L-98 132 L0 182 L0 122 Z" fill="url(#base-left)" stroke="#1e4d8f" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M98 72 L98 132 L0 182 L0 122 Z" fill="url(#base-right)" stroke="#1e4d8f" stroke-width="3" stroke-linejoin="round"/>
-    <!-- верхний ромб-лист -->
-    <path d="M0 -70 L98 -10 L0 50 L-98 -10 Z" fill="url(#top-sheet)" stroke="#2d2d2d" stroke-width="3.5" stroke-linejoin="round"/>
-    <!-- треугольник-контур -->
-    <path d="M0 -54 L-46 6 L46 6 Z" fill="none" stroke="#1a7a6f" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <g transform="translate(256 278)" stroke="#152238" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M 0 76 L 94 123 L 94 173 L 0 126 Z" fill="url(#side-bot)" stroke-width="4"/>
+    <path d="M -124 76 L 0 26 L 124 76 L 0 126 Z" fill="url(#layer-bot)" stroke-width="4"/>
+
+    <path d="M 0 38 L 94 85 L 94 135 L 0 88 Z" fill="url(#side-mid)" stroke-width="4"/>
+    <path d="M -124 38 L 0 -12 L 124 38 L 0 88 Z" fill="url(#layer-mid)" stroke-width="4"/>
+
+    <path d="M 0 0 L 94 47 L 94 97 L 0 50 Z" fill="url(#side-top)" stroke-width="4"/>
+    <path d="M -124 0 L 0 -50 L 124 0 L 0 50 Z" fill="#FFFFFF" stroke-width="4.5"/>
+
+    <g stroke="#152238" stroke-width="2.5" stroke-linejoin="round">
+      <path d="M -74 -24 L -8 -56 L -8 -8 L -74 24 Z" fill="url(#g-red)"/>
+      <path d="M -8 -56 L 0 -60 L 0 -12 L -8 -8 Z" fill="#C5221F"/>
+      <path d="M -74 24 L -8 -8 L 0 -12 L -66 20 Z" fill="#D93025"/>
+
+      <path d="M 8 -56 L 74 -24 L 74 24 L 8 -8 Z" fill="url(#g-blue)"/>
+      <path d="M 74 -24 L 82 -28 L 82 20 L 74 24 Z" fill="#1967D2"/>
+      <path d="M 8 -8 L 74 24 L 82 20 L 16 -12 Z" fill="#2B71D9"/>
+
+      <path d="M -74 24 L -8 -8 L -8 40 L -74 72 Z" fill="url(#g-green)"/>
+      <path d="M -8 -8 L 0 -12 L 0 36 L -8 40 Z" fill="#188038"/>
+      <path d="M -74 72 L -8 40 L 0 36 L -66 68 Z" fill="#1E8E3E"/>
+
+      <path d="M 8 -8 L 74 24 L 74 72 L 8 40 Z" fill="url(#g-yellow)"/>
+      <path d="M 74 24 L 82 20 L 82 68 L 74 72 Z" fill="#E37400"/>
+      <path d="M 8 40 L 74 72 L 82 68 L 16 36 Z" fill="#F9AB00"/>
+    </g>
+
+    <path d="M -8 -56 L 8 -56 L 8 40 L -8 40 Z" fill="#FFFFFF" stroke="none"/>
+    <path d="M -74 -8 L 74 -8 L 74 8 L -74 8 Z" fill="#FFFFFF" stroke="none"/>
+    <path d="M -8 -56 L 8 -56 L 8 40 L -8 40 Z" fill="none" stroke="#152238" stroke-width="2"/>
+    <path d="M -74 -8 L 74 -8 L 74 8 L -74 8 Z" fill="none" stroke="#152238" stroke-width="2"/>
   </g>
 </svg>

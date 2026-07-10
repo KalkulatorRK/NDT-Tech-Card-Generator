@@ -1,78 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Карта-НК">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Карта-НК">
   <defs>
-    <linearGradient id="g-red" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF6B5B"/>
-      <stop offset="100%" stop-color="#EA4335"/>
+    <linearGradient id="base-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563b8"/>
+      <stop offset="100%" stop-color="#3a7bd5"/>
     </linearGradient>
-    <linearGradient id="g-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#669DF6"/>
-      <stop offset="100%" stop-color="#4285F4"/>
+    <linearGradient id="base-right" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3a7bd5"/>
+      <stop offset="100%" stop-color="#6ea3e8"/>
     </linearGradient>
-    <linearGradient id="g-green" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5BB974"/>
-      <stop offset="100%" stop-color="#34A853"/>
-    </linearGradient>
-    <linearGradient id="g-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FDD663"/>
-      <stop offset="100%" stop-color="#FBBC05"/>
-    </linearGradient>
-    <linearGradient id="layer-mid" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#669DF6"/>
-      <stop offset="100%" stop-color="#1A73E8"/>
-    </linearGradient>
-    <linearGradient id="layer-bot" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#D2E3FC"/>
-      <stop offset="100%" stop-color="#AECBFA"/>
-    </linearGradient>
-    <linearGradient id="side-mid" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#4285F4"/>
-      <stop offset="100%" stop-color="#185ABC"/>
-    </linearGradient>
-    <linearGradient id="side-bot" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#AECBFA"/>
-      <stop offset="100%" stop-color="#7BA9F7"/>
-    </linearGradient>
-    <linearGradient id="side-top" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#F1F3F4"/>
-      <stop offset="100%" stop-color="#DADCE0"/>
-    </linearGradient>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="top-sheet" x1="0" y1="-70" x2="0" y2="50" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#F8F9FA"/>
+      <stop offset="35%" stop-color="#F3FBF9"/>
+      <stop offset="100%" stop-color="#9FE0D6"/>
     </linearGradient>
-    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#3C4043" flood-opacity="0.2"/>
-    </filter>
   </defs>
-
-  <rect width="512" height="512" rx="108" ry="108" fill="url(#bg)"/>
-
-  <!-- Isometric stack: half-width W=130, depth D=75, layer gap G=38 -->
-  <g filter="url(#shadow)" transform="translate(256 290)">
-    <!-- Layer 3 (bottom) -->
-    <path d="M 0 76 L 98 125 L 98 175 L 0 126 Z" fill="url(#side-bot)"/>
-    <path d="M -130 76 L 0 26 L 130 76 L 0 126 Z" fill="url(#layer-bot)"/>
-
-    <!-- Layer 2 (middle) -->
-    <path d="M 0 38 L 98 87 L 98 137 L 0 88 Z" fill="url(#side-mid)"/>
-    <path d="M -130 38 L 0 -12 L 130 38 L 0 88 Z" fill="url(#layer-mid)"/>
-
-    <!-- Layer 1 (top, white card) -->
-    <path d="M 0 0 L 98 49 L 98 99 L 0 50 Z" fill="url(#side-top)"/>
-    <path d="M -130 0 L 0 -50 L 130 0 L 0 50 Z" fill="#FFFFFF" stroke="#DADCE0" stroke-width="2.5"/>
-
-    <!-- 2×2 Google grid with white gutters -->
-    <g transform="translate(0 0)">
-      <!-- white inset frame -->
-      <path d="M -78 -30 L 0 -68 L 78 -30 L 0 8 Z" fill="#FFFFFF"/>
-      <!-- tiles (slightly inset) -->
-      <path d="M -72 -26 L -6 -58 L -6 -6 L -72 26 Z" fill="url(#g-red)"/>
-      <path d="M 6 -58 L 72 -26 L 72 26 L 6 -6 Z" fill="url(#g-blue)"/>
-      <path d="M -72 26 L -6 -6 L -6 42 L -72 74 Z" fill="url(#g-green)"/>
-      <path d="M 6 -6 L 72 26 L 72 74 L 6 42 Z" fill="url(#g-yellow)"/>
-      <!-- subtle tile separators -->
-      <path d="M -6 -58 L 6 -58 L 6 42 L -6 42 Z" fill="#FFFFFF" opacity="0.85"/>
-      <path d="M -72 -6 L 72 -6 L 72 6 L -72 6 Z" fill="#FFFFFF" opacity="0.85"/>
-    </g>
+  <g transform="translate(256 262)">
+    <!-- синее основание (как в эскизе) -->
+    <path d="M-98 72 L-98 132 L0 182 L0 122 Z" fill="url(#base-left)" stroke="#1e4d8f" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M98 72 L98 132 L0 182 L0 122 Z" fill="url(#base-right)" stroke="#1e4d8f" stroke-width="3" stroke-linejoin="round"/>
+    <!-- верхний ромб-лист -->
+    <path d="M0 -70 L98 -10 L0 50 L-98 -10 Z" fill="url(#top-sheet)" stroke="#2d2d2d" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- треугольник-контур -->
+    <path d="M0 -54 L-46 6 L46 6 Z" fill="none" stroke="#1a7a6f" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
   </g>
 </svg>

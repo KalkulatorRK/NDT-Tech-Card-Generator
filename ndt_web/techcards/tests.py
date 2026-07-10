@@ -651,6 +651,73 @@ class SchemeDisplayTests(TestCase):
         self.assertIn('эллипс', result.get('notes', '').lower())
         self.assertEqual(result.get('N_segments'), 4)
 
+    def test_control_volume_reduces_N_for_large_diameter_pipe(self):
+        from techcards.generator import RadiographicTechCardCalculator
+
+        calc = RadiographicTechCardCalculator({
+            'object_type': 'pipe',
+            'outer_diameter': 344,
+            'wall_thickness': 12,
+            'material': '08Х17Н15М3Т',
+            'joint_designation': 'С-1',
+            'welding_process': '30',
+            'weld_category': 'III',
+            'control_volume_pct': 50,
+            'scheme_type': '5v',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        })
+        params = calc.calculate()
+        self.assertEqual(params.get('N_calculated_full'), 2)
+        self.assertEqual(params.get('N_calculated'), 1)
+        self.assertEqual(params.get('N_segments'), 2)
+        self.assertEqual(params.get('control_volume_mode'), 'sample')
+
+    def test_control_volume_ignored_for_small_diameter_pipe(self):
+        from techcards.generator import RadiographicTechCardCalculator
+
+        calc = RadiographicTechCardCalculator({
+            'object_type': 'pipe',
+            'outer_diameter': 219,
+            'wall_thickness': 12,
+            'material': '08Х17Н15М3Т',
+            'joint_designation': 'С-1',
+            'welding_process': '30',
+            'weld_category': 'III',
+            'control_volume_pct': 50,
+            'scheme_type': '5v',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        })
+        params = calc.calculate()
+        self.assertEqual(params.get('N_calculated'), 2)
+        self.assertEqual(params.get('N_segments'), 4)
+        self.assertEqual(params.get('control_volume_mode'), 'full_length_ring')
+
+    def test_control_volume_straight_joint_scheme_4_6(self):
+        from techcards.generator import RadiographicTechCardCalculator
+
+        calc = RadiographicTechCardCalculator({
+            'object_type': 'flat',
+            'flat_length_mm': 1500,
+            'wall_thickness': 20,
+            'material': '12Х18Н10Т',
+            'joint_designation': 'С-4',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'control_volume_pct': 50,
+            'scheme_type': '4_6',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        })
+        params = calc.calculate()
+        self.assertGreaterEqual(params.get('N_calculated_full', 0), 1)
+        self.assertLess(params.get('N_calculated'), params.get('N_calculated_full'))
+        self.assertGreaterEqual(params.get('controlled_length_mm', 0), 750)
+
     def test_scheme_preview_5v_shows_ellipse_N_and_desc(self):
         from techcards.views import build_scheme_preview_context
         from django.test import RequestFactory

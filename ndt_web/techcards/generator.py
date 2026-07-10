@@ -13,6 +13,7 @@ import os
 import re
 import uuid
 import copy
+import math
 import tempfile
 import logging
 from datetime import datetime
@@ -62,6 +63,10 @@ from normative.calculations import (
     calc_exposure_parameters, recommend_scheme,
     calc_geometric_unsharpness_full, SCHEME_INFO, clamp_f_mm,
     effective_outer_diameter_mm,
+    normalize_control_volume_pct,
+    requires_full_length_ring_control,
+    apply_control_volume_adjustment,
+    calc_straight_seam_full_coverage,
 )
 
 
@@ -303,6 +308,7 @@ class RadiographicTechCardCalculator:
         self._select_sources()
         self._calc_geometric_params()
         self._calc_exposure_scheme()
+        self._apply_control_volume()
         self._select_film()
         self._calc_screens()
         self._calc_iqi()
@@ -358,6 +364,7 @@ class RadiographicTechCardCalculator:
             'joint_mobility': d.get('joint_mobility', 'non_rotating'),
             'welding_process': d.get('welding_process', '30'),
             'weld_category': d.get('weld_category', 'II'),
+            'control_volume_pct': normalize_control_volume_pct(d.get('control_volume_pct', 100)),
             'reinforcement_removed': bool(d.get('reinforcement_removed')),
             'has_backing_ring': bool(d.get('has_backing_ring')),
             'backing_ring_thickness_mm': float(d.get('backing_ring_thickness_mm', 0) or 0),
@@ -613,6 +620,15 @@ class RadiographicTechCardCalculator:
             if zone_width:
                 calc_result['L_mm'] = round(float(zone_width), 0)
 
+        # Для прямолинейных швов (чертёж 2): N при 100 % охвате по длине шва
+        if scheme == '4_6':
+            seam_length = self._get_seam_length_mm()
+            segment_l = calc_result.get('L_mm')
+            if seam_length and segment_l:
+                n_full = calc_straight_seam_full_coverage(seam_length, segment_l)
+                calc_result['N'] = n_full
+                calc_result['N_segments'] = n_full
+
         # Информация о схеме (описание, изображение)
         scheme_info = SCHEME_INFO.get(scheme, {})
 
@@ -737,10 +753,69 @@ class RadiographicTechCardCalculator:
             f'Поры и шлаковые включения — по таблице N {table_ref}.'
         )
 
+    def _get_seam_length_mm(self) -> float:
+        """Длина прямолинейного шва для схемы 4.6 (мм)."""
+        object_type = self.params.get('object_type', 'pipe')
+        if object_type == 'flat':
+            return float(self.params.get('flat_length_mm') or 0)
+        if object_type == 'vessel':
+            flat = float(self.params.get('flat_length_mm') or 0)
+            if flat > 0:
+                return flat
+            d = float(self.params.get('outer_diameter') or 0)
+            return math.pi * d if d > 0 else 0.0
+        return 0.0
+
+    def _apply_control_volume(self):
+        """
+        Корректирует N и N_segments по объёму выборочного контроля (НП-105-18, п. 70–72).
+        """
+        volume_pct = self.params.get('control_volume_pct', 100)
+        object_type = self.params.get('object_type', 'pipe')
+        d_nom = float(
+            self.params.get('outer_diameter')
+            or self.params.get('d_outer_effective_mm')
+            or 0
+        )
+        scheme = self.params.get('scheme_type', '')
+
+        n_full = self.params.get('N_calculated')
+        n_seg_full = self.params.get('N_segments') or n_full
+        full_length_ring = requires_full_length_ring_control(object_type, d_nom)
+
+        seam_length = self._get_seam_length_mm() if scheme == '4_6' else None
+        segment_l = self.params.get('L_calculated_mm') if scheme == '4_6' else None
+
+        n_adj, n_seg_adj, controlled_length = apply_control_volume_adjustment(
+            N_full=n_full,
+            N_segments_full=n_seg_full,
+            volume_pct=volume_pct,
+            apply_sample_scaling=not full_length_ring,
+            seam_length_mm=seam_length,
+            segment_length_mm=segment_l,
+        )
+
+        self.params['N_calculated_full'] = n_full
+        self.params['N_segments_full'] = n_seg_full
+        self.params['N_calculated'] = n_adj
+        self.params['N_segments'] = n_seg_adj
+        self.params['control_volume_applied'] = not full_length_ring and volume_pct < 100
+        self.params['control_volume_mode'] = (
+            'full_length_ring' if full_length_ring else 'sample'
+        )
+        if controlled_length is not None:
+            self.params['controlled_length_mm'] = round(controlled_length, 1)
+
+        exposure = self.params.get('exposure_scheme')
+        if exposure:
+            exposure['N'] = n_adj
+            exposure['N_segments'] = n_seg_adj
+
     def _calc_control_volume(self):
-        """Объём контроля по категории (НП-104-18)."""
-        cat_info = WELD_CATEGORIES.get(self.params['weld_category'], {})
-        self.params['control_volume_pct'] = cat_info.get('control_volume', 100)
+        """Объём контроля — значение, выбранное пользователем (п. 3.2)."""
+        self.params['control_volume_pct'] = normalize_control_volume_pct(
+            self.params.get('control_volume_pct', 100),
+        )
 
 
 # ---------------------------------------------------------------

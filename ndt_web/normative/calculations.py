@@ -18,6 +18,12 @@ import math
 from typing import Optional
 
 
+# Допустимые значения объёма выборочного контроля (НП-105-18, п. 70)
+CONTROL_VOLUME_OPTIONS = (100, 50, 25, 10, 5)
+# Порог диаметра для полного контроля кольцевых швов (НП-105-18, п. 72)
+RING_FULL_LENGTH_DIAMETER_MM = 250.0
+
+
 # ------------------------------------------------------------------
 # Таблицы из ГОСТ 7512-82 / ГОСТ Р 50.05.07-2018
 # ------------------------------------------------------------------
@@ -755,6 +761,109 @@ def _normalize_exposure_result(result: dict, d_outer_mm: float = 0) -> dict:
         if d_outer_mm and n > 0:
             result['L_mm'] = round(math.pi * d_outer_mm / n, 0)
     return result
+
+
+# ------------------------------------------------------------------
+# Объём выборочного контроля (НП-105-18, п. 70–72)
+# ------------------------------------------------------------------
+
+def normalize_control_volume_pct(value) -> int:
+    """Приводит объём контроля к одному из допустимых значений."""
+    try:
+        pct = int(float(value))
+    except (TypeError, ValueError):
+        return 100
+    return pct if pct in CONTROL_VOLUME_OPTIONS else 100
+
+
+def requires_full_length_ring_control(object_type: str, outer_diameter_mm: float) -> bool:
+    """
+    НП-105-18, п. 72: сварные соединения деталей с D ≤ 250 мм с кольцевыми швами
+    контролируются по всей протяженности — число экспозиций и участков не уменьшается.
+    """
+    if object_type != 'pipe':
+        return False
+    d = float(outer_diameter_mm or 0)
+    return 0 < d <= RING_FULL_LENGTH_DIAMETER_MM
+
+
+def scale_exposure_count(value, volume_pct: int) -> int:
+    """Пропорциональное уменьшение числа экспозиций/участков, минимум 1."""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return 1
+    if n <= 0:
+        return 1
+    if volume_pct >= 100:
+        return n
+    return max(1, math.ceil(n * volume_pct / 100))
+
+
+def calc_straight_seam_full_coverage(seam_length_mm: float, segment_length_mm: float) -> int:
+    """
+    Число экспозиций для 100 % контроля прямолинейного шва (схема 4.6 / чертёж 2).
+
+    Отношение суммарной протяженности контролируемых участков к длине шва = 100 %.
+    """
+    if not seam_length_mm or not segment_length_mm or segment_length_mm <= 0:
+        return 1
+    return max(1, math.ceil(float(seam_length_mm) / float(segment_length_mm)))
+
+
+def apply_control_volume_adjustment(
+    *,
+    N_full,
+    N_segments_full=None,
+    volume_pct: int = 100,
+    apply_sample_scaling: bool = True,
+    seam_length_mm: float | None = None,
+    segment_length_mm: float | None = None,
+) -> tuple[int, int, float | None]:
+    """
+    Корректирует «Число экспозиций» (6.6) и «Число контролируемых участков» (6.7)
+    пропорционально объёму выборочного контроля.
+
+    :param N_full: расчётное число экспозиций при 100 % охвате
+    :param N_segments_full: расчётное число участков при 100 % охвате
+    :param volume_pct: объём контроля, % (100, 50, 25, 10, 5)
+    :param apply_sample_scaling: False для кольцевых швов D ≤ 250 мм (п. 72)
+    :param seam_length_mm: длина прямолинейного шва (схема 4.6)
+    :param segment_length_mm: длина участка за одну экспозицию L, мм
+    :return: (N, N_segments, controlled_length_mm)
+    """
+    volume_pct = normalize_control_volume_pct(volume_pct)
+    try:
+        n_full = int(N_full) if N_full not in (None, '', '—') else 1
+    except (TypeError, ValueError):
+        n_full = 1
+    try:
+        n_seg_full = (
+            int(N_segments_full)
+            if N_segments_full not in (None, '', '—')
+            else n_full
+        )
+    except (TypeError, ValueError):
+        n_seg_full = n_full
+
+    controlled_length: float | None = None
+
+    if not apply_sample_scaling or volume_pct >= 100:
+        if seam_length_mm and seam_length_mm > 0:
+            controlled_length = float(seam_length_mm)
+        return n_full, n_seg_full, controlled_length
+
+    n_adj = scale_exposure_count(n_full, volume_pct)
+    n_seg_adj = scale_exposure_count(n_seg_full, volume_pct)
+
+    if seam_length_mm and segment_length_mm and seam_length_mm > 0 and segment_length_mm > 0:
+        required_length = float(seam_length_mm) * volume_pct / 100.0
+        controlled_length = min(float(seam_length_mm), n_adj * float(segment_length_mm))
+        if controlled_length < required_length:
+            n_adj = max(n_adj, math.ceil(required_length / float(segment_length_mm)))
+            controlled_length = min(float(seam_length_mm), n_adj * float(segment_length_mm))
+
+    return n_adj, n_seg_adj, controlled_length
 
 
 def recommend_scheme(d_outer_mm: float, d_inner_mm: float,

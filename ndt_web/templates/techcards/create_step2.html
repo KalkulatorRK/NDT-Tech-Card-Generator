@@ -64,6 +64,15 @@
               {{ form.weld_category }}
             </div>
 
+            <!-- Объём контроля -->
+            <div class="col-md-6">
+              <label class="form-label">{{ form.control_volume_pct.label }}</label>
+              {{ form.control_volume_pct }}
+              {% if form.control_volume_pct.help_text %}
+              <div class="form-text">{{ form.control_volume_pct.help_text }}</div>
+              {% endif %}
+            </div>
+
             <div class="col-12">
               <label class="form-label fw-semibold">{{ form.joint_mobility.label }}</label>
               <div class="d-flex flex-wrap gap-3">

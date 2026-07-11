@@ -88,20 +88,22 @@ WSGI_APPLICATION = 'ndt_project.wsgi.application'
 DATABASE_URL = config('DATABASE_URL', default=None)
 
 if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            engine='django.db.backends.postgresql',
-        )
-    }
+    _db_config = dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=0,
+        engine='django.db.backends.postgresql',
+    )
+    _db_config.setdefault('OPTIONS', {})
+    if _db_config['OPTIONS'].get('sslmode') is None:
+        _db_config['OPTIONS']['sslmode'] = 'require'
+    DATABASES = {'default': _db_config}
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
-}
+    }
 
 # ------------------------------------------------------------------
 # Валидация паролей

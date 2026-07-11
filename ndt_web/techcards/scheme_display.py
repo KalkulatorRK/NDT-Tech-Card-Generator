@@ -90,7 +90,7 @@ SCHEME_IMAGES = {
 
 # Подробные исходники для вставки в DOCX (если отличаются от preview)
 SCHEME_DOCX_IMAGES = {
-    '5g': 'img/scheme_5g_docx.png',
+    '5g': 'img/scheme_5g_docx.jpg',
 }
 
 # Название и описание для поля 6.9 техкарты

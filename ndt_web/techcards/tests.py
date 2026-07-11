@@ -579,7 +579,7 @@ class SchemeDisplayTests(TestCase):
         self.assertIn('scheme_5g.png', ui['img'])
         self.assertNotIn('scheme_5g_docx', ui['img'])
         self.assertEqual(SCHEME_IMAGES['5g'], 'img/scheme_5g.png')
-        self.assertEqual(SCHEME_DOCX_IMAGES['5g'], 'img/scheme_5g_docx.png')
+        self.assertEqual(SCHEME_DOCX_IMAGES['5g'], 'img/scheme_5g_docx.jpg')
 
     def test_scheme_5g_docx_image_path(self):
         """В DOCX встраивается подробный исходник схемы 3г."""
@@ -587,7 +587,7 @@ class SchemeDisplayTests(TestCase):
         from techcards.scheme_display import get_scheme_docx_image_rel
 
         info = SCHEME_INFO['5g']
-        self.assertEqual(get_scheme_docx_image_rel('5g', info), 'img/scheme_5g_docx.png')
+        self.assertEqual(get_scheme_docx_image_rel('5g', info), 'img/scheme_5g_docx.jpg')
         self.assertEqual(info['image'], 'img/scheme_5g.png')
 
     def test_sk_two_walls_is_sum_of_thicknesses(self):
@@ -2340,7 +2340,7 @@ class TemplateCommentsTests(TestCase):
             out = os.path.join(tmpdir, 'card.docx')
             from django.conf import settings
             static_root = str(settings.STATICFILES_DIRS[0])
-            docx_source = os.path.join(static_root, 'img', 'scheme_5g_docx.png')
+            docx_source = os.path.join(static_root, 'img', 'scheme_5g_docx.jpg')
             source_hash = hashlib.sha256(open(docx_source, 'rb').read()).hexdigest()
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)

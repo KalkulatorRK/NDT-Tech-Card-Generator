@@ -571,6 +571,25 @@ class SchemeDisplayTests(TestCase):
             self.assertNotIn('источник снаружи', desc.lower())
             self.assertNotIn('источник внутри', desc.lower())
 
+    def test_scheme_5g_preview_uses_simplified_image(self):
+        """На шаге 3 показывается упрощённая схема, не подробный эскиз для DOCX."""
+        from techcards.scheme_display import get_scheme_ui_data, SCHEME_IMAGES, SCHEME_DOCX_IMAGES
+
+        ui = get_scheme_ui_data()['5g']
+        self.assertIn('scheme_5g.png', ui['img'])
+        self.assertNotIn('scheme_5g_docx', ui['img'])
+        self.assertEqual(SCHEME_IMAGES['5g'], 'img/scheme_5g.png')
+        self.assertEqual(SCHEME_DOCX_IMAGES['5g'], 'img/scheme_5g_docx.png')
+
+    def test_scheme_5g_docx_image_path(self):
+        """В DOCX встраивается подробный исходник схемы 3г."""
+        from normative.calculations import SCHEME_INFO
+        from techcards.scheme_display import get_scheme_docx_image_rel
+
+        info = SCHEME_INFO['5g']
+        self.assertEqual(get_scheme_docx_image_rel('5g', info), 'img/scheme_5g_docx.png')
+        self.assertEqual(info['image'], 'img/scheme_5g.png')
+
     def test_sk_two_walls_is_sum_of_thicknesses(self):
         """При двух стенках S_K = S + S (НП-105-18, п. 46)."""
         from normative.calculations import calc_radiation_thickness, resolve_table_b_thickness_mm
@@ -2295,11 +2314,12 @@ class TemplateCommentsTests(TestCase):
                 self.assertTrue(_paragraph_has_page_break(prev))
 
     def test_scheme_5g_embeds_image_in_section_69(self):
-        """Схема 3г — PNG встраивается в DOCX в п. 6.9."""
+        """Схема 3г — подробный PNG встраивается в DOCX в п. 6.9."""
         from techcards.generator import (
             generate_from_template, get_default_template_path,
             _find_paragraph_index, _paragraph_has_drawing,
         )
+        import hashlib
         import tempfile
         import zipfile
         from docx import Document
@@ -2320,6 +2340,8 @@ class TemplateCommentsTests(TestCase):
             out = os.path.join(tmpdir, 'card.docx')
             from django.conf import settings
             static_root = str(settings.STATICFILES_DIRS[0])
+            docx_source = os.path.join(static_root, 'img', 'scheme_5g_docx.png')
+            source_hash = hashlib.sha256(open(docx_source, 'rb').read()).hexdigest()
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)
             idx = _find_paragraph_index(doc, '6.9')
@@ -2334,4 +2356,9 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('ГОСТ Р 50.05.07-2018', caption)
             with zipfile.ZipFile(out) as zf:
                 media = [n for n in zf.namelist() if n.startswith('word/media/')]
+                embedded_hashes = [
+                    hashlib.sha256(zf.read(name)).hexdigest()
+                    for name in media
+                ]
             self.assertGreaterEqual(len(media), 2)
+            self.assertIn(source_hash, embedded_hashes)

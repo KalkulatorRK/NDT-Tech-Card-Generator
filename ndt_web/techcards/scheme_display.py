@@ -76,6 +76,7 @@ SCHEME_DESCRIPTIONS = {
     '5z':  'Трубопровод большого диаметра (Dн > 2 м).',
 }
 
+# Упрощённые схемы для предпросмотра на шаге 3
 SCHEME_IMAGES = {
     '4_6':  'img/scheme_4_6.png',
     '5a':   'img/scheme_5a.png',
@@ -85,6 +86,11 @@ SCHEME_IMAGES = {
     '5d':   'img/scheme_5d.png',
     '5zh':  'img/scheme_5zh.png',
     '5z':   'img/scheme_5z.png',
+}
+
+# Подробные исходники для вставки в DOCX (если отличаются от preview)
+SCHEME_DOCX_IMAGES = {
+    '5g': 'img/scheme_5g_docx.png',
 }
 
 # Название и описание для поля 6.9 техкарты
@@ -121,6 +127,16 @@ SCHEME_DOCX_IMAGE_WIDTH_MM = {
 SCHEME_DOCX_IMAGE_CAPTION = {
     '5g': 'Схема 3 г по ГОСТ Р 50.05.07-2018',
 }
+
+
+def get_scheme_docx_image_rel(scheme_code: str, scheme_info: dict | None = None) -> str:
+    """Относительный путь к PNG-схеме для вставки в DOCX."""
+    info = scheme_info or {}
+    if info.get('docx_image'):
+        return info['docx_image']
+    if scheme_code in SCHEME_DOCX_IMAGES:
+        return SCHEME_DOCX_IMAGES[scheme_code]
+    return info.get('image') or SCHEME_IMAGES.get(scheme_code, '')
 
 
 def get_scheme_docx_image_width(scheme_code: str) -> float:

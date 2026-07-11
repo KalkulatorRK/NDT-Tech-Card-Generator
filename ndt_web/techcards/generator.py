@@ -1477,11 +1477,15 @@ def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: s
 
     Изображение записывается в word/media/ через run.add_picture().
     """
-    from techcards.scheme_display import get_scheme_docx_caption, get_scheme_docx_image_width
+    from techcards.scheme_display import (
+        get_scheme_docx_caption,
+        get_scheme_docx_image_rel,
+        get_scheme_docx_image_width,
+    )
 
     scheme_code = params.get('scheme_type', '')
     scheme_info = params.get('scheme_info') or {}
-    image_rel = scheme_info.get('image', '')
+    image_rel = get_scheme_docx_image_rel(scheme_code, scheme_info)
     if not image_rel:
         return
 
@@ -1660,8 +1664,11 @@ def _insert_scheme_image_into_docx(doc: Document, params: dict, static_root: str
     :param params: параметры техкарты (должен содержать scheme_info)
     :param static_root: путь к статическим файлам Django
     """
+    from techcards.scheme_display import get_scheme_docx_image_rel
+
+    scheme_code = params.get('scheme_type', '')
     scheme_info = params.get('scheme_info') or {}
-    image_rel = scheme_info.get('image', '')
+    image_rel = get_scheme_docx_image_rel(scheme_code, scheme_info)
 
     if not image_rel:
         return

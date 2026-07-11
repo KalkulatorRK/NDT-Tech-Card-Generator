@@ -104,6 +104,7 @@ SCHEME_INFO = {
         'name': 'Чертёж 3в',
         'description': 'Трубопровод Dн ≤ 100 мм. Плёнка снаружи.',
         'image': 'img/scheme_5v.png',
+        'docx_image': 'img/scheme_5v_docx.jpg',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,

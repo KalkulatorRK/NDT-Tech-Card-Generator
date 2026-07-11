@@ -609,6 +609,25 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(get_scheme_docx_image_rel('5d', info), 'img/scheme_5d_docx.jpg')
         self.assertEqual(info['image'], 'img/scheme_5d.png')
 
+    def test_scheme_5v_preview_uses_simplified_image(self):
+        """На шаге 3 показывается упрощённая схема 3в, не подробный эскиз для DOCX."""
+        from techcards.scheme_display import get_scheme_ui_data, SCHEME_IMAGES, SCHEME_DOCX_IMAGES
+
+        ui = get_scheme_ui_data()['5v']
+        self.assertIn('scheme_5v.png', ui['img'])
+        self.assertNotIn('scheme_5v_docx', ui['img'])
+        self.assertEqual(SCHEME_IMAGES['5v'], 'img/scheme_5v.png')
+        self.assertEqual(SCHEME_DOCX_IMAGES['5v'], 'img/scheme_5v_docx.jpg')
+
+    def test_scheme_5v_docx_image_path(self):
+        """В DOCX встраивается подробный исходник схемы 3в."""
+        from normative.calculations import SCHEME_INFO
+        from techcards.scheme_display import get_scheme_docx_image_rel
+
+        info = SCHEME_INFO['5v']
+        self.assertEqual(get_scheme_docx_image_rel('5v', info), 'img/scheme_5v_docx.jpg')
+        self.assertEqual(info['image'], 'img/scheme_5v.png')
+
     def test_section_68_L_formula_uses_effective_diameter_5g(self):
         """П. 6.8: L и формула согласованы — D = Dн + 2×g_max для схемы 3г."""
         import math
@@ -2400,6 +2419,58 @@ class TemplateCommentsTests(TestCase):
             self.assertIsNotNone(image_para, 'Изображение схемы не встроено в DOCX')
             caption = doc.paragraphs[idx + 3].text
             self.assertIn('Схема 3 г', caption)
+            self.assertIn('ГОСТ Р 50.05.07-2018', caption)
+            with zipfile.ZipFile(out) as zf:
+                media = [n for n in zf.namelist() if n.startswith('word/media/')]
+                embedded_hashes = [
+                    hashlib.sha256(zf.read(name)).hexdigest()
+                    for name in media
+                ]
+            self.assertGreaterEqual(len(media), 2)
+            self.assertIn(source_hash, embedded_hashes)
+
+    def test_scheme_5v_embeds_image_in_section_69(self):
+        """Схема 3в — подробный JPEG встраивается в DOCX в п. 6.9."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _find_paragraph_index, _paragraph_has_drawing,
+        )
+        import hashlib
+        import tempfile
+        import zipfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+
+        data = {
+            **self.pipe_input,
+            'outer_diameter': '89',
+            'wall_thickness': '4',
+            'scheme_type': '5v',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        }
+        params = RadiographicTechCardCalculator(data).calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            docx_source = os.path.join(static_root, 'img', 'scheme_5v_docx.jpg')
+            source_hash = hashlib.sha256(open(docx_source, 'rb').read()).hexdigest()
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            idx = _find_paragraph_index(doc, '6.9')
+            self.assertGreaterEqual(idx, 0)
+            image_para = next(
+                (p for p in doc.paragraphs[idx + 1: idx + 5] if _paragraph_has_drawing(p)),
+                None,
+            )
+            self.assertIsNotNone(image_para, 'Изображение схемы не встроено в DOCX')
+            caption = doc.paragraphs[idx + 3].text
+            self.assertIn('Схема 3 в', caption)
             self.assertIn('ГОСТ Р 50.05.07-2018', caption)
             with zipfile.ZipFile(out) as zf:
                 media = [n for n in zf.namelist() if n.startswith('word/media/')]

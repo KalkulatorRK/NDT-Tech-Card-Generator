@@ -1279,8 +1279,11 @@ def _ensure_section_43_on_page_three(doc: Document):
     _ensure_paragraph_on_new_page(doc, '4.3', 'эскиз', keep=1)
 
 
-def _ensure_section_69_on_new_page(doc: Document):
-    """П. 6.9 «Схема просвечивания» — новая страница, зазор в одну строку."""
+def _ensure_section_69_on_page_four(doc: Document):
+    """
+    П. 6.9 «Схема просвечивания» — начало страницы 4,
+    зазор в одну строку от верхнего колонтитула.
+    """
     _ensure_paragraph_on_new_page(doc, '6.9', 'схема', keep=1)
 
 
@@ -1470,8 +1473,13 @@ def _insert_joint_sketch_into_docx(doc: Document, params: dict, static_root: str
 
 def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: str):
     """
-    Вставляет изображение схемы просвечивания в п. 6.9 (параграфы шаблона).
+    Встраивает PNG-схему просвечивания напрямую в DOCX (п. 6.9).
+
+    Изображение записывается в word/media/ через run.add_picture().
     """
+    from techcards.scheme_display import get_scheme_docx_caption, get_scheme_docx_image_width
+
+    scheme_code = params.get('scheme_type', '')
     scheme_info = params.get('scheme_info') or {}
     image_rel = scheme_info.get('image', '')
     if not image_rel:
@@ -1479,35 +1487,54 @@ def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: s
 
     image_path = _resolve_static_image_path(static_root, image_rel)
     if not image_path:
+        logger.warning('Схема просвечивания не найдена: %s', image_rel)
         return
 
     idx = _find_paragraph_index(doc, '6.9')
-    if idx < 0:
+    if idx < 0 or 'схема' not in doc.paragraphs[idx].text.lower():
         return
 
-    scheme_name = scheme_info.get('name') or params.get('scheme_type', '')
-    scheme_desc = scheme_info.get('description', '')
-    caption_text = ' '.join(filter(None, [scheme_name, scheme_desc])).strip()
+    width_mm = get_scheme_docx_image_width(scheme_code)
+    caption_text = get_scheme_docx_caption(scheme_code, scheme_info)
 
-    image_paras = []
-    caption_para = None
-    for para in doc.paragraphs[idx + 1: idx + 8]:
-        text = para.text.strip()
-        if _paragraph_has_drawing(para):
-            image_paras.append(para)
-        elif text and 'черт' in text.lower():
-            caption_para = para
+    image_idx = None
+    caption_idx = None
+    for j in range(idx + 1, min(idx + 8, len(doc.paragraphs))):
+        if _paragraph_has_drawing(doc.paragraphs[j]):
+            image_idx = j
             break
+    if image_idx is None:
+        for j in range(idx + 1, min(idx + 8, len(doc.paragraphs))):
+            if not doc.paragraphs[j].text.strip():
+                image_idx = j
+                break
+    for j in range(idx + 1, min(idx + 8, len(doc.paragraphs))):
+        if j == image_idx:
+            continue
+        para = doc.paragraphs[j]
+        if caption_idx is None and para.text.strip() and not _paragraph_has_drawing(para):
+            caption_idx = j
 
-    if image_paras:
-        _insert_picture_in_paragraph(image_paras[0], image_path, width_mm=45)
-        for extra in image_paras[1:]:
-            _clear_paragraph_content(extra)
+    if image_idx is None and idx + 1 < len(doc.paragraphs):
+        image_idx = idx + 1
 
-    if caption_para and caption_text:
-        _set_paragraph_text(caption_para, caption_text, font_size=9)
-    elif caption_text and idx + 4 < len(doc.paragraphs):
-        _set_paragraph_text(doc.paragraphs[idx + 4], caption_text, font_size=9)
+    if image_idx is None:
+        return
+
+    image_para = doc.paragraphs[image_idx]
+
+    if not _insert_picture_in_paragraph(image_para, image_path, width_mm=width_mm):
+        logger.warning('Не удалось встроить схему в DOCX: %s', image_path)
+        return
+
+    for j in range(idx + 1, min(idx + 8, len(doc.paragraphs))):
+        if j != image_idx and _paragraph_has_drawing(doc.paragraphs[j]):
+            _clear_paragraph_content(doc.paragraphs[j])
+
+    if caption_idx is not None and caption_text:
+        _set_paragraph_text(doc.paragraphs[caption_idx], caption_text, font_size=9)
+    elif caption_text and idx + 3 < len(doc.paragraphs):
+        _set_paragraph_text(doc.paragraphs[idx + 3], caption_text, font_size=9)
 
 
 def _fill_dimension_rows(doc: Document, value_map: dict):
@@ -1594,8 +1621,6 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
 
     _fill_dimension_rows(doc, value_map)
 
-    _insert_joint_sketch_into_docx(doc, params, static_root)
-    _insert_scheme_section_into_docx(doc, params, static_root)
     _fill_section_102_criteria_table(doc, params)
 
     # Титульный лист и колонтитулы — по структуре шаблона normative_docs
@@ -1608,11 +1633,15 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     # П. 4.3 — начало страницы 3, зазор в одну строку от верхнего колонтитула
     _ensure_section_43_on_page_three(doc)
 
-    # П. 6.9 — новая страница, зазор в одну строку от верхнего колонтитула
-    _ensure_section_69_on_new_page(doc)
+    # П. 6.9 — начало страницы 4, зазор в одну строку от верхнего колонтитула
+    _ensure_section_69_on_page_four(doc)
 
     # Убрать множественные пустые строки между блоками (не более 1 подряд)
     _collapse_excessive_empty_paragraphs(doc, max_consecutive=1)
+
+    # Изображения встраиваются в финальную структуру документа (после compact/page breaks)
+    _insert_joint_sketch_into_docx(doc, params, static_root)
+    _insert_scheme_section_into_docx(doc, params, static_root)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)

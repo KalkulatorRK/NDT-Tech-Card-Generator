@@ -112,6 +112,31 @@ SCHEME_CARD_DESCRIPTIONS = {
     '5e':  'Специальная схема просвечивания.',
 }
 
+# Ширина встраиваемого изображения схемы в DOCX (мм)
+SCHEME_DOCX_IMAGE_WIDTH_MM = {
+    '5g': 155,   # широкая схема 3г с легендой
+}
+
+# Подпись под рисунком в п. 6.9
+SCHEME_DOCX_IMAGE_CAPTION = {
+    '5g': 'Схема 3 г по ГОСТ Р 50.05.07-2018',
+}
+
+
+def get_scheme_docx_image_width(scheme_code: str) -> float:
+    """Ширина PNG-схемы при вставке в DOCX."""
+    return float(SCHEME_DOCX_IMAGE_WIDTH_MM.get(scheme_code, 45))
+
+
+def get_scheme_docx_caption(scheme_code: str, scheme_info: dict | None = None) -> str:
+    """Подпись под изображением схемы в п. 6.9."""
+    if scheme_code in SCHEME_DOCX_IMAGE_CAPTION:
+        return SCHEME_DOCX_IMAGE_CAPTION[scheme_code]
+    info = scheme_info or {}
+    name = info.get('name') or SCHEME_CARD_NAMES.get(scheme_code, '')
+    desc = info.get('description') or SCHEME_CARD_DESCRIPTIONS.get(scheme_code, '')
+    return ' '.join(filter(None, [name, desc])).strip()
+
 
 def get_scheme_user_label(code: str) -> str:
     """Возвращает пользовательское название схемы по внутреннему коду."""

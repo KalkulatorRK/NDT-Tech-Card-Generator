@@ -2293,3 +2293,45 @@ class TemplateCommentsTests(TestCase):
             self.assertEqual(empty, 1)
             if prev is not None:
                 self.assertTrue(_paragraph_has_page_break(prev))
+
+    def test_scheme_5g_embeds_image_in_section_69(self):
+        """Схема 3г — PNG встраивается в DOCX в п. 6.9."""
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _find_paragraph_index, _paragraph_has_drawing,
+        )
+        import tempfile
+        import zipfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+
+        data = {
+            **self.pipe_input,
+            'scheme_type': '5g',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        }
+        params = RadiographicTechCardCalculator(data).calculate()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            idx = _find_paragraph_index(doc, '6.9')
+            self.assertGreaterEqual(idx, 0)
+            image_para = next(
+                (p for p in doc.paragraphs[idx + 1: idx + 5] if _paragraph_has_drawing(p)),
+                None,
+            )
+            self.assertIsNotNone(image_para, 'Изображение схемы не встроено в DOCX')
+            caption = doc.paragraphs[idx + 3].text
+            self.assertIn('Схема 3 г', caption)
+            self.assertIn('ГОСТ Р 50.05.07-2018', caption)
+            with zipfile.ZipFile(out) as zf:
+                media = [n for n in zf.namelist() if n.startswith('word/media/')]
+            self.assertGreaterEqual(len(media), 2)

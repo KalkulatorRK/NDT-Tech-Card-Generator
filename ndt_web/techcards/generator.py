@@ -1504,7 +1504,7 @@ def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: s
     if idx < 0 or 'схема' not in doc.paragraphs[idx].text.lower():
         return
 
-    width_mm = get_scheme_docx_image_width(scheme_code)
+    width_mm = get_scheme_docx_image_width(scheme_code, doc)
     caption_text = get_scheme_docx_caption(scheme_code, scheme_info)
 
     image_idx = None

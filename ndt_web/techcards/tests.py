@@ -584,11 +584,55 @@ class SchemeDisplayTests(TestCase):
     def test_scheme_5g_docx_image_path(self):
         """В DOCX встраивается подробный исходник схемы 3г."""
         from normative.calculations import SCHEME_INFO
-        from techcards.scheme_display import get_scheme_docx_image_rel
+        from techcards.scheme_display import get_scheme_docx_image_rel, DOCX_BODY_TEXT_WIDTH_MM
 
         info = SCHEME_INFO['5g']
         self.assertEqual(get_scheme_docx_image_rel('5g', info), 'img/scheme_5g_docx.jpg')
         self.assertEqual(info['image'], 'img/scheme_5g.png')
+        self.assertEqual(DOCX_BODY_TEXT_WIDTH_MM, 180.0)
+
+    def test_scheme_5g_docx_image_width_matches_body(self):
+        """Подробная схема в DOCX — на всю ширину текстовой области (как колонтитул)."""
+        from docx.oxml.ns import qn
+        from techcards.generator import (
+            generate_from_template, get_default_template_path,
+            _find_paragraph_index, _paragraph_has_drawing,
+        )
+        from techcards.scheme_display import get_docx_body_width_mm
+        import tempfile
+        from docx import Document
+
+        template = get_default_template_path()
+        if not template:
+            self.skipTest('Шаблон DOCX не найден')
+
+        data = {
+            'organization': 'Тест', 'object_name': 'Труба', 'object_type': 'pipe',
+            'outer_diameter': 219, 'wall_thickness': 10, 'joint_designation': 'C1',
+            'welding_process': '30', 'weld_category': 'II', 'scheme_type': '5g',
+            'source_code': 'Ir-192', 'focal_spot_mm': 3.0, 'ofd_mm': 5,
+            'material': '08Х18Н10Т',
+        }
+        params = RadiographicTechCardCalculator(data).calculate()
+        tpl = Document(template)
+        body_w = get_docx_body_width_mm(tpl)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = __import__('os').path.join(tmpdir, 'card.docx')
+            from django.conf import settings
+            static_root = str(settings.STATICFILES_DIRS[0])
+            generate_from_template(params, template, out, static_root=static_root)
+            doc = Document(out)
+            idx = _find_paragraph_index(doc, '6.9')
+            image_para = next(
+                (p for p in doc.paragraphs[idx + 1: idx + 5] if _paragraph_has_drawing(p)),
+                None,
+            )
+            self.assertIsNotNone(image_para)
+            ext = image_para._element.findall('.//' + qn('wp:extent'))[0]
+            cx = int(ext.get('cx'))
+            width_mm = cx / 914400 * 25.4
+            self.assertAlmostEqual(width_mm, body_w, delta=1.0)
+            self.assertGreaterEqual(width_mm, 179.0)
 
     def test_scheme_5d_preview_uses_simplified_image(self):
         """На шаге 3 показывается упрощённая схема 3д, не подробный эскиз для DOCX."""

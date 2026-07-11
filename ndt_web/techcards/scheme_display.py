@@ -120,12 +120,8 @@ SCHEME_CARD_DESCRIPTIONS = {
     '5e':  'Специальная схема просвечивания.',
 }
 
-# Ширина встраиваемого изображения схемы в DOCX (мм)
-SCHEME_DOCX_IMAGE_WIDTH_MM = {
-    '5v': 155,   # широкая схема 3в с легендой
-    '5g': 155,   # широкая схема 3г с легендой
-    '5d': 155,   # широкая схема 3д с легендой
-}
+# Ширина текстовой области шаблона TC_тк 67 (A4: 210 − 20 − 10 мм)
+DOCX_BODY_TEXT_WIDTH_MM = 180.0
 
 # Подпись под рисунком в п. 6.9
 SCHEME_DOCX_IMAGE_CAPTION = {
@@ -145,9 +141,23 @@ def get_scheme_docx_image_rel(scheme_code: str, scheme_info: dict | None = None)
     return info.get('image') or SCHEME_IMAGES.get(scheme_code, '')
 
 
-def get_scheme_docx_image_width(scheme_code: str) -> float:
-    """Ширина PNG-схемы при вставке в DOCX."""
-    return float(SCHEME_DOCX_IMAGE_WIDTH_MM.get(scheme_code, 45))
+def _emu_to_mm(emu: int) -> float:
+    return emu / 914400 * 25.4
+
+
+def get_docx_body_width_mm(doc) -> float:
+    """Ширина текстовой области DOCX (= ширина верхнего колонтитула)."""
+    sec = doc.sections[0]
+    return round(_emu_to_mm(sec.page_width - sec.left_margin - sec.right_margin), 1)
+
+
+def get_scheme_docx_image_width(scheme_code: str, doc=None) -> float:
+    """Ширина подробной схемы в DOCX: на всю ширину текстовой области."""
+    if scheme_code not in SCHEME_DOCX_IMAGES:
+        return 45.0
+    if doc is not None:
+        return get_docx_body_width_mm(doc)
+    return DOCX_BODY_TEXT_WIDTH_MM
 
 
 def get_scheme_docx_caption(scheme_code: str, scheme_info: dict | None = None) -> str:

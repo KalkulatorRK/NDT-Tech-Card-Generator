@@ -121,6 +121,7 @@ SCHEME_INFO = {
         'name': 'Чертёж 3д',
         'description': 'Трубопровод Dн > 50 мм. Плёнка снаружи.',
         'image': 'img/scheme_5d.png',
+        'docx_image': 'img/scheme_5d_docx.jpg',
         'requires_diameters': True,
         'requires_thickness': False,
         'for_pipes': True,

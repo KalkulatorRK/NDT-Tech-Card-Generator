@@ -444,6 +444,10 @@ def calc_scheme_5g(focal_spot_mm: float, d_outer_mm: float,
         'f_min_mm': round(f, 1),
         'N': N_min,
         'L_mm': round(L, 0) if L else None,
+        'L_formula': (
+            f'L = D × π / N = {d_outer_mm} × 3,14 / {N_min} = {L:.1f} мм'
+            if L else ''
+        ),
         'formula': (
             f'f = 0,5 × (1,5C(D - d) - D) = '
             f'0,5 × (1,5 × {C:.2f} × ({d_outer_mm} - {d_inner_mm}) - {d_outer_mm}) = {f:.1f} мм'
@@ -470,6 +474,10 @@ def calc_scheme_5d(focal_spot_mm: float, d_outer_mm: float,
         'f_min_mm': round(f, 1),
         'N': 4,
         'L_mm': round(math.pi * d_outer_mm / 4, 0),
+        'L_formula': (
+            f'L = D × π / N = {d_outer_mm} × 3,14 / 4 = '
+            f'{math.pi * d_outer_mm / 4:.1f} мм'
+        ),
         'formula': (
             f'f = 0,5 × (C × (1,4D - d) - D) = '
             f'0,5 × ({C:.2f} × (1,4 × {d_outer_mm} - {d_inner_mm}) - {d_outer_mm}) = {f:.1f} мм'

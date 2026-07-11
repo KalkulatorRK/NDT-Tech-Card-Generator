@@ -590,6 +590,34 @@ class SchemeDisplayTests(TestCase):
         self.assertEqual(get_scheme_docx_image_rel('5g', info), 'img/scheme_5g_docx.jpg')
         self.assertEqual(info['image'], 'img/scheme_5g.png')
 
+    def test_section_68_L_formula_uses_effective_diameter_5g(self):
+        """П. 6.8: L и формула согласованы — D = Dн + 2×g_max для схемы 3г."""
+        import math
+        from techcards.generator import RadiographicTechCardCalculator, _build_value_map
+
+        params = RadiographicTechCardCalculator({
+            'object_type': 'pipe',
+            'outer_diameter': 89,
+            'wall_thickness': 4,
+            'joint_designation': 'C1',
+            'welding_process': '30',
+            'weld_category': 'II',
+            'scheme_type': '5g',
+            'source_code': 'Ir-192',
+            'focal_spot_mm': 3.0,
+            'ofd_mm': 5,
+        }).calculate()
+        d_eff = params['d_outer_effective_mm']
+        n = params['N_calculated']
+        l = params['L_calculated_mm']
+        field_68 = _build_value_map(params)['6.8']
+
+        self.assertGreater(d_eff, 89)
+        self.assertAlmostEqual(l, round(math.pi * d_eff / n), delta=1)
+        self.assertIn(str(d_eff), field_68)
+        self.assertNotIn('π × 89.0 /', field_68)
+        self.assertIn('L = D × π / N', field_68)
+
     def test_sk_two_walls_is_sum_of_thicknesses(self):
         """При двух стенках S_K = S + S (НП-105-18, п. 46)."""
         from normative.calculations import calc_radiation_thickness, resolve_table_b_thickness_mm

@@ -939,12 +939,18 @@ def _build_value_map(params: dict) -> dict:
         L_formula = (scheme_result or {}).get('L_formula', '')
 
         if L_val:
-            if scheme_type == '5v' and L_formula:
+            if L_formula:
                 l_field = L_formula
             else:
+                from normative.calculations import SCHEME_WALL_COUNT
+                d_for_l = (
+                    params.get('d_outer_effective_mm')
+                    if SCHEME_WALL_COUNT.get(scheme_type, 1) == 2
+                    else D
+                ) or D
                 l_field = (
-                    f'{L_val} мм = π × {D} / {N_val}'
-                    if D and N_val else f'{L_val} мм'
+                    f'{L_val} мм = π × {d_for_l} / {N_val}'
+                    if d_for_l and N_val else f'{L_val} мм'
                 )
         else:
             l_field = '350 × (длина шва / N) мм'

@@ -476,14 +476,36 @@ def _try_geometry_f(text: str) -> ToolResult:
     if scheme is None:
         scheme = '3г'  # по умолчанию (частый запрос про трубы)
     if focal is None or k_sens is None:
+        # Формулы для каждой схемы (таблица Г.1)
+        formulas = {
+            '3а': 'f ≥ 0,7·c·(D − d)',
+            '3б': 'f ≥ 0,5·c·D',
+            '3г': 'f ≥ 0,5·[1,5·c·(D − d) − D]',
+            '3д': 'f ≥ 0,5·[c·(1,4·D − d) − D]',
+            '4а': 'f ≥ 0,7·c·(2·Rₜ + d)',
+            '4в': 'f ≥ 0,5·[1,5·c·(D* − d) − D*], где D* = d + 2·Rₜ',
+            '4г': 'd/D* ≥ 0,8 и Φ ≤ K·d / (2·Rₜ)',
+        }
+        default_txt = 'Для расчёта расстояния f по схеме {s} используется формула (табл. Г.1):\n' \
+                      '{formula}\n\n' \
+                      'где c = 2Φ/K при Φ/K ≥ 2, иначе c = 4;\n' \
+                      'Φ — размер фокусного пятна (мм);\n' \
+                      'K — требуемая чувствительность (мм);\n' \
+                      'D, d — наружный и внутренний диаметры (мм);\n' \
+                      'Rₜ — расчётная высота углового шва (мм).\n\n' \
+                      'Ширина контролируемого за одну экспозицию участка L — по (Г.2):\n' \
+                      'L ≤ 0,8·f\n\n' \
+                      'Число экспозиций N — по таблицам Г.2–Г.4 в зависимости от f/D.'
+        if scheme in formulas:
+            answer = default_txt.format(s=scheme, formula=formulas[scheme])
+        else:
+            answer = default_txt.format(
+                s=scheme,
+                formula='определяется по таблице Г.1 для схемы ' + scheme)
         return ToolResult(
             matched=True,
-            answer=(
-                f"Для расчёта f по схеме {scheme} (приложение Г) нужны: размер "
-                f"фокусного пятна Φ (мм) и требуемая чувствительность K (мм). "
-                f"Укажите их — и расстояние f будет вычислено по таблице Г.1."
-            ),
-            citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1]",
+            answer=answer,
+            citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1, Г.2]",
         )
     try:
         res = M507.calc_source_distance_f(
@@ -508,13 +530,145 @@ def _try_geometry_f(text: str) -> ToolResult:
     )
 
 
+def _try_iqi_types(text: str) -> ToolResult:
+    """Типы эталонов ИКИ по ГОСТ 7512-82."""
+    if not re.search(r"(тип|вид|как[ие]?)\s.*(эталон|ик?и)|какие бывают эталон|как[ие]?.*ики|как[аяя]?.*эталон.*использ|виды.*ики|ики.*тип", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            "По ГОСТ 7512-82 (п. 2.6–2.14) применяются следующие типы эталонов "
+            "для определения чувствительности радиографического контроля:\n"
+            "— проволочные эталоны (набор проволок разного диаметра);\n"
+            "— канавочные эталоны (пластины с канавками разной глубины);\n"
+            "— пластинчатые (с отверстиями ступенчатого сверления);\n"
+            "— дуплекс-эталоны (для определения геометрической нерезкости).\n"
+            "По ГОСТ Р 50.05.07-2018 (п. 5.3) дополнительно применяются "
+            "дуплекс-эталоны для кат. I."
+        ),
+        citation="[ГОСТ 7512-82, п. 2.6–2.14; ГОСТ Р 50.05.07-2018, п. 5.3]",
+    )
+
+
+def _try_marking_decode(text: str) -> ToolResult:
+    """Расшифровка условной записи дефекта (ГОСТ 7512-82 п. 2.10-2.13)."""
+    m = re.search(r"(\d+)[-–—](\d+)([-–—](\d+))?", text)
+    if not m or not re.search(r"(расшифр|маркировк|запис[ьи]|условн|обознач|как чита|что значит|дешифр)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    from normative import gost_7512 as M7512
+    parts = [int(x) for x in [m.group(1), m.group(2)]]
+    if m.group(4):
+        parts.append(int(m.group(4)))
+    if len(parts) == 3:
+        a, b, c = parts
+        mat_names = {1:'сталь', 2:'алюминий', 3:'титан', 4:'медь'}
+        set_name = f"типоразмер №{a}"
+        if a in mat_names:
+            set_name = f"{mat_names[a]} (эталон №{a})"
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Условная запись «{a}-{b}-{c}» по ГОСТ 7512-82 (п. 2.10–2.13):\n"
+                f"{a} — материал ({set_name});\n"
+                f"{b} — номер проволоки в эталоне;\n"
+                f"{c} — тип (номер) дефекта на эталонном снимке."
+            ),
+            citation="[ГОСТ 7512-82, п. 2.10–2.13]",
+        )
+    a, b = parts
+    mat_names = {1:'сталь', 2:'алюминий', 3:'титан', 4:'медь'}
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Условная запись «{a}-{b}» по ГОСТ 7512-82 (п. 2.10–2.13):\n"
+            f"{a} — обозначение материала эталона ({a}={mat_names.get(a, '?')});\n"
+            f"{b} — номер типоразмера эталона."
+        ),
+        citation="[ГОСТ 7512-82, п. 2.10–2.13]",
+    )
+
+
+def _try_evaluate_weld_quality(text: str) -> ToolResult:
+    """Оценка годности шва по табл. 4.8 НП-105-18."""
+    if not re.search(r"(допустим|годен|оцен|качеств|соответств|норм[аы]|кол?ичеств[оа]|количество.*включ|Sпр|суммар[на]|приведенн)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    cat = _parse_category(text)
+    if cat is None or cat not in ('I','II','III'):
+        return ToolResult(matched=False)
+    th = _parse_thickness(text)
+    if th is None:
+        return ToolResult(matched=False)
+    lo, hi = th
+    t = hi or lo
+    from normative import np_105_18 as M105
+    row = M105.lookup_acceptance_criteria('steel', cat, t)
+    if not row or not row.get('max_inclusion_mm'):
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Для категории {cat} при толщине {fmt(t)} мм таблица 4.8 НП-105-18 "
+                f"не содержит норм (толщина вне диапазона таблицы)."
+            ),
+            citation="[НП-105-18, табл. 4.8]",
+        )
+    max_inc = row['max_inclusion_mm']
+    max_count = row['max_count_100mm']
+    max_spr = row['max_total_area_mm2']
+    answer_parts = [
+        f"Для сварного соединения кат. {cat} при толщине {fmt(lo)}{'-'+fmt(hi) if hi else ''} мм "
+        f"по НП-105-18 (табл. 4.8) установлены следующие нормы:"
+    ]
+    inc_match = re.search(r"(одиночн|включ|дефект).*?(\d+)[,.]?(?:\d+)?\s*(?:мм)", text, re.IGNORECASE)
+    if inc_match:
+        found_val = float(inc_match.group(2).replace(',','.'))
+        if found_val <= max_inc:
+            answer_parts.append(f"Размер включения {fmt(found_val)} мм ≤ {fmt(max_inc)} мм — ДОПУСТИМО.")
+        else:
+            answer_parts.append(f"Размер включения {fmt(found_val)} мм > {fmt(max_inc)} мм — НЕ ДОПУСКАЕТСЯ.")
+    else:
+        answer_parts.append(f"Макс. размер одиночного включения: не более {fmt(max_inc)} мм.")
+    count_match = re.search(r"(\d+)\s*(?:шт|штук|включений)\s*(?:на\s*100|в\s*соедин)", text, re.IGNORECASE)
+    if count_match:
+        found_cnt = int(count_match.group(1))
+        if found_cnt <= max_count:
+            answer_parts.append(f"Количество {found_cnt} ≤ {max_count} на 100 мм — ДОПУСТИМО.")
+        else:
+            answer_parts.append(f"Количество {found_cnt} > {max_count} на 100 мм — НЕ ДОПУСКАЕТСЯ.")
+    else:
+        answer_parts.append(f"Количество включений и скоплений: не более {max_count} на 100 мм шва.")
+    answer_parts.append(f"Суммарная приведённая площадь Sпр: не более {fmt(max_spr)} мм².")
+    return ToolResult(
+        matched=True,
+        answer="\n".join(answer_parts),
+        citation=f"[НП-105-18, табл. 4.8, кат. {cat}]",
+    )
+
+
+def _try_defect_cluster(text: str) -> ToolResult:
+    """Определение скопления дефектов и Sпр."""
+    if not re.search(r"(скоплен|кластер|групп[аы]\s+дефект|Sпр|суммарн[ая]?\s*приведенн)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            "По НП-105-18 (п. 6.3.5): скопление дефектов — два или более дефекта, "
+            "расположенных на расстоянии не более трёхкратного максимального поперечного "
+            "размера наибольшего из них. Суммарная приведённая площадь Sпр вычисляется "
+            "как сумма произведений длины каждого дефекта на его ширину (в мм²). "
+            "Sпр не должна превышать значений, указанных в таблице 4.8 для каждой категории."
+        ),
+        citation="[НП-105-18, п. 6.3.5, табл. 4.8]",
+    )
+
+
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
     _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
     _try_iqi_range, _try_xray_voltage,
     _try_materials_separate_tables, _try_surface_defect_table,
-    _try_methods,
+    _try_methods, _try_iqi_types, _try_marking_decode,
+    _try_evaluate_weld_quality, _try_defect_cluster,
 ]
 
 

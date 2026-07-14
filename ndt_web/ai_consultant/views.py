@@ -10,9 +10,10 @@ from django.contrib.auth.decorators import login_required
 from ai_consultant.services.orchestrator import ask_consultant
 
 
-@login_required
 def chat_page_view(request):
-    """Страница чата в браузере (Bootstrap, как в проекте)."""
+    """Страница чата в браузере (Bootstrap, как в проекте).
+    Доступна без авторизации — приветствие видно всем.
+    """
     return render(request, 'ai_consultant/chat.html')
 
 

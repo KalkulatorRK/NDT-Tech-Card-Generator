@@ -131,6 +131,20 @@ def _try_sensitivity(text: str) -> ToolResult:
 
     from normative import np_105_18 as M105
 
+    # НП-105-18: проверка существования категории
+    valid_categories = {'I', 'II', 'III', 'Iн', 'IIн', 'IIIн'}
+    if cat and cat not in valid_categories:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Категория сварного соединения «{cat}» не существует в НП-105-18. "
+                f"Таблица 4.8 НП-105-18 содержит нормы только для категорий "
+                f"«I, II, III (и Iн, IIн)». Для других категорий (включая IV) "
+                f"таблица 4.8 не применяется: для IV обязателен только ВИК по НП-104-18."
+            ),
+            citation="[НП-105-18, табл. 4.8]",
+        )
+
     # НП-105-18: IV не существует в табл. 4.8 -> факт-охранник
     if cat == "IV":
         return ToolResult(
@@ -275,18 +289,25 @@ def _try_xray_voltage(text: str) -> ToolResult:
         return ToolResult(matched=False)
     lo, hi = th
     t = hi or lo
+    # определяем материал по тексту
     from normative import gost_50_05_07 as M507
+    material = 'steel'
+    if re.search(r"алюмин|al\b", text, re.IGNORECASE):
+        material = 'aluminum'
+    elif re.search(r"титан|titanium", text, re.IGNORECASE):
+        material = 'titanium'
     try:
-        r = M507.get_max_xray_voltage_kv(t, 'steel')
+        r = M507.get_max_xray_voltage_kv(t, material)
         u = r['max_voltage_kv']
     except Exception:
         return ToolResult(matched=False)
+    curve_label = {'steel': 'стали', 'aluminum': 'алюминиевого сплава', 'titanium': 'титанового сплава'}
     return ToolResult(
         matched=True,
         answer=(
-            f"По номограмме (рис. 6, кривая для стали) ГОСТ Р 50.05.07-2018 "
+            f"По номограмме (рис. 6, кривая для {curve_label[material]}) ГОСТ Р 50.05.07-2018 "
             f"максимальное напряжение рентгеновского аппарата при просвечиваемой "
-            f"толщине стали {fmt(t)} мм составляет примерно {fmt(u)} кВ "
+            f"толщине {curve_label[material]} {fmt(t)} мм составляет примерно {fmt(u)} кВ "
             f"(допустимый диапазон ±10%)."
         ),
         citation="[ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6]",
@@ -304,6 +325,9 @@ def _try_xray_standard_types(text: str) -> ToolResult:
         return ToolResult(matched=False)  # это геометрия -> _try_geometry_f
     if re.search(r"напряжен|кв\b|вольт|номограмм|рис\.?\s*6|толщин", text, re.IGNORECASE):
         return ToolResult(matched=False)  # это номограмма -> _try_xray_voltage
+    # не перехватывать вопросы про изотопы/радионуклиды (идут в RAG)
+    if re.search(r"изотоп|радионуклид|гамма|иттербий|тулий|селен|ирридий|кобальт|se\b|yb\b|tm\b|co\b|ir\b", text, re.IGNORECASE):
+        return ToolResult(matched=False)
     from normative import gost_50_05_07 as M507
     codes = getattr(M507, 'XRAY_SOURCE_CODES', None)
     if not codes:
@@ -358,7 +382,7 @@ def _try_surface_defect_table(text: str) -> ToolResult:
 
 def _try_methods(text: str) -> ToolResult:
     """Методы НК по категории (НП-104-18 п. 4)."""
-    if not re.search(r"метод|нк\b|вик|ргк|узк|мпд|кк\b|обязатель", text, re.IGNORECASE):
+    if not re.search(r"метод|нк\b|вик|ргк|узк|мпд|кк\b|обязатель|объём|процент", text, re.IGNORECASE):
         return ToolResult(matched=False)
     cat = _parse_category(text)
     if cat is None:
@@ -386,18 +410,18 @@ def _try_geometry_f(text: str) -> ToolResult:
     tl = text.lower()
     # не перехватывать вопросы про ТИПЫ источников (рентген/изотоп) —
     # их берёт _try_xray_standard_types
-    if re.search(r"стандартн|рентгеновск.*аппарат|типоразмер.*аппарат|как.*источник|какие источник|тип.*источник", text, re.IGNORECASE):
-        return ToolResult(matched=False)
-    # не перехватывать выбор плёнки/экранов (это не геометрия f)
     if re.search(r"стандартн|рентгеновск.*аппарат|типоразмер.*аппарат|какие источник|тип.*источник", text, re.IGNORECASE):
-            return ToolResult(matched=False)
-        if not ('f' in tl or 'приложен' in tl or 'экспозиц' in tl or 'схем' in tl
-                or ('источник' in tl and 'расстоян' in tl) or 'расстоян' in tl):
-            return ToolResult(matched=False)
-        if M507 is None:
-            return ToolResult(matched=False)
-        # определяем схему
-        scheme = None
+        return ToolResult(matched=False)
+    # не перехватывать вопросы про выбор плёнки/экранов (это не геометрия f)
+    if re.search(r"плён|экран|класс.*плён|сенсибил|радиографическ\w* плён", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    if not ('f' in tl or 'приложен' in tl or 'экспозиц' in tl or 'схем' in tl
+            or ('источник' in tl and 'расстоян' in tl) or 'расстоян' in tl):
+        return ToolResult(matched=False)
+    if M507 is None:
+        return ToolResult(matched=False)
+    # определяем схему
+    scheme = None
     for s in ['3г', '3д', '3а', '3б', '4а', '4б', '4в', '4г']:
         if s in tl:
             scheme = s
@@ -461,14 +485,12 @@ def _try_geometry_f(text: str) -> ToolResult:
             ),
             citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1]",
         )
-    import sys as _sys
-    print("[GEO PARAMS] scheme=%s focal=%s k_sens=%s D=%s d=%s Rt=%s" % (scheme, focal, k_sens, D, d, Rt), file=_sys.stderr)
     try:
         res = M507.calc_source_distance_f(
             scheme, focal_spot_mm=focal, sensitivity_K_mm=k_sens,
             D=D, d=d, Rt=Rt or 0.0)
     except Exception as _exc:
-        import traceback as _tb; _tb.print_exc(file=_sys.stderr)
+        import traceback as _tb; _tb.print_exc()
         return ToolResult(matched=False)
     if 'error' in res:
         return ToolResult(matched=True, answer=res['error'], citation="[ГОСТ Р 50.05.07-2018, приложение Г]")
@@ -489,8 +511,8 @@ def _try_geometry_f(text: str) -> ToolResult:
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
-    _try_xray_standard_types, _try_xray_voltage, _try_geometry_f, _try_sensitivity,
-    _try_wire_iqi, _try_iqi_range,
+    _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
+    _try_iqi_range, _try_xray_voltage,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods,
 ]

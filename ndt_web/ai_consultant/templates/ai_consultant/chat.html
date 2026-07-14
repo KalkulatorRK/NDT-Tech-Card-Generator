@@ -2,23 +2,120 @@
 {% load static %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 860px;">
-  <h2>ИИ-консультант по НД (РГК / НК)</h2>
-  <p class="text-muted">Отвечает по загруженным ГОСТ/НПА с цитированием пунктов. Можно прикрепить изображение (схему, снимок, таблицу).</p>
+<style>
+  .consultant-wrap {
+    max-width: 880px; margin: 0 auto;
+  }
+  .consultant-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 20px; border-radius: 14px 14px 0 0;
+    background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+    color: #fff;
+  }
+  .consultant-avatar {
+    width: 46px; height: 46px; border-radius: 12px;
+    background: rgba(255,255,255,0.18);
+    display: grid; place-items: center; font-size: 1.5rem;
+  }
+  .consultant-header h3 { margin: 0; font-size: 1.15rem; }
+  .consultant-header small { opacity: 0.85; }
 
-  <div id="chat-log" class="border rounded p-3 mb-3" style="min-height: 320px; max-height: 520px; overflow-y: auto; background: #fafafa;">
-    <div class="text-muted small">Задайте вопрос по неразрушающему контролю, сварке, ГОСТ/НПА…</div>
+  .chat-log {
+    background: #f4f6f9; border: 1px solid #e3e8ef;
+    border-top: none; border-radius: 0 0 14px 14px;
+    padding: 18px; min-height: 420px; max-height: 60vh;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+  }
+
+  .msg { max-width: 85%; }
+  .msg-user { align-self: flex-end; }
+  .msg-bot { align-self: flex-start; }
+
+  .msg-bubble {
+    padding: 10px 14px; border-radius: 14px; line-height: 1.45;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .msg-user .msg-bubble {
+    background: #0d6efd; color: #fff; border-bottom-right-radius: 4px;
+  }
+  .msg-bot .msg-bubble {
+    background: #fff; border: 1px solid #e3e8ef; border-bottom-left-radius: 4px;
+  }
+  .msg-tag {
+    font-size: 0.72rem; font-weight: 600; margin-bottom: 4px; opacity: 0.7;
+  }
+  .msg-user .msg-tag { text-align: right; color: #0d6efd; }
+  .msg-bot .msg-tag { color: #0dcaf0; }
+
+  .msg-bot img { max-width: 240px; border-radius: 8px; margin-top: 6px; }
+
+  .typing { display: flex; gap: 4px; padding: 12px 14px; }
+  .typing span {
+    width: 8px; height: 8px; border-radius: 50%; background: #0dcaf0;
+    animation: blink 1.2s infinite both;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+  .chat-input-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px; padding: 8px;
+    background: #fff; border: 1px solid #e3e8ef; border-radius: 14px;
+  }
+  .attach-btn {
+    border: none; background: #f0f4f8; color: #0d6efd;
+    width: 42px; height: 42px; border-radius: 10px; font-size: 1.2rem;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .attach-btn:hover { background: #e3efff; }
+  .chat-input-bar input[type=text] {
+    flex: 1; border: none; outline: none; padding: 10px;
+    font-size: 0.95rem; background: transparent;
+  }
+  .ask-btn {
+    border: none; background: #0d6efd; color: #fff;
+    padding: 10px 18px; border-radius: 10px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .ask-btn:disabled { opacity: 0.5; cursor: default; }
+  .attach-hint { font-size: 0.8rem; margin-top: 6px; color: #0d6efd; }
+</style>
+
+<div class="consultant-wrap py-4">
+  <div class="consultant-header">
+    <div class="consultant-avatar"><i class="bi bi-robot"></i></div>
+    <div>
+      <h3>ИИ-консультант по НД (РГК / НК)</h3>
+      <small>Ответы по ГОСТ/НПА с цитированием пунктов · можно прикрепить схему, снимок, таблицу</small>
+    </div>
   </div>
 
-  <form id="chat-form" class="d-flex gap-2 flex-wrap">
+  <div id="chat-log" class="chat-log">
+    <div class="msg msg-bot">
+      <div class="msg-tag">Консультант</div>
+      <div class="msg-bubble">
+Здравствуйте! Я — ИИ-консультант Карта-НК по неразрушающему контролю и сварке.
+
+Что я умею:
+• отвечать по ГОСТ Р 50.05.07-2018, НП-105-18, НП-104-18, ГОСТ 7512, ГОСТ Р 59023.2 с точными ссылками на пункты;
+• рассчитывать геометрию съёмки (f, расстояния), чувствительность, категории, допуски дефектов;
+• разбирать прикреплённые изображения — схемы, рентгеновские снимки, таблицы.
+
+Задайте вопрос или прикрепите файл. Если данных в нормативной базе нет — честно скажу об этом.
+      </div>
+    </div>
+  </div>
+
+  <form id="chat-form" class="chat-input-bar">
     {% csrf_token %}
     <input type="hidden" id="session-id" value="">
     <input type="file" id="image-input" accept="image/*" class="d-none">
-    <button type="button" id="attach-btn" class="btn btn-outline-secondary" title="Прикрепить изображение">📎</button>
-    <input type="text" id="question" class="form-control flex-grow-1" placeholder="Например: объём РК сварных соединений трубопроводов по НП-105-18?" autocomplete="off">
-    <button type="submit" class="btn btn-primary">Спросить</button>
+    <button type="button" id="attach-btn" class="attach-btn" title="Прикрепить изображение">📎</button>
+    <input type="text" id="question" placeholder="Например: объём РК сварных соединений трубопроводов по НП-105-18?" autocomplete="off">
+    <button type="submit" class="ask-btn" id="ask-btn">Спросить</button>
   </form>
-  <div id="attach-hint" class="small text-muted mt-1 d-none">Изображение прикреплено: <span id="attach-name"></span> <a href="#" id="attach-clear">убрать</a></div>
+  <div id="attach-hint" class="attach-hint d-none">Изображение прикреплено: <span id="attach-name"></span> <a href="#" id="attach-clear">убрать</a></div>
 </div>
 
 <script>
@@ -31,6 +128,44 @@ const attachBtn = document.getElementById('attach-btn');
 const attachHint = document.getElementById('attach-hint');
 const attachName = document.getElementById('attach-name');
 const attachClear = document.getElementById('attach-clear');
+const askBtn = document.getElementById('ask-btn');
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function addBubble(role, html, imageUrl) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + (role === 'user' ? 'msg-user' : 'msg-bot');
+  const tag = document.createElement('div');
+  tag.className = 'msg-tag';
+  tag.textContent = role === 'user' ? 'Вы' : 'Консультант';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = html;
+  if (imageUrl) {
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    bubble.appendChild(img);
+  }
+  wrap.appendChild(tag);
+  wrap.appendChild(bubble);
+  chatLog.appendChild(wrap);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function showTyping() {
+  const t = document.createElement('div');
+  t.className = 'msg msg-bot';
+  t.id = 'typing-indicator';
+  t.innerHTML = '<div class="msg-tag">Консультант</div><div class="typing"><span></span><span></span><span></span></div>';
+  chatLog.appendChild(t);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+function hideTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
 
 attachBtn.addEventListener('click', () => imageInput.click());
 imageInput.addEventListener('change', () => {
@@ -47,35 +182,20 @@ attachClear.addEventListener('click', (e) => {
   attachHint.classList.add('d-none');
 });
 
-function addBubble(role, html) {
-  const div = document.createElement('div');
-  div.className = 'mb-2';
-  div.innerHTML = (role === 'user'
-    ? '<div class="text-end"><span class="badge bg-primary">Вы</span></div>'
-    : '<div><span class="badge bg-secondary">Консультант</span></div>') +
-    '<div class="p-2 border rounded bg-white">' + html + '</div>';
-  chatLog.appendChild(div);
-  chatLog.scrollTop = chatLog.scrollHeight;
-}
-
-function showImagePreview(bytes) {
-  const url = URL.createObjectURL(bytes);
-  addBubble('user', '<img src="' + url + '" style="max-width:220px;max-height:160px;border:1px solid #ccc;border-radius:4px;">');
-}
-
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = input.value.trim();
   const hasImage = imageInput.files.length > 0;
   if (!q && !hasImage) return;
 
-  // показываем, что отправили
   if (hasImage) {
-    addBubble('user', (q ? q.replace(/</g, '&lt;') + '<br>' : '') + '📎 ' + imageInput.files[0].name);
+    addBubble('user', escapeHtml(q) || '', URL.createObjectURL(imageInput.files[0]));
   } else {
-    addBubble('user', q.replace(/</g, '&lt;'));
+    addBubble('user', escapeHtml(q));
   }
   input.value = '';
+  askBtn.disabled = true;
+  showTyping();
 
   let body, headers;
   if (hasImage) {
@@ -83,8 +203,7 @@ form.addEventListener('submit', async (e) => {
     fd.append('image', imageInput.files[0]);
     if (q) fd.append('question', q);
     if (sessionInput.value) fd.append('session_id', sessionInput.value);
-    body = fd;
-    headers = {};  // браузер сам ставит multipart boundary
+    body = fd; headers = {};
   } else {
     const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
     const fd = { question: q };
@@ -95,29 +214,26 @@ form.addEventListener('submit', async (e) => {
 
   try {
     const resp = await fetch('/api/consultant/ask/', {
-      method: 'POST',
-      headers: headers,
-      credentials: 'include',
-      body: body
+      method: 'POST', headers: headers, credentials: 'include', body: body
     });
     const ct = resp.headers.get('content-type') || '';
     if (ct.indexOf('application/json') === -1) {
-      throw new Error('Сервер вернул неожиданный ответ (возможно, ошибка на стороне сервера). Попробуйте позже.');
+      throw new Error('Сервер вернул неожиданный ответ. Попробуйте позже.');
     }
     const data = await resp.json();
-    if (resp.status === 402) {
-      addBubble('assistant', data.answer);
-      return;
-    }
+    hideTyping();
+    if (resp.status === 402) { addBubble('assistant', escapeHtml(data.answer)); return; }
     if (data.session_id) sessionInput.value = data.session_id;
-    let html = (data.answer || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    const html = (data.answer || '').replace(/\n/g, '<br>');
     addBubble('assistant', html);
   } catch (err) {
-    addBubble('assistant', 'Ошибка связи с сервером: ' + err);
+    hideTyping();
+    addBubble('assistant', 'Ошибка связи с сервером: ' + escapeHtml(err.message));
+  } finally {
+    askBtn.disabled = false;
+    imageInput.value = '';
+    attachHint.classList.add('d-none');
   }
-  // сброс вложения
-  imageInput.value = '';
-  attachHint.classList.add('d-none');
 });
 </script>
 {% endblock %}

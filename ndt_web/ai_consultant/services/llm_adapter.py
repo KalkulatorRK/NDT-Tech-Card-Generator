@@ -149,7 +149,7 @@ class DeepSeekProvider(LLMAdapter):
 class TencentHY3Provider(LLMAdapter):
     """Nous Portal (тот же OpenAI-совместимый endpoint, что и HermesProvider).
     По умолчанию Hermes-4-70B. tencent/hy3:free требует незадокументированный
-    формат тега — оставлен как опция через TENCENT_HY3_MODEL.
+    формат тега — оставлен как опция через TENCENT_HY3_MODEL / NOUS_PORTAL_MODEL.
     """
     def __init__(self):
         from openai import OpenAI
@@ -157,7 +157,8 @@ class TencentHY3Provider(LLMAdapter):
             api_key=os.environ['NOUS_PORTAL_API_KEY'],
             base_url=os.environ.get('NOUS_PORTAL_BASE_URL', 'https://inference-api.nousresearch.com/v1'),
         )
-        self.model = os.environ.get('TENCENT_HY3_MODEL', 'Hermes-4-70B')
+        self.model = os.environ.get('NOUS_PORTAL_MODEL',
+                         os.environ.get('TENCENT_HY3_MODEL', 'tencent/hy3'))
 
     def chat(self, system_prompt: str, messages: list[dict], temperature: float = 0.2) -> LLMResponse:
         max_tokens = int(os.environ.get('NOUS_PORTAL_MAX_TOKENS', '1024'))

@@ -222,7 +222,8 @@ form.addEventListener('submit', async (e) => {
     }
     const data = await resp.json();
     hideTyping();
-    if (resp.status === 402) { addBubble('assistant', escapeHtml(data.answer)); return; }
+    if (resp.status === 402) { addBubble('assistant', data.answer); return; }
+    if (data.error) { addBubble('assistant', data.error); return; }
     if (data.session_id) sessionInput.value = data.session_id;
     const html = (data.answer || '').replace(/\n/g, '<br>');
     addBubble('assistant', html);

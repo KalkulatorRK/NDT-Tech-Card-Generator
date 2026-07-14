@@ -17,15 +17,17 @@ def chat_page_view(request):
 
 
 @csrf_exempt
-@login_required
 def ask_view(request):
     """API: принимает текстовый вопрос и/или изображение.
 
-    Текстовый режим:  POST {question, session_id?} (application/json)
-    С изображением:   POST multipart/form-data: image=<file>, question=<text?>, session_id?<...>
-
-    NOTE: csrf_exempt временно для демо (Playwright). В проде вернуть защиту.
+    ВНИМАНИЕ: проверяем авторизацию вручную, чтобы неавторизованным
+    возвращать JSON вместо HTML-редиректа (иначе fetch падает).
     """
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {'error': 'Требуется авторизация. Пожалуйста, войдите в систему.'},
+            status=401,
+        )
     # --- режим с изображением (multipart) ---
     if request.method == 'POST' and request.FILES.get('image'):
         img = request.FILES['image']

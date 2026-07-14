@@ -86,16 +86,18 @@ form.addEventListener('submit', async (e) => {
     body = fd;
     headers = {};  // браузер сам ставит multipart boundary
   } else {
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
     const fd = { question: q };
     if (sessionInput.value) fd.session_id = sessionInput.value;
     body = JSON.stringify(fd);
-    headers = {'Content-Type': 'application/json'};
+    headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrf};
   }
 
   try {
     const resp = await fetch('/api/consultant/ask/', {
       method: 'POST',
       headers: headers,
+      credentials: 'include',
       body: body
     });
     const data = await resp.json();

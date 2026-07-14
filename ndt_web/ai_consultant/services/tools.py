@@ -595,6 +595,13 @@ def _try_evaluate_weld_quality(text: str) -> ToolResult:
     cat = _parse_category(text)
     if cat is None or cat not in ('I','II','III'):
         return ToolResult(matched=False)
+    # НП-105-18: IV, V, VI не существуют в табл. 4.8-4.11
+    if cat in ('IV', 'V', 'VI'):
+        return ToolResult(
+            matched=True,
+            answer=f"Категория сварного соединения «{cat}» не существует в таблицах норм НП-105-18.",
+            citation="[НП-105-18, табл. 4.8–4.11]",
+        )
     th = _parse_thickness(text)
     if th is None:
         return ToolResult(matched=False)
@@ -661,6 +668,93 @@ def _try_defect_cluster(text: str) -> ToolResult:
     )
 
 
+def _try_geometric_unsharpness(text: str) -> ToolResult:
+    """Геометрическая нерезкость Ug для категорий."""
+    if not re.search(r"(нерезк|U_?[gг]|геометрическ[ая]?\s*(нерезк|размыт))", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    cat = _parse_category(text)
+    from normative import gost_50_05_07 as M507
+    if cat and cat in M507.MAX_GEOMETRIC_UNSHARPNESS:
+        ug = M507.MAX_GEOMETRIC_UNSHARPNESS[cat]
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Максимально допустимая геометрическая нерезкость Ug "
+                f"для сварных соединений категории {cat} равна {ug} мм.\n"
+                f"Формула расчёта: Ug = Φ · b / (f − b),\n"
+                f"где Φ — размер фокусного пятна, b — расстояние от объекта до плёнки,\n"
+                f"f — расстояние от источника до плёнки."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение А, п. А.3; MAX_GEOMETRIC_UNSHARPNESS]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_optical_density(text: str) -> ToolResult:
+    """Оптическая плотность плёнки по категориям."""
+    if not re.search(r"(оптическ[ая]?\s*плотност|плотност.*снимк|D.*плёнк|дуплекс)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    cat = _parse_category(text)
+    from normative import gost_50_05_07 as M507
+    if cat and cat in M507.OPTICAL_DENSITY:
+        od = M507.OPTICAL_DENSITY[cat]
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Требования к оптической плотности D радиографического снимка "
+                f"для категории {cat}: от {od['min']} до {od['max']}."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, п. 6.3.3]",
+        )
+    # общий вопрос
+    if re.search(r"как[аяи]?\s*оптическ|класс.*плёнк|Dmin|Dmax", text, re.IGNORECASE):
+        parts = [f"кат. {k}: D = {v['min']}–{v['max']}" for k, v in M507.OPTICAL_DENSITY.items()]
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Требования к оптической плотности D радиографического снимка "
+                f"(ГОСТ Р 50.05.07-2018, п. 6.3.3):\n" + "\n".join(parts)
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, п. 6.3.3]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_trap_comparison(text: str) -> ToolResult:
+    """Ловушка: сравнение таблиц разных материалов/категорий."""
+    if not re.search(r"(сравн|как[ая]?.*строж|как[аяя]?.*разн|разниц[а]?|отлич|чётче|жёстч)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    # Поймать сравнение таблиц 4.8-4.11
+    if re.search(r"таблиц[аеы]?\s*(4[.,]?\d)", text, re.IGNORECASE) and \
+       re.search(r"(друг[аяой]?|разн[ы]?[еых]?|сравн)", text, re.IGNORECASE) and \
+       not re.search(r"вопрос|какой.*метод|норм[а]?.*дефект", text, re.IGNORECASE):
+        m = re.search(r"(4[.,]?\d)\s*.*(4[.,]?\d)", text)
+        if m:
+            return ToolResult(
+                matched=True,
+                answer=(
+                    f"Сравнение таблиц {m.group(1)} и {m.group(2)} некорректно — "
+                    f"они относятся к разным материалам или диапазонам толщин. "
+                    f"Каждая таблица применяется к своему материалу независимо."
+                ),
+                citation="[НП-105-18, табл. 4.8–4.11]",
+            )
+    # Сравнение сталь/алюминий/титан (ловушка)
+    if re.search(r"(стал[ьяь].*алюмин|титан.*стал[ьяь]|алюмин.*титан|алюмин.*стал[ьяь]|строж)", text, re.IGNORECASE) and \
+       re.search(r"(сравн|как[ая]?.*отлич|разн[иа])", text, re.IGNORECASE):
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Некорректно сравнивать нормы для разных материалов: "
+                "сталь (табл. 4.8), алюминий (табл. 4.10), титан (табл. 4.11) "
+                "имеют разные диапазоны толщин и критерии. "
+                "Оценка проводится по каждой таблице независимо."
+            ),
+            citation="[НП-105-18, табл. 4.8–4.11]",
+        )
+    return ToolResult(matched=False)
+
+
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
@@ -669,6 +763,7 @@ _HANDLERS = [
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster,
+    _try_geometric_unsharpness, _try_optical_density, _try_trap_comparison,
 ]
 
 

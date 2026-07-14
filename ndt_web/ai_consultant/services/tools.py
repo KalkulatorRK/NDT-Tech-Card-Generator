@@ -16,11 +16,18 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+try:
+    from normative import gost_50_05_07 as M507
+    from normative import gost_7512 as M7512
+    from normative import np_105_18 as M105
+    from normative import np_104_18 as M104
+except Exception:
+    M507 = M7512 = M105 = M104 = None
 
 # --- регулярные шаблоны -------------------------------------------------
 
 _RE_CATEGORY = re.compile(
-    r"категор(?:ии|я|ий|ю|ей)?\s*([IV]{1,3}|Iн|IIн|IIIн|Iн|IIн)", re.IGNORECASE
+    r"кат(?:егори[яиюей]?|егор|\.)?\s*([IV]{1,3}н?)\b", re.IGNORECASE
 )
 _RE_THICKNESS = re.compile(
     r"(?:толщин[аеы]?|номинальн(?:ая|ой)?\s*толщин[аеы]?)\s*(?:свариваемых\s*деталей)?\s*"
@@ -58,6 +65,18 @@ def _norm_category(raw: str) -> str:
     if raw in ("IН",):
         return "Iн"
     return raw
+
+
+def fmt(x) -> str:
+    """Форматирует число с десятичной ЗАПЯТОЙ (по ГОСТ-стилю, ru-RU)."""
+    if x is None:
+        return "—"
+    if isinstance(x, float) and x.is_integer():
+        x = int(x)
+    s = f"{x:g}"
+    if "." in s:
+        s = s.replace(".", ",")
+    return s
 
 
 def _parse_category(text: str) -> Optional[str]:
@@ -100,6 +119,9 @@ def _try_sensitivity(text: str) -> ToolResult:
     """Чувствительность K (НП-105-18 табл. 4.8/4.9, ГОСТ 50.05.07 табл. Б)."""
     if not re.search(r"чувствительн|k\b|коэффициент чувств", text, re.IGNORECASE):
         return ToolResult(matched=False)
+    # не перехватывать геометрические вопросы (приложение Г: f, схемы, экспозиции)
+    if re.search(r"схем|3[а-г]|приложен|экспозиц|источник.*излуч|расстоян.*источник", text, re.IGNORECASE):
+        return ToolResult(matched=False)
     cat = _parse_category(text)
     th = _parse_thickness(text)
     if th is None:
@@ -130,14 +152,14 @@ def _try_sensitivity(text: str) -> ToolResult:
         # интервал как в таблице (берём исходный диапазон из таблицы через функцию)
         rng = M105.thickness_range_for(cat, t) if hasattr(M105, "thickness_range_for") else None
         if rng:
-            span = f"{rng[0]:g}–{rng[1]:g}"
+            span = f"{fmt(rng[0])}–{fmt(rng[1])}"
         else:
-            span = f"{lo:g}" if (lo == hi or hi is None) else f"{lo:g}–{hi:g}"
+            span = f"{fmt(lo)}" if (lo == hi or hi is None) else f"{fmt(lo)}–{fmt(hi)}"
         return ToolResult(
             matched=True,
             answer=(
                 f"Требуемая чувствительность контроля K для категории {cat} "
-                f"при толщине {span} мм составляет {k:g} мм (не более)."
+                f"при толщине {span} мм составляет {fmt(k)} мм (не более)."
             ),
             citation="[НП-105-18, табл. 4.8]",
         )
@@ -145,7 +167,7 @@ def _try_sensitivity(text: str) -> ToolResult:
     return ToolResult(
         matched=True,
         answer=(
-            f"По таблице 4.8 НП-105-18 для категории {cat} при толщине {lo:g} мм "
+            f"По таблице 4.8 НП-105-18 для категории {cat} при толщине {fmt(lo)} мм "
             f"значение K не установлено (толщина вне диапазонов таблицы)."
         ),
         citation="[НП-105-18, табл. 4.8]",
@@ -161,7 +183,7 @@ def _try_wire_iqi(text: str) -> ToolResult:
     from normative import gost_7512 as M7512
     # "сколько проволок / сколько типоразмеров"
     if set_no is None or wire_no is None:
-        if re.search(r"сколько (всего )?типоразмер|предусмотрено таблиц", text, re.IGNORECASE):
+        if re.search(r"сколько (всего )?(проволок|типоразмер)|предусмотрено таблиц|количество проволок|число проволок", text, re.IGNORECASE):
             n_sets = len(M7512.WIRE_IQI_SETS)
             n_wires = len(next(iter(M7512.WIRE_IQI_SETS.values())))
             return ToolResult(
@@ -181,17 +203,17 @@ def _try_wire_iqi(text: str) -> ToolResult:
                     matched=True,
                     answer=(
                         f"Типоразмер эталона № {set_no} по ГОСТ 7512-82 (табл. 2) "
-                        f"применяется для радиационной толщины h до {max_t:g} мм "
-                        f"(от минимальной до {max_t:g} мм)."
+                        f"применяется для радиационной толщины h до {fmt(max_t)} мм "
+                        f"(от минимальной до {fmt(max_t)} мм)."
                     ),
                     citation="[ГОСТ 7512-82, табл. 2]",
                 )
         return ToolResult(matched=False)
-    try:
-        d = M7512.get_wire_iqi(set_no, wire_no)
-    except Exception:
-        d = None
-    if d:
+    wires = M7512.WIRE_IQI_SETS.get(set_no, [])
+    d = None
+    if 1 <= wire_no <= len(wires):
+        d = wires[wire_no - 1][1]
+    if d is not None:
         # "самая тонкая" = проволока №7 (наибольший номер в наборе)
         if re.search(r"самая тонк|наименьш|тоньш", text, re.IGNORECASE):
             wires = M7512.WIRE_IQI_SETS.get(set_no, [])
@@ -202,7 +224,7 @@ def _try_wire_iqi(text: str) -> ToolResult:
                     answer=(
                         f"Самая тонкая (наименьшего номера чувствительности) проволока "
                         f"в эталоне типоразмера №{set_no} — проволока №{thin[0]} "
-                        f"диаметром Ø {thin[1]:g} мм."
+                        f"диаметром Ø {fmt(thin[1])} мм."
                     ),
                     citation="[ГОСТ 7512-82, табл. 2]",
                 )
@@ -210,7 +232,7 @@ def _try_wire_iqi(text: str) -> ToolResult:
             matched=True,
             answer=(
                 f"Диаметр проволоки №{wire_no} в эталоне типоразмера №{set_no} "
-                f"по ГОСТ 7512-82 составляет Ø {d:g} мм."
+                f"по ГОСТ 7512-82 составляет Ø {fmt(d)} мм."
             ),
             citation="[ГОСТ 7512-82, табл. 2]",
         )
@@ -234,7 +256,7 @@ def _try_iqi_range(text: str) -> ToolResult:
             matched=True,
             answer=(
                 f"Типоразмер эталона № {set_no} по ГОСТ 7512-82 (табл. 2) применяется "
-                f"для радиационной толщины h до {max_t:g} мм."
+                f"для радиационной толщины h до {fmt(max_t)} мм."
             ),
             citation="[ГОСТ 7512-82, табл. 2]",
         )
@@ -244,6 +266,9 @@ def _try_iqi_range(text: str) -> ToolResult:
 def _try_xray_voltage(text: str) -> ToolResult:
     """Макс. напряжение по номограмме (ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6)."""
     if not re.search(r"напряжен|вольт|кв\b|рентген|просвеч", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    # не перехватывать геометрические вопросы (приложение Г: f, схемы, экспозиции)
+    if re.search(r"схем[аеы]?\s*3[гд]|приложен.*г|экспозиц|расстоян.*источник|f\b", text, re.IGNORECASE):
         return ToolResult(matched=False)
     th = _parse_thickness(text)
     if th is None:
@@ -261,7 +286,7 @@ def _try_xray_voltage(text: str) -> ToolResult:
         answer=(
             f"По номограмме (рис. 6, кривая для стали) ГОСТ Р 50.05.07-2018 "
             f"максимальное напряжение рентгеновского аппарата при просвечиваемой "
-            f"толщине стали {t:g} мм составляет примерно {u:g} кВ "
+            f"толщине стали {fmt(t)} мм составляет примерно {fmt(u)} кВ "
             f"(допустимый диапазон ±10%)."
         ),
         citation="[ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6]",
@@ -270,11 +295,15 @@ def _try_xray_voltage(text: str) -> ToolResult:
 
 def _try_xray_standard_types(text: str) -> ToolResult:
     """Стандартные типоразмеры рентгеновских аппаратов (100/200/300/400 кВ).
-    ТОЛЬКО для источников излучения/аппаратов, НЕ для эталонов ИКИ."""
+    ТОЛЬКО для источников излучения/аппаратов, НЕ для эталонов ИКИ и НЕ для геометрии."""
     if not re.search(r"стандартн|рентгеновск.*аппарат|источник.*излуч|типоразмер.*(аппарат|источник|рентген)", text, re.IGNORECASE):
         return ToolResult(matched=False)
-    if re.search(r"эталон|ики|проволок|чувствительн", text, re.IGNORECASE):
+    if re.search(r"эталон|\bики\b|проволок|чувствительн", text, re.IGNORECASE):
         return ToolResult(matched=False)  # это про ИКИ -> _try_wire_iqi / _try_iqi_range
+    if re.search(r"схем[аеы]?\s*3[гд]|приложен.*г|экспозиц|расстоян.*источник", text, re.IGNORECASE):
+        return ToolResult(matched=False)  # это геометрия -> _try_geometry_f
+    if re.search(r"напряжен|кв\b|вольт|номограмм|рис\.?\s*6|толщин", text, re.IGNORECASE):
+        return ToolResult(matched=False)  # это номограмма -> _try_xray_voltage
     from normative import gost_50_05_07 as M507
     codes = getattr(M507, 'XRAY_SOURCE_CODES', None)
     if not codes:
@@ -351,11 +380,117 @@ def _try_methods(text: str) -> ToolResult:
     )
 
 
+def _try_geometry_f(text: str) -> ToolResult:
+    """Расчёт расстояния f (источник→шов) и числа экспозиций по приложению Г
+    ГОСТ Р 50.05.07-2018 (схемы 3а/3б/3г/3д/4а/4б, табл. Г.1–Г.4)."""
+    tl = text.lower()
+    # не перехватывать вопросы про ТИПЫ источников (рентген/изотоп) —
+    # их берёт _try_xray_standard_types
+    if re.search(r"стандартн|рентгеновск.*аппарат|типоразмер.*аппарат|как.*источник|какие источник|тип.*источник", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    # не перехватывать выбор плёнки/экранов (это не геометрия f)
+    if re.search(r"стандартн|рентгеновск.*аппарат|типоразмер.*аппарат|какие источник|тип.*источник", text, re.IGNORECASE):
+            return ToolResult(matched=False)
+        if not ('f' in tl or 'приложен' in tl or 'экспозиц' in tl or 'схем' in tl
+                or ('источник' in tl and 'расстоян' in tl) or 'расстоян' in tl):
+            return ToolResult(matched=False)
+        if M507 is None:
+            return ToolResult(matched=False)
+        # определяем схему
+        scheme = None
+    for s in ['3г', '3д', '3а', '3б', '4а', '4б', '4в', '4г']:
+        if s in tl:
+            scheme = s
+            break
+    # извлекаем параметры
+    focal = k_sens = D = d = Rt = None
+    m = re.search(r"фокус\w*\s*(?:пятн\w*)?\s*[=:\s]*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"пятн\w*\s*[=:\s]*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"[φΦ]\s*[=:]\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if m:
+        focal = float(m.group(1).replace(',', '.'))
+    m = re.search(r"\bk\s*[=:]\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"чувствительн\w*\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if m:
+        k_sens = float(m.group(1).replace(',', '.'))
+    m = re.search(r"наружн\w*\s*диаметр\w*\s*[=:\s]*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"наружн\w*\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"D\s*[=:]\s*(\d+[.,]?\d*)", text)  # заглавная D (без IGNORECASE)
+    if m:
+        D = float(m.group(1).replace(',', '.'))
+    m = re.search(r"внутренн\w*\s*диаметр\w*\s*[=:\s]*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"внутренн\w*\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"(?<!D)\bd\s*[=:]\s*(\d+[.,]?\d*)", text)  # строчная d, не после D
+    if m:
+        d = float(m.group(1).replace(',', '.'))
+    m = re.search(r"r_t\s*[=:]\s*(\d+[.,]?\d*)", text, re.IGNORECASE)
+    if m:
+        Rt = float(m.group(1).replace(',', '.'))
+    # общая справка, если нет схемы и параметров
+    if scheme is None and (focal is None or k_sens is None):
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Для расчёта расстояния f (от источника излучения до контролируемого "
+                "сварного соединения) и числа экспозиций используйте приложение Г "
+                "ГОСТ Р 50.05.07-2018. Основные соотношения (п. Г.1): f ≥ c·h; "
+                "L ≤ 0,8·f, где c = 2Φ/K при Φ/K ≥ 2, иначе c = 4 (Φ — размер "
+                "фокусного пятна, K — требуемая чувствительность, h — радиационная "
+                "толщина). Для конкретной схемы (рис. 3а/3б/3г/3д/4а/4б) расстояние "
+                "l определяется по таблице Г.1, а число экспозиций N — по таблицам "
+                "Г.2–Г.4 в зависимости от отношения f/D."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Г, п. Г.1, табл. Г.1–Г.4]",
+        )
+    if scheme is None:
+        scheme = '3г'  # по умолчанию (частый запрос про трубы)
+    if focal is None or k_sens is None:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Для расчёта f по схеме {scheme} (приложение Г) нужны: размер "
+                f"фокусного пятна Φ (мм) и требуемая чувствительность K (мм). "
+                f"Укажите их — и расстояние f будет вычислено по таблице Г.1."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1]",
+        )
+    import sys as _sys
+    print("[GEO PARAMS] scheme=%s focal=%s k_sens=%s D=%s d=%s Rt=%s" % (scheme, focal, k_sens, D, d, Rt), file=_sys.stderr)
+    try:
+        res = M507.calc_source_distance_f(
+            scheme, focal_spot_mm=focal, sensitivity_K_mm=k_sens,
+            D=D, d=d, Rt=Rt or 0.0)
+    except Exception as _exc:
+        import traceback as _tb; _tb.print_exc(file=_sys.stderr)
+        return ToolResult(matched=False)
+    if 'error' in res:
+        return ToolResult(matched=True, answer=res['error'], citation="[ГОСТ Р 50.05.07-2018, приложение Г]")
+    ans = (
+        f"По приложению Г ГОСТ Р 50.05.07-2018 для схемы {scheme}: "
+        f"расстояние f (источник → сварное соединение) должно быть не менее "
+        f"{fmt(res['f_mm_min'])} мм (коэффициент c = {fmt(res['c'])}). "
+        f"После выбора f определите отношение f/D и по таблицам Г.2–Г.4 найдите "
+        f"число экспозиций N для 100%-ного контроля."
+    )
+    return ToolResult(
+        matched=True,
+        answer=ans,
+        citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1, п. Г.3]",
+    )
+
+
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
-    _try_sensitivity, _try_wire_iqi, _try_iqi_range,
-    _try_xray_voltage, _try_xray_standard_types,
+    _try_xray_standard_types, _try_xray_voltage, _try_geometry_f, _try_sensitivity,
+    _try_wire_iqi, _try_iqi_range,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods,
 ]

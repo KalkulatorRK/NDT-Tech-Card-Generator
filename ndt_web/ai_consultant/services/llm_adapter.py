@@ -186,9 +186,19 @@ _PROVIDERS = {
 }
 
 
-def get_llm_provider() -> LLMAdapter:
+def get_llm_provider() -> 'LLMAdapter':
+    from ai_consultant.services.llm_adapter_stub import OfflineProvider
     name = os.environ.get('LLM_PROVIDER', 'openai')
     cls = _PROVIDERS.get(name)
     if not cls:
-        raise ValueError(f"Неизвестный LLM_PROVIDER: {name}. Допустимо: {list(_PROVIDERS)}")
-    return cls()
+        # неизвестный провайдер — не падаем, отдаём заглушку
+        return OfflineProvider(
+            reason=f"Неизвестный LLM_PROVIDER: {name}. Допустимо: {list(_PROVIDERS)}"
+        )
+    try:
+        return cls()
+    except KeyError as e:
+        # нет нужного API-ключа в окружении (Render и т.п.)
+        return OfflineProvider(reason=f"Не задан API-ключ для провайдера «{name}»: {e}")
+    except Exception as e:  # noqa
+        return OfflineProvider(reason=f"Ошибка инициализации провайдера «{name}»: {e}")

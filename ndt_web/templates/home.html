@@ -22,6 +22,10 @@
              style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.5);">
             <i class="bi bi-check2-square me-2"></i>Оценка качества
           </a>
+          <a href="{% url 'ai_consultant:chat' %}" class="btn btn-lg"
+             style="background:rgba(13,202,240,0.9);color:#06283d;border:1px solid rgba(13,202,240,0.6);">
+            <i class="bi bi-robot me-2"></i>ИИ-консультант
+          </a>
         </div>
       </div>
 
@@ -102,6 +106,17 @@
           </div>
           <h4>Форум</h4>
           <p>Общайтесь с коллегами, задавайте вопросы администратору. Тематические чаты по методам НК.</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3">
+      <a href="{% url 'ai_consultant:chat' %}" class="text-decoration-none feature-link">
+        <div class="feature-card h-100" style="border-top:3px solid #0dcaf0;">
+          <div class="feature-icon" aria-hidden="true">
+            <i class="bi bi-robot" style="font-size:3rem;color:#0dcaf0;"></i>
+          </div>
+          <h4>ИИ-консультант</h4>
+          <p>Ответы по ГОСТ/НПА с цитированием пунктов. Можно прикрепить схему, снимок или таблицу.</p>
         </div>
       </a>
     </div>

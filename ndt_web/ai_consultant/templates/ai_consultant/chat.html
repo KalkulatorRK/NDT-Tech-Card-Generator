@@ -100,6 +100,10 @@ form.addEventListener('submit', async (e) => {
       credentials: 'include',
       body: body
     });
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') === -1) {
+      throw new Error('Сервер вернул неожиданный ответ (возможно, ошибка на стороне сервера). Попробуйте позже.');
+    }
     const data = await resp.json();
     if (resp.status === 402) {
       addBubble('assistant', data.answer);

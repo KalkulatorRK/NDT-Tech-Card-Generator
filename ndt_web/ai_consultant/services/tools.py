@@ -158,10 +158,10 @@ def _try_wire_iqi(text: str) -> ToolResult:
         return ToolResult(matched=False)
     set_no = _parse_iqi_set(text)
     wire_no = _parse_wire_no(text)
+    from normative import gost_7512 as M7512
+    # "сколько проволок / сколько типоразмеров"
     if set_no is None or wire_no is None:
-        # запрос про "сколько проволок / сколько типоразмеров"
         if re.search(r"сколько (всего )?типоразмер|предусмотрено таблиц", text, re.IGNORECASE):
-            from normative import gost_7512 as M7512
             n_sets = len(M7512.WIRE_IQI_SETS)
             n_wires = len(next(iter(M7512.WIRE_IQI_SETS.values())))
             return ToolResult(
@@ -173,13 +173,39 @@ def _try_wire_iqi(text: str) -> ToolResult:
                 ),
                 citation="[ГОСТ 7512-82, табл. 2]",
             )
+        # "диапазон применения типоразмера №N" (вопрос 12)
+        if re.search(r"диапазон|применяется|просвечиваем", text, re.IGNORECASE) and set_no:
+            max_t = M7512.SET_THICKNESS_MAX_MM.get(set_no)
+            if max_t:
+                return ToolResult(
+                    matched=True,
+                    answer=(
+                        f"Типоразмер эталона № {set_no} по ГОСТ 7512-82 (табл. 2) "
+                        f"применяется для радиационной толщины h до {max_t:g} мм "
+                        f"(от минимальной до {max_t:g} мм)."
+                    ),
+                    citation="[ГОСТ 7512-82, табл. 2]",
+                )
         return ToolResult(matched=False)
-    from normative import gost_7512 as M7512
     try:
         d = M7512.get_wire_iqi(set_no, wire_no)
     except Exception:
         d = None
     if d:
+        # "самая тонкая" = проволока №7 (наибольший номер в наборе)
+        if re.search(r"самая тонк|наименьш|тоньш", text, re.IGNORECASE):
+            wires = M7512.WIRE_IQI_SETS.get(set_no, [])
+            if wires:
+                thin = wires[-1]  # последняя = макс. номер = миним. диаметр
+                return ToolResult(
+                    matched=True,
+                    answer=(
+                        f"Самая тонкая (наименьшего номера чувствительности) проволока "
+                        f"в эталоне типоразмера №{set_no} — проволока №{thin[0]} "
+                        f"диаметром Ø {thin[1]:g} мм."
+                    ),
+                    citation="[ГОСТ 7512-82, табл. 2]",
+                )
         return ToolResult(
             matched=True,
             answer=(
@@ -189,6 +215,116 @@ def _try_wire_iqi(text: str) -> ToolResult:
             citation="[ГОСТ 7512-82, табл. 2]",
         )
     return ToolResult(matched=False)
+
+
+def _try_iqi_range(text: str) -> ToolResult:
+    """Диапазон толщин для типоразмера эталона (ГОСТ 7512-82 табл. 2).
+    ТОЛЬКО когда спрашивают про диапазон применения, а НЕ про диаметр проволоки."""
+    if not re.search(r"диапазон.*(толщ|примен|эталон)|применяется.*толщ|радиационн.*толщ|для какого.*диапазон", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    if re.search(r"диаметр|проволок[аи]?\s*№|номер\s*проволок", text, re.IGNORECASE):
+        return ToolResult(matched=False)  # это запрос диаметра -> _try_wire_iqi
+    set_no = _parse_iqi_set(text)
+    if set_no is None:
+        return ToolResult(matched=False)
+    from normative import gost_7512 as M7512
+    max_t = M7512.SET_THICKNESS_MAX_MM.get(set_no)
+    if max_t:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Типоразмер эталона № {set_no} по ГОСТ 7512-82 (табл. 2) применяется "
+                f"для радиационной толщины h до {max_t:g} мм."
+            ),
+            citation="[ГОСТ 7512-82, табл. 2]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_xray_voltage(text: str) -> ToolResult:
+    """Макс. напряжение по номограмме (ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6)."""
+    if not re.search(r"напряжен|вольт|кв\b|рентген|просвеч", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    th = _parse_thickness(text)
+    if th is None:
+        return ToolResult(matched=False)
+    lo, hi = th
+    t = hi or lo
+    from normative import gost_50_05_07 as M507
+    try:
+        r = M507.get_max_xray_voltage_kv(t, 'steel')
+        u = r['max_voltage_kv']
+    except Exception:
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"По номограмме (рис. 6, кривая для стали) ГОСТ Р 50.05.07-2018 "
+            f"максимальное напряжение рентгеновского аппарата при просвечиваемой "
+            f"толщине стали {t:g} мм составляет примерно {u:g} кВ "
+            f"(допустимый диапазон ±10%)."
+        ),
+        citation="[ГОСТ Р 50.05.07-2018, п. 6.3.2, рис. 6]",
+    )
+
+
+def _try_xray_standard_types(text: str) -> ToolResult:
+    """Стандартные типоразмеры рентгеновских аппаратов (100/200/300/400 кВ).
+    ТОЛЬКО для источников излучения/аппаратов, НЕ для эталонов ИКИ."""
+    if not re.search(r"стандартн|рентгеновск.*аппарат|источник.*излуч|типоразмер.*(аппарат|источник|рентген)", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    if re.search(r"эталон|ики|проволок|чувствительн", text, re.IGNORECASE):
+        return ToolResult(matched=False)  # это про ИКИ -> _try_wire_iqi / _try_iqi_range
+    from normative import gost_50_05_07 as M507
+    codes = getattr(M507, 'XRAY_SOURCE_CODES', None)
+    if not codes:
+        return ToolResult(matched=False)
+    kv = [c.split('kV')[0].split('-')[-1] for c in codes if 'kV' in c]
+    if kv:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Стандартными типоразмерами (номинальными напряжениями) рентгеновских "
+                f"аппаратов по справочным данным на базе ГОСТ Р 50.05.07-2018 считаются: "
+                f"{', '.join(kv)} кВ."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, табл. 2]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_materials_separate_tables(text: str) -> ToolResult:
+    """Материалы с отдельными таблицами норм (НП-105-18: алюминий 4.10, титан 4.11).
+    ТОЛЬКО явный вопрос про отдельные таблицы для материалов, а не про плёнку/сравнение."""
+    if not re.search(r"отдельн.*таблиц|таблиц.*отличн|для каких материал|какие материал", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    from normative import np_105_18 as M105
+    if hasattr(M105, 'TABLE_4_10') and hasattr(M105, 'TABLE_4_11'):
+        return ToolResult(
+            matched=True,
+            answer=(
+                "В НП-105-18 для материалов, отличных от стали, предусмотрены отдельные "
+                "таблицы норм допустимых дефектов: алюминиевые сплавы — Таблица N 4.10, "
+                "титановые сплавы — Таблица N 4.11."
+            ),
+            citation="[НП-105-18, Таблицы N 4.10, N 4.11]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_surface_defect_table(text: str) -> ToolResult:
+    """Таблица поверхностных дефектов (подрезы, вольфрам) — НП-105-18 табл. 4.6."""
+    if not re.search(r"подрез|вольфрам|поверхностн|западани|вогнут", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            "Нормы для поверхностных дефектов (подрезы, вольфрамовые включения, "
+            "западания между валиками, вогнутость/выпуклость корня шва) регулируются "
+            "Таблицей N 4.6 НП-105-18."
+        ),
+        citation="[НП-105-18, Таблица N 4.6]",
+    )
 
 
 def _try_methods(text: str) -> ToolResult:
@@ -217,7 +353,12 @@ def _try_methods(text: str) -> ToolResult:
 
 # --- точка входа ---------------------------------------------------------
 
-_HANDLERS = [_try_sensitivity, _try_wire_iqi, _try_methods]
+_HANDLERS = [
+    _try_sensitivity, _try_wire_iqi, _try_iqi_range,
+    _try_xray_voltage, _try_xray_standard_types,
+    _try_materials_separate_tables, _try_surface_defect_table,
+    _try_methods,
+]
 
 
 def resolve(question: str) -> ToolResult:

@@ -184,3 +184,9 @@ class UserBalance(models.Model):
     def get_free_status(self, normative_doc_code: str) -> bool:
         """Возвращает True, если бесплатная карта по документу ещё не использована."""
         return normative_doc_code not in self.free_cards_used
+
+    @property
+    def active_subscription(self):
+        """Текущая активная подписка пользователя (или None)."""
+        from accounts.subscriptions import get_active_subscription
+        return get_active_subscription(self)

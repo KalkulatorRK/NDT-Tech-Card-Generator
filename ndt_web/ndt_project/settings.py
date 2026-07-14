@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'payments.apps.PaymentsConfig',
     'normative.apps.NormativeConfig',
     'forum.apps.ForumConfig',
+    'ai_consultant.apps.AiConsultantConfig',
 ]
 
 MIDDLEWARE = [

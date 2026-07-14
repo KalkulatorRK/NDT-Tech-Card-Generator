@@ -33,6 +33,10 @@ class SubscriptionPlan(models.Model):
     description = models.CharField(max_length=300, blank=True, verbose_name='Описание')
     is_popular = models.BooleanField(default=False, verbose_name='Популярный')
     is_active = models.BooleanField(default=True, verbose_name='Активен')
+    includes_ai_consultant = models.BooleanField(
+        default=False, verbose_name='Включает ИИ-консультанта',
+        help_text='Доступ к модулю ИИ-консультанта по нормативной базе',
+    )
 
     class Meta:
         verbose_name = 'План подписки'

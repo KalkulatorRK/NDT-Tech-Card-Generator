@@ -32,6 +32,9 @@ urlpatterns = [
     # Форум и чаты
     path('forum/', include('forum.urls')),
 
+    # ИИ-консультант
+    path('', include('ai_consultant.urls')),
+
     # Контакты
     path('contacts/', TemplateView.as_view(template_name='contacts.html'), name='contacts'),
 ]

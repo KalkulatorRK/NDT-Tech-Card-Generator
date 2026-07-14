@@ -1,13 +1,31 @@
 """Представления ИИ-консультанта (раздел 12 ТЗ): API + страница чата."""
 import json
-import tempfile
-import os
+import logging
+import traceback
 
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from ai_consultant.services.orchestrator import ask_consultant
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_ask(user, session_id, question, **kw):
+    """Вызов ask_consultant с перехватом любых исключений."""
+    try:
+        return ask_consultant(user, session_id, question, **kw)
+    except Exception as exc:
+        tb = traceback.format_exc()
+        logger.error("Ошибка ask_consultant: %s\n%s", exc, tb)
+        return {
+            "answer": (
+                "Извините, произошла внутренняя ошибка сервера. "
+                "Пожалуйста, попробуйте позже или сообщите администратору."
+            ),
+            "error_detail": str(exc)[:200],
+        }
 
 
 def chat_page_view(request):
@@ -43,11 +61,7 @@ def ask_view(request):
                 status=422,
             )
         combined = f"[ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЯ]\n{vision_text}\n\n{question}".strip()
-        # Подаём ВЕСЬ распознанный текст (все вопросы экзамена в одном тексте).
-        # orchestrator сам разберёт его через exam-роутер (вернёт все
-        # эталонные ответы) или через RAG. Разбиение не нужно — exam-роутер
-        # ищет ключевые фразы по всему тексту.
-        result = ask_consultant(request.user, session_id, combined, skip_tools=True)
+        result = _safe_ask(request.user, session_id, combined, skip_tools=True)
         if result.get('subscription_required'):
             return JsonResponse(result, status=402)
         return JsonResponse(result, status=200)
@@ -63,7 +77,7 @@ def ask_view(request):
     if not question:
         return JsonResponse({'error': 'question required'}, status=400)
     session_id = data.get('session_id')
-    result = ask_consultant(request.user, session_id, question)
+    result = _safe_ask(request.user, session_id, question)
     if result.get('subscription_required'):
         return JsonResponse(result, status=402)
     return JsonResponse(result, status=200)

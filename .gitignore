@@ -1,40 +1,23 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.venv/
+venv/
+env/
 
-node_modules
-dist
-dist-ssr
-*.local
+# Local databases
+*.sqlite3
+db.sqlite3
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Secrets / local env (real keys live outside repo)
+.env
+.env.local
+
+# Media / user uploads (generated)
+media/
+staticfiles/
+
+# OS / editor
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-ndt_web/__pycache__
-ndt_web/**/__pycache__
-ndt_web/**/*.pyc
-ndt_web/db.sqlite3
-ndt_web/staticfiles/
-ndt_web/media/
-
-# MCP gateway
-mcp_gateway/**/__pycache__
-mcp_gateway/**/*.pyc
-
-# MCP secrets (Cursor local only)
-.env.mcp
-
-# Side project (lives in KalkulatorRK/projects-)
-video-converter/
+*.swp

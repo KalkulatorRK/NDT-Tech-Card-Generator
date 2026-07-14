@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 860px;">
+  <h2>ИИ-консультант по НД (РГК / НК)</h2>
+  <p class="text-muted">Отвечает по загруженным ГОСТ/НПА с цитированием пунктов. Можно прикрепить изображение (схему, снимок, таблицу).</p>
+
+  <div id="chat-log" class="border rounded p-3 mb-3" style="min-height: 320px; max-height: 520px; overflow-y: auto; background: #fafafa;">
+    <div class="text-muted small">Задайте вопрос по неразрушающему контролю, сварке, ГОСТ/НПА…</div>
+  </div>
+
+  <form id="chat-form" class="d-flex gap-2 flex-wrap">
+    {% csrf_token %}
+    <input type="hidden" id="session-id" value="">
+    <input type="file" id="image-input" accept="image/*" class="d-none">
+    <button type="button" id="attach-btn" class="btn btn-outline-secondary" title="Прикрепить изображение">📎</button>
+    <input type="text" id="question" class="form-control flex-grow-1" placeholder="Например: объём РК сварных соединений трубопроводов по НП-105-18?" autocomplete="off">
+    <button type="submit" class="btn btn-primary">Спросить</button>
+  </form>
+  <div id="attach-hint" class="small text-muted mt-1 d-none">Изображение прикреплено: <span id="attach-name"></span> <a href="#" id="attach-clear">убрать</a></div>
+</div>
+
+<script>
+const chatLog = document.getElementById('chat-log');
+const form = document.getElementById('chat-form');
+const input = document.getElementById('question');
+const sessionInput = document.getElementById('session-id');
+const imageInput = document.getElementById('image-input');
+const attachBtn = document.getElementById('attach-btn');
+const attachHint = document.getElementById('attach-hint');
+const attachName = document.getElementById('attach-name');
+const attachClear = document.getElementById('attach-clear');
+
+attachBtn.addEventListener('click', () => imageInput.click());
+imageInput.addEventListener('change', () => {
+  if (imageInput.files.length) {
+    attachName.textContent = imageInput.files[0].name;
+    attachHint.classList.remove('d-none');
+  } else {
+    attachHint.classList.add('d-none');
+  }
+});
+attachClear.addEventListener('click', (e) => {
+  e.preventDefault();
+  imageInput.value = '';
+  attachHint.classList.add('d-none');
+});
+
+function addBubble(role, html) {
+  const div = document.createElement('div');
+  div.className = 'mb-2';
+  div.innerHTML = (role === 'user'
+    ? '<div class="text-end"><span class="badge bg-primary">Вы</span></div>'
+    : '<div><span class="badge bg-secondary">Консультант</span></div>') +
+    '<div class="p-2 border rounded bg-white">' + html + '</div>';
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function showImagePreview(bytes) {
+  const url = URL.createObjectURL(bytes);
+  addBubble('user', '<img src="' + url + '" style="max-width:220px;max-height:160px;border:1px solid #ccc;border-radius:4px;">');
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  const hasImage = imageInput.files.length > 0;
+  if (!q && !hasImage) return;
+
+  // показываем, что отправили
+  if (hasImage) {
+    addBubble('user', (q ? q.replace(/</g, '&lt;') + '<br>' : '') + '📎 ' + imageInput.files[0].name);
+  } else {
+    addBubble('user', q.replace(/</g, '&lt;'));
+  }
+  input.value = '';
+
+  let body, headers;
+  if (hasImage) {
+    const fd = new FormData();
+    fd.append('image', imageInput.files[0]);
+    if (q) fd.append('question', q);
+    if (sessionInput.value) fd.append('session_id', sessionInput.value);
+    body = fd;
+    headers = {};  // браузер сам ставит multipart boundary
+  } else {
+    const fd = { question: q };
+    if (sessionInput.value) fd.session_id = sessionInput.value;
+    body = JSON.stringify(fd);
+    headers = {'Content-Type': 'application/json'};
+  }
+
+  try {
+    const resp = await fetch('/api/consultant/ask/', {
+      method: 'POST',
+      headers: headers,
+      body: body
+    });
+    const data = await resp.json();
+    if (resp.status === 402) {
+      addBubble('assistant', data.answer);
+      return;
+    }
+    if (data.session_id) sessionInput.value = data.session_id;
+    let html = (data.answer || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    addBubble('assistant', html);
+  } catch (err) {
+    addBubble('assistant', 'Ошибка связи с сервером: ' + err);
+  }
+  // сброс вложения
+  imageInput.value = '';
+  attachHint.classList.add('d-none');
+});
+</script>
+{% endblock %}

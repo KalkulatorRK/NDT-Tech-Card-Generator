@@ -110,12 +110,9 @@
   <form id="chat-form" class="chat-input-bar">
     {% csrf_token %}
     <input type="hidden" id="session-id" value="">
-    <input type="file" id="image-input" accept="image/*" class="d-none">
-    <button type="button" id="attach-btn" class="attach-btn" title="Прикрепить изображение">📎</button>
     <input type="text" id="question" placeholder="Например: объём РК сварных соединений трубопроводов по НП-105-18?" autocomplete="off">
     <button type="submit" class="ask-btn" id="ask-btn">Спросить</button>
   </form>
-  <div id="attach-hint" class="attach-hint d-none">Изображение прикреплено: <span id="attach-name"></span> <a href="#" id="attach-clear">убрать</a></div>
 </div>
 
 <script>
@@ -123,18 +120,13 @@ const chatLog = document.getElementById('chat-log');
 const form = document.getElementById('chat-form');
 const input = document.getElementById('question');
 const sessionInput = document.getElementById('session-id');
-const imageInput = document.getElementById('image-input');
-const attachBtn = document.getElementById('attach-btn');
-const attachHint = document.getElementById('attach-hint');
-const attachName = document.getElementById('attach-name');
-const attachClear = document.getElementById('attach-clear');
 const askBtn = document.getElementById('ask-btn');
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function addBubble(role, html, imageUrl) {
+function addBubble(role, html) {
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + (role === 'user' ? 'msg-user' : 'msg-bot');
   const tag = document.createElement('div');
@@ -143,11 +135,6 @@ function addBubble(role, html, imageUrl) {
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
   bubble.innerHTML = html;
-  if (imageUrl) {
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    bubble.appendChild(img);
-  }
   wrap.appendChild(tag);
   wrap.appendChild(bubble);
   chatLog.appendChild(wrap);
@@ -167,50 +154,21 @@ function hideTyping() {
   if (t) t.remove();
 }
 
-attachBtn.addEventListener('click', () => imageInput.click());
-imageInput.addEventListener('change', () => {
-  if (imageInput.files.length) {
-    attachName.textContent = imageInput.files[0].name;
-    attachHint.classList.remove('d-none');
-  } else {
-    attachHint.classList.add('d-none');
-  }
-});
-attachClear.addEventListener('click', (e) => {
-  e.preventDefault();
-  imageInput.value = '';
-  attachHint.classList.add('d-none');
-});
-
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = input.value.trim();
-  const hasImage = imageInput.files.length > 0;
-  if (!q && !hasImage) return;
+  if (!q) return;
 
-  if (hasImage) {
-    addBubble('user', escapeHtml(q) || '', URL.createObjectURL(imageInput.files[0]));
-  } else {
-    addBubble('user', escapeHtml(q));
-  }
+  addBubble('user', escapeHtml(q));
   input.value = '';
   askBtn.disabled = true;
   showTyping();
 
-  let body, headers;
-  if (hasImage) {
-    const fd = new FormData();
-    fd.append('image', imageInput.files[0]);
-    if (q) fd.append('question', q);
-    if (sessionInput.value) fd.append('session_id', sessionInput.value);
-    body = fd; headers = {};
-  } else {
-    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-    const fd = { question: q };
-    if (sessionInput.value) fd.session_id = sessionInput.value;
-    body = JSON.stringify(fd);
-    headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrf};
-  }
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  const fd = { question: q };
+  if (sessionInput.value) fd.session_id = sessionInput.value;
+  const body = JSON.stringify(fd);
+  const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrf};
 
   try {
     const resp = await fetch('/api/consultant/ask/', {

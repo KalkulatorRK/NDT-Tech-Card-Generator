@@ -116,20 +116,15 @@ def _handle_wizard(session, question: str) -> dict | None:
     """Пошаговый мастер расчёта параметров РГК."""
     from ai_consultant.models import ConsultantMessage
 
-    SCHEMES_TUBE = ('3а', '3б', '3г', '3д')
-    SCHEMES_SPHERE = ('4а', '4в')
+    SCHEMES_TUBE = ('3а', '3б', '3г', '3д', '3в', '3ж')
 
     WIZARD_STEPS = [
         ('material', 'Материал? (сталь / алюминий / титан)', None),
         ('thickness', 'Толщина свариваемых кромок, мм?', None),
         ('category', 'Категория сварного соединения? (I / II / III)', None),
         ('scheme', 'Схема контроля? (3а / 3б / 3в / 3г / 3д / 3ж)', None),
-        ('access_inside', 'Есть ли доступ для размещения источника внутри изделия? (да / нет)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('outer_diameter', 'Наружный диаметр D трубы, мм? (введите фактический D с учётом максимального допуска на высоту валика сварного шва)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('inner_diameter', 'Внутренний диаметр d трубы, мм? (введите фактический d с учётом максимального допуска на размер выпуклости корня шва, обратного валика или подкладного кольца)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
-        ('radius', 'Радиус R обечайки/сферы, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
-        ('wall_thickness', 'Толщина стенки t, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
-        ('inner_diameter_sph', 'Внутренний диаметр d, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
         ('focal_spot', 'Размер фокусного пятна Φ, мм?', None),
         ('sensitivity', 'Требуемая чувствительность K, мм?', None),
     ]
@@ -202,17 +197,6 @@ def _handle_wizard(session, question: str) -> dict | None:
         if sch not in ('3а', '3б', '3в', '3г', '3д', '3ж'):
             return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3в, 3г, 3д, 3ж (схемы 4 пока недоступны в генераторе).",
                 "cited_sources": [], "session_id": str(session.id)}
-    # 3г/3д требуют доступ внутрь
-    if key == 'access_inside':
-        scheme = params.get('scheme', '').strip().lower()
-        needs_inside = scheme in ('3г', '3д')
-        ans = answer.strip().lower()
-        if needs_inside and ans not in ('да', 'yes', 'есть', '1', 'true', '+'):
-            return {"answer": (
-                f"Схема {scheme} требует размещения источника внутри изделия. "
-                f"Без доступа внутрь используйте схему 3а/3б (снаружи) или 3в (малый диаметр). "
-                f"Введите «да», если доступ всё же есть, или смените схему."
-            ), "cited_sources": [], "session_id": str(session.id)}
 
     params[key] = answer
 

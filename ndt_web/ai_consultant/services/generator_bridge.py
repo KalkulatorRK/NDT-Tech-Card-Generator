@@ -46,6 +46,12 @@ def build_generator_input(params: dict, mode: str = 'A') -> dict:
     scheme_user = params.get('scheme', '').strip().lower()
     scheme_code = USER_SCHEME_TO_CODE.get(scheme_user, '5a')
 
+    # Доступ внутрь определяется схемой (не спрашиваем пользователя)
+    # 3в/3г/3д — без доступа внутрь; 3а/3б — снаружи; 3ж — внутри
+    access_inside = scheme_user in ('3ж', '3г', '3д')
+    if scheme_user in ('3в',):
+        access_inside = False
+
     try:
         outer_d = float(params.get('outer_diameter', params.get('D', '0')).replace(',', '.'))
     except (ValueError, AttributeError):
@@ -94,6 +100,7 @@ def build_generator_input(params: dict, mode: str = 'A') -> dict:
         'film_name': params.get('film_name', ''),
         'scheme_type': scheme_code,
         'exposure_scheme_code': scheme_code,
+        'access_inside': access_inside,
     }
     return input_data
 

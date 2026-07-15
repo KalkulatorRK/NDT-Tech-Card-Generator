@@ -113,56 +113,73 @@ def _has_active_subscription(user) -> bool:
 
 
 def _handle_wizard(session, question: str) -> dict | None:
-    """Пошаговый мастер расчёта параметров РГК.
-    Возвращает dict-ответ, если это шаг мастера, иначе None.
-    """
+    """Пошаговый мастер расчёта параметров РГК."""
+    from ai_consultant.models import ConsultantMessage
+
+    SCHEMES_TUBE = ('3а', '3б', '3г', '3д')
+    SCHEMES_SPHERE = ('4а', '4в')
+
     WIZARD_STEPS = [
-        ('material', 'Материал? (сталь / алюминий / титан)'),
-        ('thickness', 'Толщина свариваемых кромок, мм?'),
-        ('category', 'Категория сварного соединения? (I / II / III)'),
-        ('scheme', 'Схема контроля? (3а / 3б / 3г / 3д / 4а / 4в)'),
-        ('focal_spot', 'Размер фокусного пятна Φ, мм?'),
-        ('sensitivity', 'Требуемая чувствительность K, мм?'),
+        ('material', 'Материал? (сталь / алюминий / титан)', None),
+        ('thickness', 'Толщина свариваемых кромок, мм?', None),
+        ('category', 'Категория сварного соединения? (I / II / III)', None),
+        ('scheme', 'Схема контроля? (3а / 3б / 3г / 3д / 4а / 4в)', None),
+        ('outer_diameter', 'Наружный диаметр D трубы, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
+        ('inner_diameter', 'Внутренний диаметр d трубы, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
+        ('radius', 'Радиус R обечайки/сферы, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
+        ('wall_thickness', 'Толщина стенки t, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
+        ('inner_diameter_sph', 'Внутренний диаметр d, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),
+        ('focal_spot', 'Размер фокусного пятна Φ, мм?', None),
+        ('sensitivity', 'Требуемая чувствительность K, мм?', None),
     ]
 
     state = session.wizard_state
 
-    # --- Начало мастера ---
     if state is None:
-        if not re.search(r"(рассчитай|подбери|помоги|посчитай|какой.*нужен|какие.*параметр|назначь|определи|выбери режим|раiсчёт|сделай расчёт|параметры контроля|параметры ргк|параметры съёмки)",
+        if not re.search(r"(рассчитай|подбери|помоги|посчитай|какой.*нужен|какие.*параметр|назначь|определи|выбери режим|расчёт|сделай расчёт|параметры контроля|параметры ргк|параметры съёмки)",
                          question, re.IGNORECASE):
             return None
         session.wizard_state = {'step': 0, 'params': {}}
         session.save(update_fields=['wizard_state'])
-        from ai_consultant.models import ConsultantMessage
         ConsultantMessage.objects.create(session=session, role='user', content=question)
+        first = WIZARD_STEPS[0][1]
         ConsultantMessage.objects.create(session=session, role='assistant',
-            content=f"**Мастер расчёта параметров РГК**\n\n{WIZARD_STEPS[0][1]}")
-        return {"answer": f"**Мастер расчёта параметров РГК**\n\n{WIZARD_STEPS[0][1]}",
+            content=f"**Мастер расчёта параметров РГК**\n\n{first}")
+        return {"answer": f"**Мастер расчёта параметров РГК**\n\n{first}",
                 "cited_sources": [], "session_id": str(session.id)}
 
-    # --- Продолжение мастера ---
     step = state['step']
     params = state['params']
-    key, prompt = WIZARD_STEPS[step]
+    key, prompt, condition = WIZARD_STEPS[step]
 
-    # Сохраняем ответ пользователя
-    params[key] = question.strip()
+    answer = question.strip()
+    if key == 'category':
+        cat_map = {'I': 'I', 'II': 'II', 'III': 'III', '1': 'I', '2': 'II', '3': 'III'}
+        answer = cat_map.get(answer.upper(), answer)
+    if key == 'scheme':
+        sch = answer.lower()
+        if sch not in ('3а', '3б', '3г', '3д', '4а', '4в'):
+            return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3г, 3д, 4а, 4в.",
+                    "cited_sources": [], "session_id": str(session.id)}
 
-    # Следующий шаг или завершение
-    if step + 1 < len(WIZARD_STEPS):
-        # Есть ещё шаги
-        state['step'] = step + 1
+    params[key] = answer
+
+    next_step = step + 1
+    while next_step < len(WIZARD_STEPS):
+        _k, _p, _c = WIZARD_STEPS[next_step]
+        if _c is None or _c(params):
+            break
+        next_step += 1
+
+    if next_step < len(WIZARD_STEPS):
+        state['step'] = next_step
         session.wizard_state = state
         session.save(update_fields=['wizard_state'])
-        next_key, next_prompt = WIZARD_STEPS[step + 1]
-        return {"answer": next_prompt,
-                "cited_sources": [], "session_id": str(session.id)}
+        _, next_prompt, _ = WIZARD_STEPS[next_step]
+        return {"answer": next_prompt, "cited_sources": [], "session_id": str(session.id)}
 
-    # --- Все данные собраны — выполняем расчёт ---
     from ai_consultant.services.wizard_calc import _wizard_calculate
     calc = _wizard_calculate(params)
-    # Очищаем wizard_state
     session.wizard_state = None
     session.save(update_fields=['wizard_state'])
     return {"answer": calc, "cited_sources": [

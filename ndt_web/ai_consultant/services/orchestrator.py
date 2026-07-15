@@ -312,10 +312,21 @@ def ask_consultant(user, session_id, question, skip_tools=False):
     golden_chunks = [c for c in relevant_chunks if getattr(c, 'is_golden', False)]
     other_chunks = [c for c in relevant_chunks if not getattr(c, 'is_golden', False)]
 
-    # 2. Контекст для LLM
+    # 2. Контекст для LLM — обрезаем до ~6000 токенов (оставляет место для промпта + вопроса)
+    MAX_CONTEXT_CHARS = 24000  # ~6000 токенов
     context_parts = []
+    ctx_len = 0
     for c in other_chunks:
-        context_parts.append(f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{c.text}")
+        part = f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{c.text}"
+        part_len = len(part)
+        if ctx_len + part_len > MAX_CONTEXT_CHARS:
+            # Добавляем усечённый кусок
+            remaining = MAX_CONTEXT_CHARS - ctx_len
+            if remaining > 200:
+                context_parts.append(part[:remaining] + "\n...[truncated]")
+            break
+        context_parts.append(part)
+        ctx_len += part_len
     context = "\n\n".join(context_parts)
 
     # Golden-якоря — отдельный жёсткий блок (даже в image-режиме не игнорируется)

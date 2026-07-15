@@ -173,9 +173,9 @@ def format_calculation_summary(calc_result: dict) -> str:
     if iqi:
         lines.append(f"• ИКИ: {iqi}")
 
-    # ОШЗ
-    if p.get('zone_width_mm'):
-        lines.append(f"• ОШЗ (ширина снимка): {p['zone_width_mm']} мм")
+    # ОШЗ — не показываем, т.к. для расчёта нужен тип соединения (C1/C2/...),
+    # который пользователь не указывает в чате. ОШЗ рассчитывается только
+    # в полной техкарте через веб-интерфейс.
 
     # Оптическая плотность
     if p.get('optical_density_min') is not None:

@@ -123,7 +123,7 @@ def _handle_wizard(session, question: str) -> dict | None:
         ('material', 'Материал? (сталь / алюминий / титан)', None),
         ('thickness', 'Толщина свариваемых кромок, мм?', None),
         ('category', 'Категория сварного соединения? (I / II / III)', None),
-        ('scheme', 'Схема контроля? (3а / 3б / 3в / 3г / 3д / 4а / 4в)', None),
+        ('scheme', 'Схема контроля? (3а / 3б / 3в / 3г / 3д / 3ж)', None),
         ('access_inside', 'Есть ли доступ для размещения источника внутри изделия? (да / нет)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('outer_diameter', 'Наружный диаметр D трубы, мм? (введите фактический D с учётом максимального допуска на высоту валика сварного шва)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('inner_diameter', 'Внутренний диаметр d трубы, мм? (введите фактический d с учётом максимального допуска на размер выпуклости корня шва, обратного валика или подкладного кольца)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
@@ -199,13 +199,13 @@ def _handle_wizard(session, question: str) -> dict | None:
         answer = cat_map.get(answer.upper(), answer)
     if key == 'scheme':
         sch = answer.lower()
-        if sch not in ('3а', '3б', '3в', '3г', '3д', '4а', '4в'):
-            return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3в, 3г, 3д, 4а, 4в.",
+        if sch not in ('3а', '3б', '3в', '3г', '3д', '3ж'):
+            return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3в, 3г, 3д, 3ж (схемы 4 пока недоступны в генераторе).",
                 "cited_sources": [], "session_id": str(session.id)}
-    # 3г/3д/4в требуют доступ внутрь
+    # 3г/3д требуют доступ внутрь
     if key == 'access_inside':
         scheme = params.get('scheme', '').strip().lower()
-        needs_inside = scheme in ('3г', '3д', '4в')
+        needs_inside = scheme in ('3г', '3д')
         ans = answer.strip().lower()
         if needs_inside and ans not in ('да', 'yes', 'есть', '1', 'true', '+'):
             return {"answer": (

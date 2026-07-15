@@ -124,6 +124,7 @@ def _handle_wizard(session, question: str) -> dict | None:
         ('thickness', 'Толщина свариваемых кромок, мм?', None),
         ('category', 'Категория сварного соединения? (I / II / III)', None),
         ('scheme', 'Схема контроля? (3а / 3б / 3г / 3д / 4а / 4в)', None),
+        ('access_inside', 'Есть ли доступ для размещения источника внутри изделия? (да / нет)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('outer_diameter', 'Наружный диаметр D трубы, мм? (введите фактический D с учётом максимального допуска на высоту валика сварного шва)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('inner_diameter', 'Внутренний диаметр d трубы, мм? (введите фактический d с учётом максимального допуска на размер выпуклости корня шва, обратного валика или подкладного кольца)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('radius', 'Радиус R обечайки/сферы, мм?', lambda p: p.get('scheme','').strip().lower() in SCHEMES_SPHERE),

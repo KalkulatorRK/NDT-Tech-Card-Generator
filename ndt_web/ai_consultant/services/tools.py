@@ -837,6 +837,41 @@ def _try_recommended_source(text: str) -> ToolResult:
     )
 
 
+def _try_geometry_formula(text: str) -> ToolResult:
+    """Дословные формулы приложения Г (ГОСТ Р 50.05.07-2018) по запросу."""
+    if not re.search(r"(формул|геометр|расстоян.*l|фокусн.*расстоян|l\s*[≥≤]|коэффициент\s*c|приложен.*г|таблиц.*г\.1|схем.*3[абгд]|схем.*4[аб])",
+                     text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    from normative import gost_50_05_07 as M507
+    F = getattr(M507, 'TABLE_G1_FORMULAS', {})
+    if not F:
+        return ToolResult(matched=False)
+    # Определяем запрошенную схему
+    sch = None
+    m = re.search(r"схем[аеы]?\s*(3[абгд]|4[аб])", text, re.IGNORECASE)
+    if m:
+        sch = m.group(1).lower()
+    lines = [
+        f"• Общая: {F.get('G.1_base')}",
+        f"• Длина участка: {F.get('G.1_L_max')}",
+        f"• Коэффициент c: {F.get('G.1_c')}",
+    ]
+    if sch and sch in F:
+        lines.append(f"• Для схемы {sch}: {F[sch]}")
+    else:
+        # все схемы
+        for k in ('3a', '3b', '3g', '3d', '4a', '4b'):
+            if k in F:
+                lines.append(f"• Схема {k}: {F[k]}")
+    lines.append(f"• Условие нерезкости (трубы): {F.get('G.2_Ug_tube')}")
+    lines.append(f"• Условие нерезкости (угловые): {F.get('G.2_Ug')}")
+    return ToolResult(
+        matched=True,
+        answer=("Формулы приложения Г (ГОСТ Р 50.05.07-2018):\n" + "\n".join(lines)),
+        citation="[ГОСТ Р 50.05.07-2018, приложение Г, табл. Г.1]",
+    )
+
+
 def _try_trap_comparison(text: str) -> ToolResult:
     """Ловушка: сравнение таблиц разных материалов/категорий."""
     if not re.search(r"(сравн|как[ая]?.*строж|как[аяя]?.*разн|разниц[а]?|отлич|чётче|жёстч)", text, re.IGNORECASE):
@@ -911,7 +946,8 @@ _HANDLERS = [
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster, _try_table_48_lookup,
-    _try_geometric_unsharpness, _try_optical_density, _try_recommended_source, _try_trap_comparison,
+    _try_geometric_unsharpness, _try_optical_density, _try_recommended_source,
+    _try_geometry_formula, _try_trap_comparison,
 ]
 
 

@@ -771,6 +771,42 @@ def _try_optical_density(text: str) -> ToolResult:
     return ToolResult(matched=False)
 
 
+def _try_table_48_lookup(text: str) -> ToolResult:
+    """Поиск по таблице 4.8 НП-105-18: материал + категория + толщина."""
+    from normative import np_105_18 as M105
+    mat = 'steel'
+    if re.search(r"алюмин|al", text, re.IGNORECASE):
+        mat = 'aluminum'
+    elif re.search(r"титан|ti|titan", text, re.IGNORECASE):
+        mat = 'titanium'
+    cat = _parse_category(text)
+    if not cat or cat not in ('I', 'II', 'III'):
+        return ToolResult(matched=False)
+    t_match = re.search(r"(\d+(?:[.,]\d+)?)\s*мм", text)
+    if not t_match:
+        return ToolResult(matched=False)
+    thickness = float(t_match.group(1).replace(',', '.'))
+    try:
+        row = M105.lookup_acceptance_criteria(mat, cat, thickness)
+    except (KeyError, ValueError, TypeError):
+        return ToolResult(matched=False)
+    if not row or row.get('error'):
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Для {'стали' if mat == 'steel' else mat} толщиной {row['thickness_mm']:.0f} мм, "
+            f"категория {cat} (табл. 4.8 НП-105-18):\n"
+            f"• чувствительность K ≤ {row['sensitivity_K_mm']} мм;\n"
+            f"• одиночные включения ≤ {row['max_inclusion_mm']} мм;\n"
+            f"• скопления ≤ {row['max_cluster_mm']} мм;\n"
+            f"• число на 100 мм шва ≤ {row['max_count_per_100mm']} шт;\n"
+            f"• Sпр ≤ {row['sum_area_mm2']} мм²."
+        ),
+        citation="[НП-105-18, табл. 4.8]",
+    )
+
+
 def _try_trap_comparison(text: str) -> ToolResult:
     """Ловушка: сравнение таблиц разных материалов/категорий."""
     if not re.search(r"(сравн|как[ая]?.*строж|как[аяя]?.*разн|разниц[а]?|отлич|чётче|жёстч)", text, re.IGNORECASE):
@@ -844,7 +880,7 @@ _HANDLERS = [
     _try_iqi_range, _try_xray_voltage, _try_zone_width,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
-    _try_evaluate_weld_quality, _try_defect_cluster,
+    _try_evaluate_weld_quality, _try_defect_cluster, _try_table_48_lookup,
     _try_geometric_unsharpness, _try_optical_density, _try_trap_comparison,
 ]
 

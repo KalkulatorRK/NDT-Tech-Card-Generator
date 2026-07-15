@@ -64,6 +64,12 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if 'consultant' in request.path %}active{% endif %}"
+             href="{% url 'ai_consultant:chat' %}">
+            <i class="bi bi-robot me-1"></i>ИИ-консультант
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if 'payments' in request.path %}active{% endif %}"
              href="{% url 'tariffs' %}">
             <i class="bi bi-calendar-check me-1"></i>Подписки
@@ -97,6 +103,11 @@
               <li>
                 <a class="dropdown-item" href="{% url 'cabinet' %}">
                   <i class="bi bi-grid-3x3-gap me-2"></i>Личный кабинет
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'ai_consultant:chat' %}">
+                  <i class="bi bi-robot me-2"></i>ИИ-консультант
                 </a>
               </li>
               <li>
@@ -183,6 +194,7 @@
           <li><a href="{% url 'home' %}">Главная</a></li>
           <li><a href="{% url 'method_select' %}">Создать техкарту</a></li>
           <li><a href="{% url 'quality_form' %}">Оценка качества</a></li>
+          <li><a href="{% url 'ai_consultant:chat' %}">ИИ-консультант</a></li>
           <li><a href="{% url 'tariffs' %}">Подписки</a></li>
         </ul>
       </div>

@@ -550,6 +550,27 @@ def _try_iqi_types(text: str) -> ToolResult:
     )
 
 
+def _try_iqi_number(text: str) -> ToolResult:
+    """Номер ИКИ (канавочный или проволочный эталон)."""
+    m = re.search(r"(?:ик?и|эталон|канавочн|проволочн)\s*(?:номер|№|ном[её]р)?\s*(\d{1,3})", text, re.IGNORECASE)
+    if not m:
+        return ToolResult(matched=False)
+    num = int(m.group(1))
+    # Канавочные эталоны: №1–№20 (глубина канавки = номер/100 мм)
+    if 1 <= num <= 20:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Канавочный эталон №{num} по ГОСТ 7512-82 (п. 2.6) — "
+                f"пластина с канавкой глубиной {num/100:.2f} мм. "
+                "Используется для оценки контрастной чувствительности "
+                "радиографического контроля."
+            ),
+            citation="[ГОСТ 7512-82, п. 2.6]",
+        )
+    return ToolResult(matched=False)
+
+
 def _try_marking_decode(text: str) -> ToolResult:
     """Расшифровка условной записи дефекта (ГОСТ 7512-82 п. 2.10-2.13)."""
     m = re.search(r"(\d+)[-–—](\d+)([-–—](\d+))?", text)
@@ -792,7 +813,7 @@ _HANDLERS = [
     _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
     _try_iqi_range, _try_xray_voltage, _try_zone_width,
     _try_materials_separate_tables, _try_surface_defect_table,
-    _try_methods, _try_iqi_types, _try_marking_decode,
+    _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster,
     _try_geometric_unsharpness, _try_optical_density, _try_trap_comparison,
 ]

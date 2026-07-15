@@ -180,13 +180,41 @@ def _handle_wizard(session, question: str) -> dict | None:
                     "cited_sources": [], "session_id": str(session.id)}
         media_root = os.environ.get('MEDIA_ROOT', '/tmp/media')
         result = run_full_generation(params, media_root, doc_code)
+
+        # Создаём запись в БД, чтобы техкарта попала в личный кабинет
+        from techcards.models import TechCard
+        from django.core.files import File
+        import os as _os
+        tc = TechCard.objects.create(
+            user=session.user,
+            normative_doc=doc,
+            title=params.get('object_name', 'Объект РГК'),
+            card_number=params.get('card_number', ''),
+            status=TechCard.STATUS_DONE,
+            input_data=params,
+            generated_data=result.get('params', {}),
+            docx_file=result.get('docx_path', ''),
+            pdf_file=result.get('pdf_path', ''),
+            was_free=(reason == 'free'),
+        )
+        # Привязываем файлы к FileField (копируются в media_root)
+        docx_abs = _os.path.join(media_root, result.get('docx_path', '')) if result.get('docx_path') else ''
+        pdf_abs = _os.path.join(media_root, result.get('pdf_path', '')) if result.get('pdf_path') else ''
+        if docx_abs and _os.path.exists(docx_abs):
+            with open(docx_abs, 'rb') as fh:
+                tc.docx_file.save(_os.path.basename(docx_abs), File(fh), save=True)
+        if pdf_abs and _os.path.exists(pdf_abs):
+            with open(pdf_abs, 'rb') as fh:
+                tc.pdf_file.save(_os.path.basename(pdf_abs), File(fh), save=True)
+
         balance.use_credit(doc_code, was_free=(reason == 'free'))
         session.wizard_state = None
         session.save(update_fields=['wizard_state'])
         return {"answer": (
-            f"✅ Техкарта сгенерирована (режим Б).\n"
-            f"DOCX: {result.get('docx_path', '')}\n"
-            f"PDF: {result.get('pdf_path', '')}\n"
+            f"✅ Техкарта сгенерирована и сохранена в личном кабинете (режим Б).\\n"
+            f"Номер: {tc.card_number or '№' + str(tc.pk)}\\n"
+            f"DOCX: {tc.docx_file.name}\\n"
+            f"PDF: {tc.pdf_file.name}\\n"
             f"Списана 1 генерация из подписки."
         ), "cited_sources": [], "session_id": str(session.id)}
     if key == 'category':

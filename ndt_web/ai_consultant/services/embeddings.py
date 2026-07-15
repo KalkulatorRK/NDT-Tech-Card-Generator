@@ -4,11 +4,17 @@
 по умолчанию OpenAI text-embedding-3-small (1536 изм.).
 Батчинг по 50 фрагментов; защита от лимита токенов: текст > 24000 символов
 обрезается (text-embedding-3-small ~ 8192 токена).
+
+Поддерживает OpenAI-совместимые API (в т.ч. Nous Portal).
 """
 import os
 
 EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
 EMBEDDING_DIM = int(os.environ.get('EMBEDDING_DIM', '1536'))
+
+# Пробуем OPENAI_API_KEY, если нет — NOUS_PORTAL_API_KEY
+_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY') or ''
+_BASE_URL = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
 
 
 def get_embedding_model_name() -> str:
@@ -23,8 +29,16 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """Возвращает список векторов для списка текстов."""
     if not texts:
         return []
+    if not _API_KEY:
+        raise RuntimeError(
+            "Не задан API-ключ для эмбеддингов. "
+            "Добавьте OPENAI_API_KEY или NOUS_PORTAL_API_KEY в переменные окружения."
+        )
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+    kwargs = {'api_key': _API_KEY}
+    if _BASE_URL:
+        kwargs['base_url'] = _BASE_URL
+    client = OpenAI(**kwargs)
     batch_size = 50
     vectors: list[list[float]] = []
     for i in range(0, len(texts), batch_size):

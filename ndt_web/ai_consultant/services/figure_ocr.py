@@ -13,16 +13,12 @@ _IMAGE_CACHE = {}
 
 
 def describe_image(image_bytes: bytes, user_question: str = "") -> str | None:
-    """Анализ изображения: OCR + описание схемы/таблицы/дефектограммы."""
-    api_key = os.environ.get('OPENAI_API_KEY') or ''
-    if api_key:
-        base_url = os.environ.get('OPENAI_BASE_URL', '')
-    else:
-        api_key = os.environ.get('NOUS_PORTAL_API_KEY', '')
-        base_url = os.environ.get('NOUS_PORTAL_BASE_URL', '')
+    """Анализ изображения: OCR + описание схемы/таблицы/дефектограммы через vision-модель Nous Portal."""
+    api_key = os.environ.get('NOUS_PORTAL_API_KEY') or os.environ.get('OPENAI_API_KEY')
     if not api_key:
         return None
-    model = os.environ.get('OCR_MODEL', 'gpt-4o-mini')
+    base_url = os.environ.get('NOUS_PORTAL_BASE_URL', 'https://inference-api.nousresearch.com/v1')
+    model = os.environ.get('OCR_MODEL', 'openai/gpt-5.4-mini')  # vision-модель через Nous Portal
     b64 = base64.b64encode(image_bytes).decode('ascii')
     question_part = ""
     if user_question:

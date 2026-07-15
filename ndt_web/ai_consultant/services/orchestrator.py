@@ -154,6 +154,46 @@ def _handle_wizard(session, question: str) -> dict | None:
     key, prompt, condition = WIZARD_STEPS[step]
 
     answer = question.strip()
+    # Выбор режима (А/Б) на шаге mode_choice
+    if state.get('mode_choice') == 'pending':
+        params['_mode'] = answer
+        state['mode_choice'] = 'done'
+        session.wizard_state = state
+        session.save(update_fields=['wizard_state'])
+        # Переходим к финализации
+        if answer.strip().upper() in ('A', 'А'):
+            from ai_consultant.services.generator_bridge import run_calculation, format_calculation_summary
+            calc_result = run_calculation(params)
+            out = format_calculation_summary(calc_result)
+            session.wizard_state = None
+            session.save(update_fields=['wizard_state'])
+            return {"answer": out, "cited_sources": [
+                {"doc_number": "ГОСТ Р 50.05.07-2018", "title": "", "section": "приложение Г, табл. Г.1–Г.4"},
+            ], "session_id": str(session.id)}
+        # Режим Б
+        from ai_consultant.services.generator_bridge import run_full_generation
+        from accounts.models import UserBalance
+        balance, _ = UserBalance.objects.get_or_create(user=session.user)
+        from techcards.models import NormativeDocument
+        doc = NormativeDocument.objects.filter(code='rgk').first()
+        doc_code = doc.code if doc else 'rgk'
+        can, reason = balance.can_create_techcard(doc_code)
+        if not can:
+            session.wizard_state = None
+            session.save(update_fields=['wizard_state'])
+            return {"answer": "Нет доступных генераций по подписке. Оформите подписку или выберите режим А (расчёт в чате).",
+                    "cited_sources": [], "session_id": str(session.id)}
+        media_root = os.environ.get('MEDIA_ROOT', '/tmp/media')
+        result = run_full_generation(params, media_root, doc_code)
+        balance.use_credit(doc_code, was_free=(reason == 'free'))
+        session.wizard_state = None
+        session.save(update_fields=['wizard_state'])
+        return {"answer": (
+            f"✅ Техкарта сгенерирована (режим Б).\n"
+            f"DOCX: {result.get('docx_path', '')}\n"
+            f"PDF: {result.get('pdf_path', '')}\n"
+            f"Списана 1 генерация из подписки."
+        ), "cited_sources": [], "session_id": str(session.id)}
     if key == 'category':
         cat_map = {'I': 'I', 'II': 'II', 'III': 'III', '1': 'I', '2': 'II', '3': 'III'}
         answer = cat_map.get(answer.upper(), answer)
@@ -179,12 +219,26 @@ def _handle_wizard(session, question: str) -> dict | None:
         _, next_prompt, _ = WIZARD_STEPS[next_step]
         return {"answer": next_prompt, "cited_sources": [], "session_id": str(session.id)}
 
-    from ai_consultant.services.wizard_calc import _wizard_calculate
-    calc = _wizard_calculate(params)
+    # Все параметры собраны — спрашиваем режим (А/Б)
+    if state.get('mode_choice') is None:
+        state['mode_choice'] = 'pending'
+        session.wizard_state = state
+        session.save(update_fields=['wizard_state'])
+        return {"answer": (
+            "Данные собраны. Что делаем?\n\n"
+            "**А** — Помощь в расчёте (покажу параметры в чате, без генерации техкарты, лимит не расходуется)\n"
+            "**Б** — Полная генерация техкарты (создам DOCX/PDF, спишется 1 генерация из подписки)\n\n"
+            "Введите «А» или «Б»."
+        ), "cited_sources": [], "session_id": str(session.id)}
+
+    # Режим не выбран (резервный путь) — расчёт в чате
+    from ai_consultant.services.generator_bridge import run_calculation, format_calculation_summary
+    calc_result = run_calculation(params)
+    out = format_calculation_summary(calc_result)
     session.wizard_state = None
     session.save(update_fields=['wizard_state'])
-    return {"answer": calc, "cited_sources": [
-        {"doc_number": "ГОСТ Р 50.05.07-2018", "title": "", "section": "приложение Г, табл. Г.1–Г.4, табл. Б.1"},
+    return {"answer": out, "cited_sources": [
+        {"doc_number": "ГОСТ Р 50.05.07-2018", "title": "", "section": "приложение Г, табл. Г.1–Г.4"},
     ], "session_id": str(session.id)}
 
 

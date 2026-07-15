@@ -15,9 +15,11 @@ EMBEDDING_DIM = int(os.environ.get('EMBEDDING_DIM', '1536'))
 # Пробуем OPENAI_API_KEY, если нет — NOUS_PORTAL_API_KEY
 def _get_api_config():
     """Возвращает (api_key, base_url) — читает из окружения при каждом вызове."""
-    key = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY') or ''
-    base = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
-    return key, base
+    key = os.environ.get('OPENAI_API_KEY') or ''
+    if key:
+        return key, os.environ.get('OPENAI_BASE_URL', '')
+    # Fallback: Nous Portal
+    return os.environ.get('NOUS_PORTAL_API_KEY', ''), os.environ.get('NOUS_PORTAL_BASE_URL', '')
 
 
 def get_embedding_model_name() -> str:

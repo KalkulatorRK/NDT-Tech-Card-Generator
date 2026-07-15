@@ -14,10 +14,14 @@ _IMAGE_CACHE = {}
 
 def describe_image(image_bytes: bytes, user_question: str = "") -> str | None:
     """Анализ изображения: OCR + описание схемы/таблицы/дефектограммы."""
-    api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY')
+    api_key = os.environ.get('OPENAI_API_KEY') or ''
+    if api_key:
+        base_url = os.environ.get('OPENAI_BASE_URL', '')
+    else:
+        api_key = os.environ.get('NOUS_PORTAL_API_KEY', '')
+        base_url = os.environ.get('NOUS_PORTAL_BASE_URL', '')
     if not api_key:
         return None
-    base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
     model = os.environ.get('OCR_MODEL', 'gpt-4o-mini')
     b64 = base64.b64encode(image_bytes).decode('ascii')
     question_part = ""
@@ -72,11 +76,15 @@ def describe_image(image_bytes: bytes, user_question: str = "") -> str | None:
 
 
 def _recognize_table(image_bytes: bytes, model: str = OCR_MODEL) -> str:
-    """Распознавание таблицы через vision-LLM (схемы, таблицы чувствительности и т.д.)."""
-    api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY')
+    """Распознавание таблицы через vision-LLM."""
+    api_key = os.environ.get('OPENAI_API_KEY') or ''
+    if api_key:
+        base_url = os.environ.get('OPENAI_BASE_URL', '')
+    else:
+        api_key = os.environ.get('NOUS_PORTAL_API_KEY', '')
+        base_url = os.environ.get('NOUS_PORTAL_BASE_URL', '')
     if not api_key:
         return ""
-    base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
     b64 = base64.b64encode(image_bytes).decode('ascii')
     try:
         from openai import OpenAI

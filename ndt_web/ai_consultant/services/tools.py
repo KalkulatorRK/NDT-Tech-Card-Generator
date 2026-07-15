@@ -890,6 +890,39 @@ def _try_geometry_formula(text: str) -> ToolResult:
     )
 
 
+def _try_exposure_calc(text: str) -> ToolResult:
+    """Расчёт времени экспозиции: ток × время = const."""
+    if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток)",
+                     text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    # Ищем: было X мин, ток изменился в Y раз
+    m_time = re.search(r"(\d+[.,]?\d*)\s*мин", text)
+    m_factor = re.search(r"(увелич|удвоен|повысил|возрос|уменьш|сниж|в\s*(\d+[.,]?\d*)\s*раз)", text, re.IGNORECASE)
+    if not m_time:
+        return ToolResult(matched=False)
+    t0 = float(m_time.group(1).replace(',', '.'))
+    factor = 1.0
+    if m_factor:
+        if 'удвоен' in m_factor.group(0).lower() or '2' in (m_factor.group(2) or ''):
+            factor = 2.0
+        elif m_factor.group(2):
+            factor = float(m_factor.group(2).replace(',', '.'))
+    if 'сниж' in m_factor.group(0).lower() if m_factor else False:
+        factor = 1.0 / factor
+    t1 = t0 / factor
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Время экспозиции обратно пропорционально току трубки "
+            f"(экспозиция E = I·t = const при неизменных напряжении и расстоянии).\n"
+            f"Было: {t0:.0f} мин при токе I₀.\n"
+            f"Ток увеличен в {factor:.0f} раз → время: {t1:.0f} мин "
+            f"(t = {t0:.0f} / {factor:.0f} = {t1:.0f})."
+        ),
+        citation="[ГОСТ Р 50.05.07-2018, п. 6.3.7 — общий принцип: экспозиция = ток × время]",
+    )
+
+
 def _try_trap_comparison(text: str) -> ToolResult:
     """Ловушка: сравнение таблиц разных материалов/категорий."""
     if not re.search(r"(сравн|как[ая]?.*строж|как[аяя]?.*разн|разниц[а]?|отлич|чётче|жёстч)", text, re.IGNORECASE):
@@ -965,7 +998,7 @@ _HANDLERS = [
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster, _try_table_48_lookup,
     _try_geometric_unsharpness, _try_optical_density, _try_recommended_source,
-    _try_geometry_formula, _try_trap_comparison,
+    _try_geometry_formula, _try_exposure_calc, _try_trap_comparison,
 ]
 
 

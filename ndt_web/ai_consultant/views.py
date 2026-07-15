@@ -59,11 +59,35 @@ def ask_view(request):
                 {'error': 'Не удалось распознать изображение (нет текста/OpenAI недоступен).'},
                 status=422,
             )
-        combined = f"[ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЯ]\n{vision_text}\n\n{question}".strip()
-        result = _safe_ask(request.user, session_id, combined, skip_tools=True)
-        if result.get('subscription_required'):
-            return JsonResponse(result, status=402)
-        return JsonResponse(result, status=200)
+        # Разбиваем OCR-текст на отдельные вопросы и отвечаем на каждый
+        import re
+        # Ищем строки вида "1.", "2." ... или "1)", "2)" в начале строки
+        parts = re.split(r'(?:\n|^)(?=\d+[.)]\s)', vision_text.strip())
+        # Если не разбилось — отвечаем как единый запрос
+        if len(parts) <= 1:
+            combined = f"[ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЯ]\n{vision_text}\n\n{question}".strip()
+            result = _safe_ask(request.user, session_id, combined, skip_tools=True)
+            if result.get('subscription_required'):
+                return JsonResponse(result, status=402)
+            return JsonResponse(result, status=200)
+
+        answers = []
+        for i, part in enumerate(parts):
+            part = part.strip()
+            if not part:
+                continue
+            q_text = f"[ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЯ, вопрос {i+1}]\n{part}"
+            if question and i == 0:
+                q_text += f"\n\n{question}"
+            try:
+                res = _safe_ask(request.user, session_id, q_text, skip_tools=True)
+                ans = res.get('answer', '(нет ответа)')
+                answers.append(f"**{part.split(chr(10))[0][:60]}**\n{ans}")
+            except Exception as e:
+                answers.append(f"**Вопрос {i+1}**: ошибка обработки")
+
+        final = "\n\n".join(answers)
+        return JsonResponse({'answer': final, 'cited_sources': [], 'session_id': str(session_id)})
 
     # --- текстовый режим (JSON) ---
     if request.method != 'POST':

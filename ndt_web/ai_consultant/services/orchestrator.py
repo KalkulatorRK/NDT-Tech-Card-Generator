@@ -4,6 +4,7 @@
 генерация ответа LLM с цитированием → сохранение в БД.
 """
 import os
+import re
 from ai_consultant.services.llm_adapter import get_llm_provider
 
 SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант по нормативным документам в области \
@@ -111,6 +112,64 @@ def _has_active_subscription(user) -> bool:
         return False
 
 
+def _handle_wizard(session, question: str) -> dict | None:
+    """Пошаговый мастер расчёта параметров РГК.
+    Возвращает dict-ответ, если это шаг мастера, иначе None.
+    """
+    WIZARD_STEPS = [
+        ('material', 'Материал? (сталь / алюминий / титан)'),
+        ('thickness', 'Толщина свариваемых кромок, мм?'),
+        ('category', 'Категория сварного соединения? (I / II / III)'),
+        ('scheme', 'Схема контроля? (3а / 3б / 3г / 3д / 4а / 4в)'),
+        ('focal_spot', 'Размер фокусного пятна Φ, мм?'),
+        ('sensitivity', 'Требуемая чувствительность K, мм?'),
+    ]
+
+    state = session.wizard_state
+
+    # --- Начало мастера ---
+    if state is None:
+        if not re.search(r"(рассчитай|подбери|помоги|посчитай|какой.*нужен|какие.*параметр|назначь|определи|выбери режим|раiсчёт|сделай расчёт|параметры контроля|параметры ргк|параметры съёмки)",
+                         question, re.IGNORECASE):
+            return None
+        session.wizard_state = {'step': 0, 'params': {}}
+        session.save(update_fields=['wizard_state'])
+        from ai_consultant.models import ConsultantMessage
+        ConsultantMessage.objects.create(session=session, role='user', content=question)
+        ConsultantMessage.objects.create(session=session, role='assistant',
+            content=f"**Мастер расчёта параметров РГК**\n\n{WIZARD_STEPS[0][1]}")
+        return {"answer": f"**Мастер расчёта параметров РГК**\n\n{WIZARD_STEPS[0][1]}",
+                "cited_sources": [], "session_id": str(session.id)}
+
+    # --- Продолжение мастера ---
+    step = state['step']
+    params = state['params']
+    key, prompt = WIZARD_STEPS[step]
+
+    # Сохраняем ответ пользователя
+    params[key] = question.strip()
+
+    # Следующий шаг или завершение
+    if step + 1 < len(WIZARD_STEPS):
+        # Есть ещё шаги
+        state['step'] = step + 1
+        session.wizard_state = state
+        session.save(update_fields=['wizard_state'])
+        next_key, next_prompt = WIZARD_STEPS[step + 1]
+        return {"answer": next_prompt,
+                "cited_sources": [], "session_id": str(session.id)}
+
+    # --- Все данные собраны — выполняем расчёт ---
+    from ai_consultant.services.wizard_calc import _wizard_calculate
+    calc = _wizard_calculate(params)
+    # Очищаем wizard_state
+    session.wizard_state = None
+    session.save(update_fields=['wizard_state'])
+    return {"answer": calc, "cited_sources": [
+        {"doc_number": "ГОСТ Р 50.05.07-2018", "title": "", "section": "приложение Г, табл. Г.1–Г.4, табл. Б.1"},
+    ], "session_id": str(session.id)}
+
+
 def ask_consultant(user, session_id, question, skip_tools=False):
     """Основной метод. Возвращает dict: {answer, cited_sources, session_id}."""
     from ai_consultant.models import (
@@ -166,7 +225,13 @@ def ask_consultant(user, session_id, question, skip_tools=False):
             llm_model=os.environ.get('NOUS_PORTAL_MODEL', os.environ.get('OPENAI_MODEL', '')),
         )
 
-    # 0. Точные инструменты (normative.*) — БЕЗ эмбеддинга и LLM.
+    # 0a. Мастер расчёта (wizard) — пошаговый сбор параметров
+    if not skip_tools:
+        wizard_res = _handle_wizard(session, question)
+        if wizard_res:
+            return wizard_res
+
+    # 0b. Точные инструменты (normative.*) — БЕЗ эмбеддинга и LLM.
     # Для структурных запросов (K, ИКИ, методы) это исключает галлюцинации.
     # ПРОПУСКАЕМ при анализе изображений: там question = распознанный текст
     # со множеством упоминаний толщин/категорий, что ложно триггерит tools.

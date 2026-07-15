@@ -72,6 +72,7 @@ class ConsultantSession(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     llm_provider = models.CharField(max_length=30, blank=True)
     llm_model = models.CharField(max_length=60, blank=True)
+    wizard_state = models.JSONField(null=True, blank=True, verbose_name='Состояние мастера расчёта')
 
     class Meta:
         ordering = ['-updated_at']

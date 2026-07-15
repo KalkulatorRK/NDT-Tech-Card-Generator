@@ -149,74 +149,6 @@ def _handle_wizard(session, question: str) -> dict | None:
     key, prompt, condition = WIZARD_STEPS[step]
 
     answer = question.strip()
-    # Выбор режима (А/Б) на шаге mode_choice
-    if state.get('mode_choice') == 'pending':
-        params['_mode'] = answer
-        state['mode_choice'] = 'done'
-        session.wizard_state = state
-        session.save(update_fields=['wizard_state'])
-        # Переходим к финализации
-        if answer.strip().upper() in ('A', 'А'):
-            from ai_consultant.services.generator_bridge import run_calculation, format_calculation_summary
-            calc_result = run_calculation(params)
-            out = format_calculation_summary(calc_result)
-            session.wizard_state = None
-            session.save(update_fields=['wizard_state'])
-            return {"answer": out, "cited_sources": [
-                {"doc_number": "ГОСТ Р 50.05.07-2018", "title": "", "section": "приложение Г, табл. Г.1–Г.4"},
-            ], "session_id": str(session.id)}
-        # Режим Б
-        from ai_consultant.services.generator_bridge import run_full_generation
-        from accounts.models import UserBalance
-        balance, _ = UserBalance.objects.get_or_create(user=session.user)
-        from techcards.models import NormativeDocument
-        doc = NormativeDocument.objects.filter(code='ГОСТ Р 50.05.07-2018').first()
-        doc_code = doc.code if doc else 'rgk'
-        can, reason = balance.can_create_techcard(doc_code)
-        if not can:
-            session.wizard_state = None
-            session.save(update_fields=['wizard_state'])
-            return {"answer": "Нет доступных генераций по подписке. Оформите подписку или выберите режим А (расчёт в чате).",
-                    "cited_sources": [], "session_id": str(session.id)}
-        media_root = os.environ.get('MEDIA_ROOT', '/tmp/media')
-        result = run_full_generation(params, media_root, doc_code)
-
-        # Создаём запись в БД, чтобы техкарта попала в личный кабинет
-        from techcards.models import TechCard
-        from django.core.files import File
-        import os as _os
-        tc = TechCard.objects.create(
-            user=session.user,
-            normative_doc=doc,
-            title=params.get('object_name', 'Объект РГК'),
-            card_number=params.get('card_number', ''),
-            status=TechCard.STATUS_DONE,
-            input_data=params,
-            generated_data=result.get('params', {}),
-            docx_file=result.get('docx_path', ''),
-            pdf_file=result.get('pdf_path', ''),
-            was_free=(reason == 'free'),
-        )
-        # Привязываем файлы к FileField (копируются в media_root)
-        docx_abs = _os.path.join(media_root, result.get('docx_path', '')) if result.get('docx_path') else ''
-        pdf_abs = _os.path.join(media_root, result.get('pdf_path', '')) if result.get('pdf_path') else ''
-        if docx_abs and _os.path.exists(docx_abs):
-            with open(docx_abs, 'rb') as fh:
-                tc.docx_file.save(_os.path.basename(docx_abs), File(fh), save=True)
-        if pdf_abs and _os.path.exists(pdf_abs):
-            with open(pdf_abs, 'rb') as fh:
-                tc.pdf_file.save(_os.path.basename(pdf_abs), File(fh), save=True)
-
-        balance.use_credit(doc_code, was_free=(reason == 'free'))
-        session.wizard_state = None
-        session.save(update_fields=['wizard_state'])
-        return {"answer": (
-            f"✅ Техкарта сгенерирована и сохранена в личном кабинете (режим Б).\\n"
-            f"Номер: {tc.card_number or '№' + str(tc.pk)}\\n"
-            f"DOCX: {tc.docx_file.name}\\n"
-            f"PDF: {tc.pdf_file.name}\\n"
-            f"Списана 1 генерация из подписки."
-        ), "cited_sources": [], "session_id": str(session.id)}
     if key == 'category':
         cat_map = {'I': 'I', 'II': 'II', 'III': 'III', '1': 'I', '2': 'II', '3': 'III'}
         answer = cat_map.get(answer.upper(), answer)
@@ -242,19 +174,7 @@ def _handle_wizard(session, question: str) -> dict | None:
         _, next_prompt, _ = WIZARD_STEPS[next_step]
         return {"answer": next_prompt, "cited_sources": [], "session_id": str(session.id)}
 
-    # Все параметры собраны — спрашиваем режим (А/Б)
-    if state.get('mode_choice') is None:
-        state['mode_choice'] = 'pending'
-        session.wizard_state = state
-        session.save(update_fields=['wizard_state'])
-        return {"answer": (
-            "Данные собраны. Что делаем?\n\n"
-            "**А** — Помощь в расчёте (покажу параметры в чате, без генерации техкарты, лимит не расходуется)\n"
-            "**Б** — Полная генерация техкарты (создам DOCX/PDF, спишется 1 генерация из подписки)\n\n"
-            "Введите «А» или «Б»."
-        ), "cited_sources": [], "session_id": str(session.id)}
-
-    # Режим не выбран (резервный путь) — расчёт в чате
+    # Все параметры собраны — запускаем расчёт через мост генератора
     from ai_consultant.services.generator_bridge import run_calculation, format_calculation_summary
     calc_result = run_calculation(params)
     out = format_calculation_summary(calc_result)

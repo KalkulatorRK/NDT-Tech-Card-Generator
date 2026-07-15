@@ -1,11 +1,11 @@
 """Мост между ИИ-консультантом и генератором техкарт.
 
-Позволяет помощнику выступать посредником: собирает данные от
-пользователя через чат и либо вызывает расчётное ядро генератора
-напрямую (режим А — без списания лимита), либо запускает полную
-генерацию техкарты (режим Б — списывается лимит подписки).
+Позволяет помощнику выступать посредником при расчётах и подборе
+параметров РГК: собирает данные от пользователя через чат и вызывает
+расчётное ядро генератора (RadiographicTechCardCalculator) напрямую,
+без искажений логики. Функция полной генерации техкарт (DOCX/PDF) через
+чат не используется — для этого есть отдельный веб-интерфейс генератора.
 """
-import os
 from datetime import datetime
 
 
@@ -28,11 +28,10 @@ def display_scheme(code: str) -> str:
     return SCHEME_DISPLAY.get(code, code)
 
 
-def build_generator_input(params: dict, mode: str = 'A') -> dict:
+def build_generator_input(params: dict) -> dict:
     """Преобразует параметры мастера в формат input_data генератора.
 
     :param params: собранные мастером поля
-    :param mode: 'A' — расчёт в чате, 'B' — полная генерация
     """
     mat_map = {
         'сталь': 'steel', 'алюминий': 'aluminum', 'титан': 'titanium',
@@ -106,35 +105,22 @@ def build_generator_input(params: dict, mode: str = 'A') -> dict:
 
 
 def run_calculation(params: dict) -> dict:
-    """Режим А: вызывает расчётное ядро генератора, без списания лимита."""
+    """Вызывает расчётное ядро генератора напрямую (без генерации файлов)."""
     from techcards.generator import RadiographicTechCardCalculator
-    input_data = build_generator_input(params, mode='A')
+    input_data = build_generator_input(params)
     calc = RadiographicTechCardCalculator(input_data)
     result = calc.calculate()
     return {
         'params': result,
         'errors': calc.errors,
         'warnings': calc.warnings,
-        'mode': 'A',
+        'mode': 'calculation',
         '_user_scheme': params.get('scheme', ''),
     }
 
 
-def run_full_generation(params: dict, media_root: str, doc_code: str = 'rgk') -> dict:
-    """Режим Б: полная генерация техкарты (DOCX + PDF) через генератор.
-
-    ВНИМАНИЕ: вызывающий обязан предварительно проверить баланс
-    (balance.can_create_techcard) и после успеха вызвать balance.use_credit.
-    """
-    from techcards.generator import generate_tech_card
-    input_data = build_generator_input(params, mode='B')
-    result = generate_tech_card(input_data, media_root)
-    result['mode'] = 'B'
-    return result
-
-
 def format_calculation_summary(calc_result: dict) -> str:
-    """Форматирует результат режима А в читаемый текст для чата."""
+    """Форматирует результат расчёта в читаемый текст для чата."""
     p = calc_result.get('params', {})
     lines = []
 

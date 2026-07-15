@@ -13,8 +13,11 @@ EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
 EMBEDDING_DIM = int(os.environ.get('EMBEDDING_DIM', '1536'))
 
 # Пробуем OPENAI_API_KEY, если нет — NOUS_PORTAL_API_KEY
-_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY') or ''
-_BASE_URL = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
+def _get_api_config():
+    """Возвращает (api_key, base_url) — читает из окружения при каждом вызове."""
+    key = os.environ.get('OPENAI_API_KEY') or os.environ.get('NOUS_PORTAL_API_KEY') or ''
+    base = os.environ.get('OPENAI_BASE_URL') or os.environ.get('NOUS_PORTAL_BASE_URL', '')
+    return key, base
 
 
 def get_embedding_model_name() -> str:
@@ -29,15 +32,16 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """Возвращает список векторов для списка текстов."""
     if not texts:
         return []
-    if not _API_KEY:
+    api_key, base_url = _get_api_config()
+    if not api_key:
         raise RuntimeError(
             "Не задан API-ключ для эмбеддингов. "
             "Добавьте OPENAI_API_KEY или NOUS_PORTAL_API_KEY в переменные окружения."
         )
     from openai import OpenAI
-    kwargs = {'api_key': _API_KEY}
-    if _BASE_URL:
-        kwargs['base_url'] = _BASE_URL
+    kwargs = {'api_key': api_key}
+    if base_url:
+        kwargs['base_url'] = base_url
     client = OpenAI(**kwargs)
     batch_size = 50
     vectors: list[list[float]] = []

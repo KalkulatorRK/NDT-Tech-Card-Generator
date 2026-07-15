@@ -9,6 +9,25 @@ import os
 from datetime import datetime
 
 
+# Коды схем генератора -> понятные пользователю обозначения
+SCHEME_DISPLAY = {
+    '5a': '3а', '5b': '3б', '5zh': '3г',
+    '5d': '3д', '5g': '4а', '5v': '3в',
+    '4_6': '4.6', '5zh': '3г',
+}
+
+# Обратный маппинг: что вводит пользователь -> код генератора
+USER_SCHEME_TO_CODE = {
+    '3а': '5a', '3б': '5b', '3г': '5zh',
+    '3д': '5d', '3в': '5v', '4а': '5g', '4в': '5g',
+}
+
+
+def display_scheme(code: str) -> str:
+    """Возвращает понятное пользователю обозначение схемы."""
+    return SCHEME_DISPLAY.get(code, code)
+
+
 def build_generator_input(params: dict, mode: str = 'A') -> dict:
     """Преобразует параметры мастера в формат input_data генератора.
 
@@ -24,13 +43,8 @@ def build_generator_input(params: dict, mode: str = 'A') -> dict:
     cat_map = {'I': 'I', 'II': 'II', 'III': 'III', '1': 'I', '2': 'II', '3': 'III'}
     category = cat_map.get(params.get('category', 'II').upper().strip(), 'II')
 
-    # Маппинг схемы: 3а/3г -> код схемы генератора
     scheme_user = params.get('scheme', '').strip().lower()
-    scheme_map = {
-        '3а': '5a', '3б': '5b', '3г': '5zh',
-        '3д': '5d', '4а': '5g', '4в': '5zh',
-    }
-    scheme_code = scheme_map.get(scheme_user, '5a')
+    scheme_code = USER_SCHEME_TO_CODE.get(scheme_user, '5a')
 
     try:
         outer_d = float(params.get('outer_diameter', params.get('D', '0')).replace(',', '.'))
@@ -71,13 +85,14 @@ def build_generator_input(params: dict, mode: str = 'A') -> dict:
         'source_code': params.get('source_code', ''),
         'focal_spot_mm': focal,
         'sfd_mm': float(params.get('sfd', '0') or 0),
+        'required_sensitivity_mm': K,
         'control_volume_pct': 100,
         'welding_process': '30',
         'joint_designation': params.get('joint_designation', 'C1'),
         'joint_mobility': 'non_rotating',
         'iqi_side': params.get('iqi_side', 'source'),
         'film_name': params.get('film_name', ''),
-        'scheme_code': scheme_code,
+        'scheme_type': scheme_code,
         'exposure_scheme_code': scheme_code,
     }
     return input_data
@@ -94,6 +109,7 @@ def run_calculation(params: dict) -> dict:
         'errors': calc.errors,
         'warnings': calc.warnings,
         'mode': 'A',
+        '_user_scheme': params.get('scheme', ''),
     }
 
 
@@ -136,9 +152,11 @@ def format_calculation_summary(calc_result: dict) -> str:
     # Геометрия
     scheme = p.get('exposure_scheme', {})
     if scheme:
+        # Показываем схему, которую ввёл пользователь (понятно, без кодов 5v)
+        user_scheme = calc_result.get('_user_scheme') or p.get('scheme_type', '')
+        lines.append(f"• Схема: {user_scheme}")
         f_min = scheme.get('f_min_mm')
         if f_min is not None:
-            lines.append(f"• Схема: {p.get('scheme_type', scheme.get('scheme', ''))}")
             lines.append(f"• f (фокусное расстояние) = {f_min:.1f} мм")
             if scheme.get('formula'):
                 lines.append(f"  {scheme['formula']}")

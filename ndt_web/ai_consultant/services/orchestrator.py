@@ -123,7 +123,7 @@ def _handle_wizard(session, question: str) -> dict | None:
         ('material', 'Материал? (сталь / алюминий / титан)', None),
         ('thickness', 'Толщина свариваемых кромок, мм?', None),
         ('category', 'Категория сварного соединения? (I / II / III)', None),
-        ('scheme', 'Схема контроля? (3а / 3б / 3г / 3д / 4а / 4в)', None),
+        ('scheme', 'Схема контроля? (3а / 3б / 3в / 3г / 3д / 4а / 4в)', None),
         ('access_inside', 'Есть ли доступ для размещения источника внутри изделия? (да / нет)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('outer_diameter', 'Наружный диаметр D трубы, мм? (введите фактический D с учётом максимального допуска на высоту валика сварного шва)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
         ('inner_diameter', 'Внутренний диаметр d трубы, мм? (введите фактический d с учётом максимального допуска на размер выпуклости корня шва, обратного валика или подкладного кольца)', lambda p: p.get('scheme','').strip().lower() in SCHEMES_TUBE),
@@ -137,7 +137,7 @@ def _handle_wizard(session, question: str) -> dict | None:
     state = session.wizard_state
 
     if state is None:
-        if not re.search(r"(рассчитай|подбери|помоги|посчитай|какой.*нужен|какие.*параметр|назначь|определи|выбери режим|расчёт|сделай расчёт|параметры контроля|параметры ргк|параметры съёмки)",
+        if not re.search(r"(рассчитай|подбери|помоги|посчитай|какой.*нужен|какие.*параметр|назначь|определи|выбери режим|расчёт|сделай расчёт|параметры контроля|параметры ргк|параметры съёмки|рассчитать|фокус|экспозиц|геометр|sfd|источник.*подобр|подбор.*режим)",
                          question, re.IGNORECASE):
             return None
         session.wizard_state = {'step': 0, 'params': {}}
@@ -199,9 +199,20 @@ def _handle_wizard(session, question: str) -> dict | None:
         answer = cat_map.get(answer.upper(), answer)
     if key == 'scheme':
         sch = answer.lower()
-        if sch not in ('3а', '3б', '3г', '3д', '4а', '4в'):
-            return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3г, 3д, 4а, 4в.",
-                    "cited_sources": [], "session_id": str(session.id)}
+        if sch not in ('3а', '3б', '3в', '3г', '3д', '4а', '4в'):
+            return {"answer": f"Схема «{answer}» не поддерживается. Допустимые: 3а, 3б, 3в, 3г, 3д, 4а, 4в.",
+                "cited_sources": [], "session_id": str(session.id)}
+    # 3г/3д/4в требуют доступ внутрь
+    if key == 'access_inside':
+        scheme = params.get('scheme', '').strip().lower()
+        needs_inside = scheme in ('3г', '3д', '4в')
+        ans = answer.strip().lower()
+        if needs_inside and ans not in ('да', 'yes', 'есть', '1', 'true', '+'):
+            return {"answer": (
+                f"Схема {scheme} требует размещения источника внутри изделия. "
+                f"Без доступа внутрь используйте схему 3а/3б (снаружи) или 3в (малый диаметр). "
+                f"Введите «да», если доступ всё же есть, или смените схему."
+            ), "cited_sources": [], "session_id": str(session.id)}
 
     params[key] = answer
 

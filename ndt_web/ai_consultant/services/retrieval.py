@@ -52,6 +52,9 @@ def hybrid_search(query: str, top_k: int = 8) -> list:
                 c.score += 0.2
             if getattr(c, 'is_golden', False):
                 c.score += 0.5  # приоритет эталонных якорей (обратный инжиниринг)
+            # Приоритет справочника Горбачёва (выше, чем Назипов)
+            if hasattr(c, 'source') and c.source and 'Горбачёв' in (c.source.doc_number or ''):
+                c.score += 0.3
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
@@ -67,6 +70,9 @@ def hybrid_search(query: str, top_k: int = 8) -> list:
             c.score = sim + 0.1 * text_hit
             if getattr(c, 'is_golden', False):
                 c.score += 0.5  # приоритет эталонных якорей
+            # Приоритет справочника Горбачёва
+            if hasattr(c, 'source') and c.source and 'Горбачёв' in (c.source.doc_number or ''):
+                c.score += 0.3
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]

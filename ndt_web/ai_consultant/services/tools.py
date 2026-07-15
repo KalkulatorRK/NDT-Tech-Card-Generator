@@ -754,12 +754,43 @@ def _try_trap_comparison(text: str) -> ToolResult:
         )
     return ToolResult(matched=False)
 
+def _try_zone_width(text: str) -> ToolResult:
+    """Ширина контролируемой зоны / ОШЗ по ГОСТ Р 50.05.07-2018 п.6.3.13."""
+    if not re.search(r"(ОШЗ|околошовн|ширин[ае].*контролируем|ширин[ае].*снимк|ширин[ае].*участк)",
+                     text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    t_match = re.search(r"(\d+)\s*мм", text)
+    thickness = int(t_match.group(1)) if t_match else None
+    if thickness is None:
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Минимальная ширина контролируемой зоны снимка по "
+                "ГОСТ Р 50.05.07-2018 п. 6.3.13:\n"
+                "- при толщине сваренных кромок от 5 до 20 мм — не менее толщины;\n"
+                "- при толщине свыше 20 мм — не менее 20 мм.\n"
+                "ОШЗ (околошовная зона): не менее 5 мм в каждую сторону от оси шва."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, п. 6.3.13]",
+        )
+    zone = 5 if thickness <= 5 else (thickness if thickness <= 20 else 20)
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Ширина околошовной зоны (ОШЗ) — не менее 5 мм в каждую сторону.\n"
+            f"Минимальная ширина контролируемой зоны снимка "
+            f"для толщины {thickness} мм:\n"
+            f"- по п. 6.3.13 ГОСТ Р 50.05.07-2018: {zone} мм."
+        ),
+        citation="[ГОСТ Р 50.05.07-2018, п. 6.3.13]",
+    )
+
 
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
     _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
-    _try_iqi_range, _try_xray_voltage,
+    _try_iqi_range, _try_xray_voltage, _try_zone_width,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster,

@@ -30,6 +30,8 @@ SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант по норма
 дословно используя содержащуюся в нём ссылку(и) [НД, п. X] / [НД, табл. X].
 НЕ заменяй GOLDEN-фрагмент на другие похожие и НЕ говори «нет данных», если
 GOLDEN-фрагмент по теме присутствует в контексте.
+ВАЖНО: НИКОГДА не показывай слова «GOLDEN», «эталон», «эталонный», «[[» и «]]»
+в ответе пользователю — это внутренняя разметка.
 
 ОПЕРИРУЙ ТОЛЬКО ФАКТАМИ. При сомнении или отсутствии данных — сообщай об этом, \
 не выдумывай ответ. Формулируй точно, опирайся на конкретные пункты и числа из контекста.
@@ -206,8 +208,8 @@ def ask_consultant(user, session_id, question, skip_tools=False):
         golden_lines = []
         for c in golden_chunks:
             golden_lines.append(f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{c.text}")
-        golden_block = "\n\n=== ЭТАЛОННЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме) ===\n" + \
-                       "\n\n".join(golden_lines) + "\n=== КОНЕЦ ЭТАЛОННЫХ ОТВЕТОВ ==="
+        golden_block = "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме) ===\n" + \
+                               "\n\n".join(golden_lines) + "\n=== КОНЕЦ ПРИОРИТЕТНЫХ ОТВЕТОВ ==="
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         context=context, golden_block=golden_block,

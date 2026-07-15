@@ -314,10 +314,14 @@ def ask_consultant(user, session_id, question, skip_tools=False):
 
     # 2. Контекст для LLM — обрезаем до ~6000 токенов (оставляет место для промпта + вопроса)
     MAX_CONTEXT_CHARS = 24000  # ~6000 токенов
+    MAX_CHUNK_CHARS = 3000    # макс. символов на один чанк (шумные >3K вытесняют полезные)
     context_parts = []
     ctx_len = 0
     for c in other_chunks:
-        part = f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{c.text}"
+        text = c.text[:MAX_CHUNK_CHARS]
+        if len(c.text) > MAX_CHUNK_CHARS:
+            text += "\n...[truncated]"
+        part = f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{text}"
         part_len = len(part)
         if ctx_len + part_len > MAX_CONTEXT_CHARS:
             # Добавляем усечённый кусок

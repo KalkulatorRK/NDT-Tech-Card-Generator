@@ -21,10 +21,9 @@ def _safe_ask(user, session_id, question, **kw):
         logger.error("Ошибка ask_consultant: %s\n%s", exc, tb)
         return {
             "answer": (
-                "Извините, произошла внутренняя ошибка сервера. "
-                "Пожалуйста, попробуйте позже или сообщите администратору."
+                "Извините, произошла внутренняя ошибка сервера.\n"
+                f"Причина: {exc}"
             ),
-            "error_detail": str(exc)[:200],
         }
 
 

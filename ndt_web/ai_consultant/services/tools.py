@@ -807,6 +807,36 @@ def _try_table_48_lookup(text: str) -> ToolResult:
     )
 
 
+def _try_recommended_source(text: str) -> ToolResult:
+    """Источник излучения по таблице Б.1-Б.3: материал + толщина."""
+    if not re.search(r"(источник|гамма|излучен|радионуклид|изотоп|просвечив|Se-75|Ir-192|Co-60|Tm-170|Yb-169)",
+                     text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    from normative import gost_50_05_07 as M507
+    mat = 'steel'
+    if re.search(r"алюмин|al", text, re.IGNORECASE):
+        mat = 'aluminum'
+    elif re.search(r"титан|ti|titan", text, re.IGNORECASE):
+        mat = 'titanium'
+    t_match = re.search(r"(\d+(?:[.,]\d+)?)\s*мм", text)
+    if not t_match:
+        return ToolResult(matched=False)
+    thickness = float(t_match.group(1).replace(',', '.'))
+    sources = M507.get_suitable_sources(thickness, mat)
+    if not sources:
+        return ToolResult(matched=False)
+    lines = [f"— {s['name']} ({s['range_label']})" for s in sources]
+    mat_label = {'steel': 'стали', 'aluminum': 'алюминия', 'titanium': 'титана'}.get(mat, mat)
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Допустимые источники излучения для {mat_label} "
+            f"толщиной {thickness:.0f} мм (табл. Б.1–Б.3):\n" + "\n".join(lines)
+        ),
+        citation="[ГОСТ Р 50.05.07-2018, табл. Б.1–Б.3]",
+    )
+
+
 def _try_trap_comparison(text: str) -> ToolResult:
     """Ловушка: сравнение таблиц разных материалов/категорий."""
     if not re.search(r"(сравн|как[ая]?.*строж|как[аяя]?.*разн|разниц[а]?|отлич|чётче|жёстч)", text, re.IGNORECASE):
@@ -881,7 +911,7 @@ _HANDLERS = [
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster, _try_table_48_lookup,
-    _try_geometric_unsharpness, _try_optical_density, _try_trap_comparison,
+    _try_geometric_unsharpness, _try_optical_density, _try_recommended_source, _try_trap_comparison,
 ]
 
 

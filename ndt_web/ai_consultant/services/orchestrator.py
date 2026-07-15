@@ -170,7 +170,7 @@ def _handle_wizard(session, question: str) -> dict | None:
         from accounts.models import UserBalance
         balance, _ = UserBalance.objects.get_or_create(user=session.user)
         from techcards.models import NormativeDocument
-        doc = NormativeDocument.objects.filter(code='rgk').first()
+        doc = NormativeDocument.objects.filter(code='ГОСТ Р 50.05.07-2018').first()
         doc_code = doc.code if doc else 'rgk'
         can, reason = balance.can_create_techcard(doc_code)
         if not can:

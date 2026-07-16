@@ -891,15 +891,30 @@ def _try_geometry_formula(text: str) -> ToolResult:
 
 
 def _try_exposure_calc(text: str) -> ToolResult:
-    """Расчёт времени экспозиции: ток × время = const."""
-    if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток)",
+    """Расчёт/пояснение времени экспозиции: ток × время = const."""
+    if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток|рассчитай.*экспоз|расчёт.*экспоз)",
                      text, re.IGNORECASE):
         return ToolResult(matched=False)
     # Ищем: было X мин, ток изменился в Y раз
     m_time = re.search(r"(\d+[.,]?\d*)\s*мин", text)
     m_factor = re.search(r"(увелич|удвоен|повысил|возрос|уменьш|сниж|в\s*(\d+[.,]?\d*)\s*раз)", text, re.IGNORECASE)
     if not m_time:
-        return ToolResult(matched=False)
+        # Нет чисел — даём формулу и пояснение, не выдумывая значений
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Время экспозиции при рентгенографическом контроле определяется из "
+                "условия постоянства экспозиции:\n"
+                "E = I · t = const  (при неизменных напряжении на трубке и расстоянии "
+                "от источника до плёнки).\n\n"
+                "Отсюда при изменении тока трубки I время экспозиции t пересчитывается "
+                "обратно пропорционально:\n"
+                "t₁ = t₀ · (I₀ / I₁).\n\n"
+                "Например: если время экспозиции 10 мин при токе I₀, а ток увеличить "
+                "в 2 раза, время сократится до 5 мин (10 / 2 = 5)."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, п. 6.3.7 — общий принцип: экспозиция = ток × время]",
+        )
     t0 = float(m_time.group(1).replace(',', '.'))
     factor = 1.0
     if m_factor:
@@ -907,7 +922,7 @@ def _try_exposure_calc(text: str) -> ToolResult:
             factor = 2.0
         elif m_factor.group(2):
             factor = float(m_factor.group(2).replace(',', '.'))
-    if 'сниж' in m_factor.group(0).lower() if m_factor else False:
+    if m_factor and ('сниж' in m_factor.group(0).lower() or 'уменьш' in m_factor.group(0).lower()):
         factor = 1.0 / factor
     t1 = t0 / factor
     return ToolResult(
@@ -916,7 +931,7 @@ def _try_exposure_calc(text: str) -> ToolResult:
             f"Время экспозиции обратно пропорционально току трубки "
             f"(экспозиция E = I·t = const при неизменных напряжении и расстоянии).\n"
             f"Было: {t0:.0f} мин при токе I₀.\n"
-            f"Ток увеличен в {factor:.0f} раз → время: {t1:.0f} мин "
+            f"Ток изменился в {factor:.0f} раз → время: {t1:.0f} мин "
             f"(t = {t0:.0f} / {factor:.0f} = {t1:.0f})."
         ),
         citation="[ГОСТ Р 50.05.07-2018, п. 6.3.7 — общий принцип: экспозиция = ток × время]",

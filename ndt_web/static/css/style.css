@@ -177,7 +177,7 @@ a:hover { color: var(--primary-hover); }
   letter-spacing: -0.5px;
 }
 
-.navbar-brand span.accent { color: #FBBC05; }
+.navbar-brand .accent { color: #60a5fa; }
 
 .auth-logo {
   margin-left: auto;
@@ -1040,6 +1040,149 @@ footer .footer-bottom {
   top: 0.5rem;
   right: 0.5rem;
 }
+
+/* ---- Forum dark theme ---- */
+body[data-theme="dark"] .chat-layout { background: var(--bg-main); }
+body[data-theme="dark"] .chat-sidebar { background: var(--bg-card); border-color: var(--border); }
+body[data-theme="dark"] .chat-sidebar-header { border-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .chat-sidebar-header span { color: var(--text-main); }
+body[data-theme="dark"] .chat-list { background: var(--bg-card); }
+body[data-theme="dark"] .chat-list-item { border-bottom-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .chat-list-item:hover { background: var(--primary-light); }
+body[data-theme="dark"] .chat-list-item.active { background: var(--primary-light); }
+body[data-theme="dark"] .chat-item-name { color: var(--text-main); }
+body[data-theme="dark"] .chat-item-preview { color: var(--text-muted); }
+body[data-theme="dark"] .chat-item-time { color: var(--text-light); }
+body[data-theme="dark"] .chat-avatar { background: var(--primary-light); color: var(--primary); }
+body[data-theme="dark"] .chat-avatar.avatar-private { background: rgba(13,202,240,0.15); color: #22d3ee; }
+body[data-theme="dark"] .chat-avatar.avatar-pinned { background: rgba(245,158,11,0.15); color: #fbbf24; }
+body[data-theme="dark"] .unread-badge { background: var(--danger); color: #fff; }
+body[data-theme="dark"] .chat-main { background: var(--bg-main); }
+body[data-theme="dark"] .chat-main-header { background: var(--bg-card); border-bottom-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .chat-main-header h4 { color: var(--text-main); }
+body[data-theme="dark"] .room-icon { background: var(--primary-light); color: var(--primary); }
+body[data-theme="dark"] .messages-area { background: var(--bg-main); }
+body[data-theme="dark"] .msg-wrapper.own .msg-bubble { background: var(--primary); color: #fff; }
+body[data-theme="dark"] .msg-wrapper.own .msg-meta { color: rgba(255,255,255,0.75); }
+body[data-theme="dark"] .msg-wrapper.other .msg-bubble,
+body[data-theme="dark"] .msg-wrapper.admin .msg-bubble { background: var(--bg-card); color: var(--text-main); border-color: var(--border); }
+body[data-theme="dark"] .msg-author { color: var(--text-muted); }
+body[data-theme="dark"] .msg-meta { color: var(--text-light); }
+body[data-theme="dark"] .chat-input-area { background: var(--bg-card); border-top-color: var(--border); }
+body[data-theme="dark"] .chat-textarea { background: var(--bg-main); border-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .chat-send-btn { background: var(--primary); color: #fff; }
+body[data-theme="dark"] .chat-empty { background: var(--bg-main); color: var(--text-muted); }
+body[data-theme="dark"] .reply-preview-bar { background: var(--bg-card); border-color: var(--border); }
+body[data-theme="dark"] .msg-reply-preview { background: rgba(255,255,255,0.05); border-left-color: var(--primary); color: var(--text-muted); }
+body[data-theme="dark"] .category-pill { background: var(--bg-card); color: var(--text-main); border-color: var(--border); }
+body[data-theme="dark"] .category-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+body[data-theme="dark"] .section-subtitle { background: var(--bg-card) !important; color: var(--text-muted) !important; }
+
+/* ---- Global dark theme overrides ---- */
+body[data-theme="dark"] .card {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .card-header,
+body[data-theme="dark"] .card-footer {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .card-body { color: var(--text-main); }
+body[data-theme="dark"] .text-muted { color: var(--text-muted) !important; }
+body[data-theme="dark"] .text-secondary { color: var(--text-muted) !important; }
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] textarea,
+body[data-theme="dark"] input[type="text"],
+body[data-theme="dark"] input[type="number"],
+body[data-theme="dark"] input[type="email"],
+body[data-theme="dark"] input[type="password"] {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .form-control:focus,
+body[data-theme="dark"] .form-select:focus {
+  background: var(--bg-card);
+  border-color: var(--primary);
+  color: var(--text-main);
+  box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25);
+}
+body[data-theme="dark"] .form-control::placeholder,
+body[data-theme="dark"] .form-select::placeholder { color: var(--text-light); }
+body[data-theme="dark"] .form-label { color: var(--text-main); }
+body[data-theme="dark"] .form-text { color: var(--text-muted); }
+body[data-theme="dark"] .input-group-text {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+body[data-theme="dark"] .dropdown-menu {
+  background: var(--bg-card);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+body[data-theme="dark"] .dropdown-item { color: var(--text-main); }
+body[data-theme="dark"] .dropdown-item:hover { background: var(--primary-light); color: var(--primary); }
+body[data-theme="dark"] .dropdown-divider { border-color: var(--border); }
+body[data-theme="dark"] .btn-outline-primary { color: var(--primary); border-color: var(--primary); }
+body[data-theme="dark"] .btn-outline-primary:hover { background: var(--primary); color: #fff; }
+body[data-theme="dark"] .btn-outline-secondary { color: var(--secondary); border-color: var(--secondary); }
+body[data-theme="dark"] .btn-outline-secondary:hover { background: var(--secondary); color: #fff; }
+body[data-theme="dark"] .table { color: var(--text-main); }
+body[data-theme="dark"] .table th { background: var(--primary-light); color: var(--primary); border-color: var(--border); }
+body[data-theme="dark"] .table td { border-color: var(--border); }
+body[data-theme="dark"] .table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+body[data-theme="dark"] .list-group-item { background: var(--bg-card); border-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .list-group-item-action:hover { background: var(--primary-light); }
+body[data-theme="dark"] .modal-content { background: var(--bg-card); border-color: var(--border); color: var(--text-main); }
+body[data-theme="dark"] .modal-header,
+body[data-theme="dark"] .modal-footer { border-color: var(--border); }
+body[data-theme="dark"] .accordion-button {
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .accordion-button:not(.collapsed) {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+body[data-theme="dark"] .accordion-item { background: var(--bg-card); border-color: var(--border); }
+body[data-theme="dark"] .nav-tabs .nav-link { color: var(--text-muted); }
+body[data-theme="dark"] .nav-tabs .nav-link.active {
+  background: var(--bg-card);
+  color: var(--primary);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-card);
+}
+body[data-theme="dark"] .nav-tabs { border-color: var(--border); }
+body[data-theme="dark"] .page-link {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--primary);
+}
+body[data-theme="dark"] .page-link:hover { background: var(--primary-light); }
+body[data-theme="dark"] .page-item.active .page-link { background: var(--primary); border-color: var(--primary); color: #fff; }
+body[data-theme="dark"] .badge.bg-light { background: var(--bg-card) !important; color: var(--text-main) !important; border: 1px solid var(--border); }
+
+/* ---- Forum / topic pills in dark ---- */
+body[data-theme="dark"] .topic-chip,
+body[data-theme="dark"] .category-pill,
+body[data-theme="dark"] .forum-category {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .topic-chip:hover,
+body[data-theme="dark"] .forum-category:hover { background: var(--primary-light); color: var(--primary); }
+
+/* ---- Fix any remaining hard-coded whites ---- */
+body[data-theme="dark"] .info-box { background: var(--primary-light); border-left-color: var(--primary); }
+body[data-theme="dark"] .warning-box { background: rgba(245,158,11,0.15); color: #fbbf24; border-left-color: var(--warning); }
+body[data-theme="dark"] .danger-box  { background: rgba(248,113,113,0.15); color: #f87171; border-left-color: var(--danger); }
+
 
 /* ---- Адаптивность ---- */
 @media (max-width: 768px) {

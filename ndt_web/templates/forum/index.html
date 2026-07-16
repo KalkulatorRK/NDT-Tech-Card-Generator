@@ -321,7 +321,7 @@
 
         <!-- Для администратора: список личных чатов всех пользователей -->
         {% if user.is_admin and admin_private_rooms %}
-        <div class="px-3 py-2" style="font-size:0.73rem;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;background:#eef2f7;">
+        <div class="px-3 py-2" style="font-size:0.73rem;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;background:var(--bg-card);">
           ЛИЧНЫЕ ЧАТЫ ПОЛЬЗОВАТЕЛЕЙ
         </div>
         {% for item in admin_private_rooms %}
@@ -354,7 +354,7 @@
         {% endif %}
 
         <!-- Разделитель -->
-        <div class="px-3 py-2" style="font-size:0.73rem;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;background:#eef2f7;">
+        <div class="px-3 py-2" style="font-size:0.73rem;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;background:var(--bg-card);">
           ТЕМЫ ДЛЯ ОБСУЖДЕНИЯ
         </div>
 
@@ -373,7 +373,7 @@
             </div>
             <div class="chat-item-preview">
               {% if item.last_message %}
-                <span style="color:#888;">{{ item.last_message.author.get_short_name|default:item.last_message.author.username }}:</span>
+                <span style="color:var(--text-light);">{{ item.last_message.author.get_short_name|default:item.last_message.author.username }}:</span>
                 {{ item.last_message.text|truncatechars:25 }}
               {% else %}
                 {{ item.room.description|truncatechars:35 }}

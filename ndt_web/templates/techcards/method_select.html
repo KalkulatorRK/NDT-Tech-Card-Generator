@@ -15,8 +15,7 @@
     <div class="row g-3">
       {% for doc in docs %}
       <div class="col-md-6 col-lg-4">
-        <div class="border rounded p-3 h-100 d-flex flex-column"
-             style="background:{% if doc.is_implemented %}#fafcff{% else %}#f9f9f9{% endif %};">
+        <div class="border rounded p-3 h-100 d-flex flex-column method-doc-card">
           <div class="fw-semibold mb-1">
             {{ doc.code }}
             <span class="badge bg-light text-dark border ms-1" style="font-size:0.7rem;">

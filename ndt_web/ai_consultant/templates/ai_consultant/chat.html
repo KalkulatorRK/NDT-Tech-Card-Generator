@@ -26,6 +26,8 @@
   body[data-theme="dark"] .msg-actions button:hover { background: var(--primary-light); }
   body[data-theme="dark"] .new-chat-btn { border-color: var(--accent); color: var(--accent); }
   body[data-theme="dark"] .new-chat-btn:hover { background: var(--accent-light); }
+  body[data-theme="dark"] .chip { background: var(--bg-card); border-color: var(--border); color: var(--text-main); }
+  body[data-theme="dark"] .chip:hover { background: var(--accent-light); color: var(--accent); }
 
   .consultant-app {
     position: fixed;
@@ -257,7 +259,7 @@
   }
   .quick-chips::-webkit-scrollbar { display: none; }
   .chip {
-    flex-shrink: 0; border: 1px solid var(--border); background: #fff;
+    flex-shrink: 0; border: 1px solid var(--border); background: var(--bg-card);
     color: var(--text-main); padding: 5px 12px; border-radius: 20px;
     font-size: 0.82rem; cursor: pointer; transition: all .12s;
     white-space: nowrap;
@@ -298,10 +300,38 @@
 
   @media (max-width: 800px) {
     .consultant-sidebar { display: none; }
-    .consultant-app { border-radius: 0; height: 100vh; }
+    .consultant-app {
+      top: 52px;
+      border-radius: 0;
+      height: calc(100dvh - 52px);
+      min-height: calc(100dvh - 52px);
+      max-height: calc(100dvh - 52px);
+    }
+    .consultant-header { padding: 10px 14px; min-height: 52px; }
+    .consultant-avatar { width: 34px; height: 34px; font-size: 1.1rem; }
+    .consultant-title h3 { font-size: 0.9rem; }
+    .consultant-title small { font-size: 0.7rem; }
+    .header-actions { gap: 6px; }
+    .header-actions button { padding: 6px 8px; }
     .header-actions button span { display: none; }
-    .msg { max-width: 94%; }
-    .chat-log { padding: 14px; }
+    .header-actions button i { margin: 0; }
+    .chat-log { padding: 12px; gap: 12px; }
+    .msg { max-width: 94%; gap: 8px; }
+    .msg-avatar { display: none; }
+    .msg-bubble { padding: 10px 12px; border-radius: 14px; }
+    .msg-author { font-size: 0.6rem; }
+    .input-panel {
+      padding: 10px 12px 14px;
+      position: sticky;
+      bottom: 0;
+      background: var(--sidebar-bg);
+    }
+    .chat-input-bar { padding: 4px 6px 4px 12px; }
+    .chat-input-bar textarea { max-height: 90px; font-size: 0.95rem; }
+    .send-btn { width: 36px; height: 36px; }
+    .quick-chips { padding-bottom: 8px; }
+    .chip { padding: 5px 10px; font-size: 0.75rem; }
+    .citation-pill { font-size: 0.65rem; padding: 2px 8px; }
   }
 </style>
 

@@ -46,7 +46,7 @@ body[data-theme="dark"] {
   --danger:         #f87171;
   --info:           #38bdf8;
 
-  --bg-main:    linear-gradient(160deg, #0a1a30 0%, #0b1120 55%, #0a1018 100%);
+  --bg-main:    linear-gradient(165deg, #0d2847 0%, #0b1626 45%, #0a0f1a 100%);
   --bg-card:    #151c2e;
   --bg-footer:  #080c17;
   --bg-navbar:  linear-gradient(135deg, #081325 0%, #0d2847 100%);

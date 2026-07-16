@@ -155,6 +155,18 @@
   .status-dot {
     width: 7px; height: 7px; border-radius: 50%; background: #4ade80;
     box-shadow: 0 0 0 2px rgba(74,222,128,0.3);
+    animation: status-pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .status-dot.offline {
+    background: #f87171;
+    box-shadow: 0 0 0 2px rgba(248,113,113,0.3);
+    animation: none;
+  }
+  @keyframes status-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); }
+    70%  { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
   }
   .header-actions {
     display: flex; gap: 8px;
@@ -386,7 +398,7 @@
         <div class="consultant-avatar"><i class="bi bi-robot"></i></div>
         <div class="consultant-title">
           <h3>ИИ-консультант по НД (РГК / НК)</h3>
-          <small><span class="status-dot"></span> онлайн · ответы по ГОСТ/НПА с цитированием</small>
+          <small><span class="status-dot" id="statusDot"></span> <span id="statusText">онлайн · ответы по ГОСТ/НП/справочникам с цитированием</span></small>
         </div>
       </div>
       <div class="header-actions">
@@ -675,5 +687,29 @@ function startNewChat() {
 }
 
 loadSessions();
+
+// Честный статус LLM (индикатор не декоративный)
+async function updateLLMStatus() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (!dot || !txt) return;
+  try {
+    const resp = await fetch('/api/consultant/health/', { credentials: 'include' });
+    const data = await resp.json().catch(() => ({}));
+    if (data && data.ok) {
+      dot.classList.remove('offline');
+      txt.textContent = 'онлайн · ответы по ГОСТ/НП/справочникам с цитированием';
+    } else {
+      dot.classList.add('offline');
+      const detail = (data && data.detail) ? ' (' + data.detail + ')' : '';
+      txt.textContent = 'модель недоступна — проверьте подключение' + detail;
+    }
+  } catch (e) {
+    dot.classList.add('offline');
+    txt.textContent = 'нет связи с сервером';
+  }
+}
+updateLLMStatus();
+setInterval(updateLLMStatus, 60000);
 </script>
 {% endblock %}

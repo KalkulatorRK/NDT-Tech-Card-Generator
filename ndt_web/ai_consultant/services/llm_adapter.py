@@ -32,6 +32,38 @@ class LLMAdapter:
     def chat(self, system_prompt: str, messages: list[dict], temperature: float = 0.2) -> LLMResponse:
         raise NotImplementedError
 
+    def health_check(self, timeout_s: float = 8.0) -> dict:
+        """Лёгкая проверка доступности LLM (ping-запрос).
+
+        Возвращает словарь:
+            {"ok": bool, "model": str, "latency_ms": int, "detail": str}
+        Базовая реализация — короткий вызов chat() с минимальными токенами.
+        """
+        import time
+        t0 = time.monotonic()
+        try:
+            resp = self.chat(
+                "Ответь одним словом: ОК",
+                [{"role": "user", "content": "ping"}],
+                temperature=0.0,
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            ok = bool(resp and resp.text and resp.text.strip())
+            return {
+                "ok": ok,
+                "model": getattr(resp, "model_name", "") or "",
+                "latency_ms": latency_ms,
+                "detail": "" if ok else "Пустой ответ от модели",
+            }
+        except Exception as exc:  # noqa
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "ok": False,
+                "model": "",
+                "latency_ms": latency_ms,
+                "detail": str(exc)[:200],
+            }
+
 
 class OpenAIProvider(LLMAdapter):
     def __init__(self):

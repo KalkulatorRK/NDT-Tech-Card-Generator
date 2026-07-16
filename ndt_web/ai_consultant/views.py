@@ -63,9 +63,37 @@ def ask_view(request):
     return JsonResponse(result, status=200)
 
 
+@csrf_exempt
+def health_view(request):
+    """API: лёгкая проверка доступности LLM (Nous Portal / провайдера).
+
+    Используется чат-интерфейсом для честного статуса индикатора.
+    Кэшируется на 30 c, чтобы не дёргать модель на каждый заход.
+    """
+    from django.core.cache import caches
+    from ai_consultant.services.llm_adapter import get_llm_provider
+
+    cache = caches['default'] if 'default' in caches else None
+    cache_key = 'llm_health_v1'
+    if cache is not None:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return JsonResponse(cached, status=200)
+
+    try:
+        provider = get_llm_provider()
+        result = provider.health_check(timeout_s=10.0)
+    except Exception as exc:  # noqa
+        result = {"ok": False, "model": "", "latency_ms": 0, "detail": str(exc)[:200]}
+
+    if cache is not None:
+        try:
+            cache.set(cache_key, result, 30)
+        except Exception:
+            pass
+    return JsonResponse(result, status=200)
 @login_required
 def sessions_list_view(request):
-    """API: список сессий текущего пользователя."""
     sessions = ConsultantSession.objects.filter(user=request.user).order_by('-created_at')[:50]
     data = []
     for s in sessions:

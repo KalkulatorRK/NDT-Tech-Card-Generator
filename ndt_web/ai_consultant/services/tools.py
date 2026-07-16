@@ -415,6 +415,9 @@ def _try_geometry_f(text: str) -> ToolResult:
     # не перехватывать вопросы про выбор плёнки/экранов (это не геометрия f)
     if re.search(r"плён|экран|класс.*плён|сенсибил|радиографическ\w* плён", text, re.IGNORECASE):
         return ToolResult(matched=False)
+    # не перехватывать вопросы про ВРЕМЯ экспозиции / ток трубки (это не f)
+    if re.search(r"время\s+экспозиц|экспозиц\w*\s+(время|ток|режим)|ток\s+(трубки|аппарата)|режим\s+(трубки|аппарата|рентген)|минут\w*\s+экспоз", text, re.IGNORECASE):
+        return ToolResult(matched=False)
     if not ('f' in tl or 'приложен' in tl or 'экспозиц' in tl or 'схем' in tl
             or ('источник' in tl and 'расстоян' in tl) or 'расстоян' in tl):
         return ToolResult(matched=False)

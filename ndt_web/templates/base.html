@@ -30,8 +30,13 @@
 <body data-theme="light">
 <script>
 (function(){
-  const saved = localStorage.getItem('theme') || 'light';
-  document.body.setAttribute('data-theme', saved);
+  let theme = localStorage.getItem('theme');
+  if (!theme) {
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    theme = prefersDark ? 'dark' : 'light';
+    localStorage.setItem('theme', theme);
+  }
+  document.body.setAttribute('data-theme', theme);
 })();
 </script>
 

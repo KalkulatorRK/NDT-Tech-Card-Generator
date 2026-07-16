@@ -894,15 +894,82 @@ def _try_geometry_formula(text: str) -> ToolResult:
 
 
 def _try_exposure_calc(text: str) -> ToolResult:
-    """Расчёт/пояснение времени экспозиции: ток × время = const."""
+    """Пояснение/расчёт времени экспозиции: различает рентген-трубку и изотопный источник.
+    Опирается на реальные данные RADIATION_SOURCES (ГОСТ Р 50.05.07-2018, приложение Б)."""
     if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток|рассчитай.*экспоз|расчёт.*экспоз|рассчитать.*экспоз|сколько.*экспоз|выдержк)",
                      text, re.IGNORECASE):
         return ToolResult(matched=False)
-    # Ищем: было X мин, ток изменился в Y раз
+    # НЕ перехватывать геометрию: число экспозиций N, схемы, f, приложение Г — это не время
+    if re.search(r"(число\s+экспоз|количество\s+экспоз|схем[аеы]?\s*3[абгд]|схем[аеы]?\s*4[аб]|приложен.*г|расстоян.*источник|расстояние\s*[lф])", text, re.IGNORECASE):
+        return ToolResult(matched=False)
+
+    from normative import gost_50_05_07 as M507
+    sources = getattr(M507, 'RADIATION_SOURCES', [])
+
+    # --- Поиск изотопного источника в вопросе ---
+    isotope = None
+    for src in sources:
+        code = src.get('code', '')
+        if re.search(r'\b' + re.escape(code) + r'\b', text, re.IGNORECASE):
+            isotope = src
+            break
+    if not isotope and re.search(r'селен', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Se'):
+                isotope = src
+                break
+    if not isotope and re.search(r'ирид', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Ir'):
+                isotope = src
+                break
+    if not isotope and re.search(r'кобальт', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Co'):
+                isotope = src
+                break
+    if not isotope and re.search(r'(ytterb|иттерб)', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Yb'):
+                isotope = src
+                break
+    if not isotope and re.search(r'(тулий|thulium)', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Tm'):
+                isotope = src
+                break
+
+    if isotope:
+        name = isotope.get('name', '')
+        energy = isotope.get('energy_display') or isotope.get('energy_kev', '')
+        hl = isotope.get('half_life', '')
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Для радионуклидного источника {name} время экспозиции рассчитывается иначе, "
+                f"чем для рентгеновской трубки: здесь ключевая величина — не ток, а "
+                f"АКТИВНОСТЬ источника и расстояние до плёнки.\n\n"
+                f"Параметры {name} (ГОСТ Р 50.05.07-2018, приложение Б):\n"
+                f"— энергия излучения: {energy};\n"
+                f"— период полураспада: {hl}.\n\n"
+                f"Базовое соотношение для гамма-дефектоскопии:\n"
+                f"мощность экспозиционной дозы у плёнки  P = A·Γ / d²,\n"
+                f"где A — активность источника (Ки или Бк), Γ — гамма-постоянная источника "
+                f"(зависит от радионуклида), d — расстояние от источника до плёнки.\n\n"
+                f"Время экспозиции:\n"
+                f"t = (K · d² · 2ⁿ) / (A · Γ),\n"
+                f"где K — требуемая экспозиционная доза на плёнку (определяется классом "
+                f"плёнки и требуемой оптической плотностью), n — класс чувствительности.\n\n"
+                f"Чтобы рассчитать t, нужны: активность A источника (Ки/Бк), расстояние d, "
+                f"класс плёнки и требуемая оптическая плотность. Назовёте их — посчитаю."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Б, табл. Б.1–Б.3]",
+        )
+
+    # --- Рентгеновская трубка (ток/напряжение) или общий принцип ---
     m_time = re.search(r"(\d+[.,]?\d*)\s*мин", text)
     m_factor = re.search(r"(увелич|удвоен|повысил|возрос|уменьш|сниж|в\s*(\d+[.,]?\d*)\s*раз)", text, re.IGNORECASE)
     if not m_time:
-        # Нет чисел — даём формулу и пояснение, не выдумывая значений
         return ToolResult(
             matched=True,
             answer=(

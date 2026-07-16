@@ -8,6 +8,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from ai_consultant.services.orchestrator import ask_consultant
+from ai_consultant.models import ConsultantSession, ConsultantMessage
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def chat_page_view(request):
 
 @csrf_exempt
 def ask_view(request):
-    """API: принимает текстовый вопрос и/или изображение.
+    """API: принимает текстовый вопрос.
 
     ВНИМАНИЕ: проверяем авторизацию вручную, чтобы неавторизованным
     возвращать JSON вместо HTML-редиректа (иначе fetch падает).
@@ -46,7 +47,6 @@ def ask_view(request):
             {'error': 'Требуется авторизация. Пожалуйста, войдите в систему.'},
             status=401,
         )
-    # --- текстовый режим (JSON) ---
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
     try:
@@ -61,3 +61,40 @@ def ask_view(request):
     if result.get('subscription_required'):
         return JsonResponse(result, status=402)
     return JsonResponse(result, status=200)
+
+
+@login_required
+def sessions_list_view(request):
+    """API: список сессий текущего пользователя."""
+    sessions = ConsultantSession.objects.filter(user=request.user).order_by('-created_at')[:50]
+    data = []
+    for s in sessions:
+        first_msg = ConsultantMessage.objects.filter(session=s, role='user').order_by('created_at').first()
+        title = (first_msg.content or 'Новый диалог') if first_msg else 'Новый диалог'
+        data.append({
+            'id': str(s.id),
+            'title': title[:60] + ('...' if len(title) > 60 else ''),
+            'date': s.created_at.strftime('%d.%m.%Y %H:%M') if s.created_at else '',
+            'created_at': s.created_at.isoformat() if s.created_at else None,
+        })
+    return JsonResponse({'sessions': data}, status=200)
+
+
+@login_required
+def session_messages_view(request, session_id):
+    """API: сообщения конкретной сессии."""
+    try:
+        session = ConsultantSession.objects.get(id=session_id, user=request.user)
+    except ConsultantSession.DoesNotExist:
+        return JsonResponse({'error': 'session not found'}, status=404)
+    messages = ConsultantMessage.objects.filter(session=session).order_by('created_at')
+    data = [
+        {
+            'role': m.role,
+            'content': m.content,
+            'created_at': m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in messages
+        if m.role in ('user', 'assistant')
+    ]
+    return JsonResponse({'session_id': str(session.id), 'messages': data}, status=200)

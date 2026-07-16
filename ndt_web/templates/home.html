@@ -4,200 +4,361 @@
 
 {% block content %}
 <!-- ===== HERO секция ===== -->
-<div class="hero-section">
+<section class="hero-section">
   <div class="container">
-    <div class="row align-items-center">
-      <div class="col-lg-7">
-        <h1>Автоматизация разработки<br>технологических карт НК</h1>
-        <p>
-          Создавайте технологические карты неразрушающего контроля и проводите
-          оценку качества сварных соединений в соответствии с требованиями
-          ГОСТ Р 50.05.07-2018, НП-105-18 (нормативный документ) и других стандартов атомной энергетики.
+    <div class="hero-grid">
+      <div class="hero-content">
+        <h1>Автоматизация разработки<br><span class="text-accent">технологических карт НК</span></h1>
+        <p class="lead">
+          Создавайте технологические карты неразрушающего контроля и проводите оценку качества
+          сварных соединений по ГОСТ Р 50.05.07-2018, НП-105-18, НП-104-18 и другим стандартам АЭУ.
         </p>
-        <div class="d-flex flex-wrap gap-3 mt-4">
-          <a href="{% url 'method_select' %}" class="btn btn-light btn-lg">
-            <i class="bi bi-file-earmark-plus me-2"></i>Создать техкарту
+        <div class="hero-actions">
+          <a href="{% url 'method_select' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-file-earmark-plus"></i>Создать техкарту
           </a>
-          <a href="{% url 'quality_form' %}" class="btn btn-lg"
-             style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.5);">
-            <i class="bi bi-check2-square me-2"></i>Оценка качества
+          <a href="{% url 'quality_form' %}" class="btn btn-secondary btn-lg">
+            <i class="bi bi-check2-circle"></i>Оценка качества
           </a>
-          <a href="{% url 'ai_consultant:chat' %}" class="btn btn-lg"
-             style="background:rgba(13,202,240,0.9);color:#06283d;border:1px solid rgba(13,202,240,0.6);">
-            <i class="bi bi-robot me-2"></i>ИИ-консультант
+          <a href="{% url 'ai_consultant:chat' %}" class="btn btn-ai btn-lg">
+            <i class="bi bi-robot"></i>ИИ-консультант
           </a>
         </div>
       </div>
 
       {% if user.is_authenticated and subscription_status %}
-      <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
+      <div class="hero-card">
         <div class="counter-box">
           {% if subscription_status.active %}
           <div class="counter-number">{{ subscription_status.generations_remaining }}</div>
           <div class="counter-label">генераций по подписке</div>
-          <div class="mt-2" style="font-size:0.85rem;opacity:0.85;">
-            {{ subscription_status.plan_name }} · до {{ subscription_status.period_end|date:"d.m.Y" }}
+          <div class="counter-plan">
+            <i class="bi bi-calendar-check"></i>{{ subscription_status.plan_name }} · до {{ subscription_status.period_end|date:"d.m.Y" }}
           </div>
           {% else %}
           <div class="counter-number">0</div>
           <div class="counter-label">нет активной подписки</div>
           {% endif %}
-          <div class="mt-3" style="font-size:0.85rem;opacity:0.85;">
-            <i class="bi bi-gift me-1"></i>
-            Ознакомительно: первая карта по каждому документу
+          <div class="counter-hint">
+            <i class="bi bi-gift"></i>Ознакомительно: первая карта по каждому документу
           </div>
-          <a href="{% url 'tariffs' %}" class="btn btn-sm mt-3"
-             style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);">
-            <i class="bi bi-plus-circle me-1"></i>Подписки
+          <a href="{% url 'tariffs' %}" class="btn btn-outline-light btn-sm mt-3">
+            <i class="bi bi-plus-circle"></i>Подписки
           </a>
         </div>
       </div>
       {% endif %}
     </div>
   </div>
-</div>
+</section>
 
 <div class="container pb-5">
 
   <!-- ===== Ключевые возможности ===== -->
-  <h2 class="text-center mb-4" style="font-size:1.6rem;">
-    <i class="bi bi-stars me-2" style="color:var(--primary);"></i>Ключевые возможности
-  </h2>
-
-  <div class="row g-4 mb-5 feature-grid">
-    <div class="col-md-3">
-      <a href="{% url 'method_select' %}" class="text-decoration-none feature-link">
-        <div class="feature-card feature-card--blue h-100">
-          <div class="feature-icon" aria-hidden="true">
-            <img src="{% static 'img/features/feature-techcard.svg' %}" alt="" width="88" height="88" loading="lazy">
-          </div>
-          <h4>Генерация техкарт</h4>
-          <p>Автоматический расчёт параметров контроля по методическому документу ГОСТ Р 50.05.07-2018. Готовая техкарта в DOCX и PDF.</p>
-        </div>
-      </a>
-    </div>
-    <div class="col-md-3">
-      <a href="{% url 'quality_form' %}" class="text-decoration-none feature-link">
-        <div class="feature-card feature-card--teal h-100">
-          <div class="feature-icon" aria-hidden="true">
-            <img src="{% static 'img/features/feature-quality.svg' %}" alt="" width="88" height="88" loading="lazy">
-          </div>
-          <h4>Оценка качества</h4>
-          <p>Проверьте допустимость дефектов по нормативному документу НП-105-18. Заключение «ГОДЕН/БРАК» с обоснованием и скачиванием PDF.</p>
-        </div>
-      </a>
-    </div>
-    <div class="col-md-3">
-      <a href="{% url 'cabinet' %}" class="text-decoration-none feature-link">
-        <div class="feature-card feature-card--amber h-100">
-          <div class="feature-icon" aria-hidden="true">
-            <img src="{% static 'img/features/feature-cabinet.svg' %}" alt="" width="88" height="88" loading="lazy">
-          </div>
-          <h4>Личный кабинет</h4>
-          <p>Все созданные карты в одном месте. Управление, история и скачивание в любое время.</p>
-        </div>
-      </a>
-    </div>
-    <div class="col-md-3">
-      <a href="{% url 'forum_index' %}" class="text-decoration-none feature-link">
-        <div class="feature-card feature-card--violet h-100">
-          <div class="feature-icon" aria-hidden="true">
-            <img src="{% static 'img/features/feature-forum.svg' %}" alt="" width="88" height="88" loading="lazy">
-          </div>
-          <h4>Форум</h4>
-          <p>Общайтесь с коллегами, задавайте вопросы администратору. Тематические чаты по методам НК.</p>
-        </div>
-      </a>
-    </div>
-    <div class="col-md-3">
-      <a href="{% url 'ai_consultant:chat' %}" class="text-decoration-none feature-link">
-        <div class="feature-card h-100" style="border-top:3px solid #0dcaf0;">
-          <div class="feature-icon" aria-hidden="true">
-            <i class="bi bi-robot" style="font-size:3rem;color:#0dcaf0;"></i>
-          </div>
-          <h4>ИИ-консультант</h4>
-          <p>Ответы по ГОСТ/НПА с цитированием пунктов. Можно прикрепить схему, снимок или таблицу.</p>
-        </div>
-      </a>
-    </div>
+  <div class="section-header">
+    <h2><i class="bi bi-stars"></i>Ключевые возможности</h2>
+    <p>Инструменты для инженера-дефектоскописта</p>
   </div>
 
-  <!-- ===== Оценка качества + Форум ===== -->
-  <div class="row g-4 mb-4">
-    <!-- ===== Оценка качества ===== -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-header-section">
-          <i class="bi bi-search me-2"></i>Оценка качества сварного соединения
+  <div class="features-row">
+    <a href="{% url 'method_select' %}" class="feature-link">
+      <div class="feature-card feature-blue">
+        <div class="feature-icon"><i class="bi bi-file-earmark-plus"></i></div>
+        <h4>Генерация техкарт</h4>
+        <p>Автоматический расчёт параметров контроля по ГОСТ Р 50.05.07-2018. Готовая техкарта в DOCX и PDF.</p>
+      </div>
+    </a>
+    <a href="{% url 'quality_form' %}" class="feature-link">
+      <div class="feature-card feature-teal">
+        <div class="feature-icon"><i class="bi bi-check2-circle"></i></div>
+        <h4>Оценка качества</h4>
+        <p>Заключение «ГОДЕН / БРАК» по НП-105-18 с обоснованием и скачиванием PDF.</p>
+      </div>
+    </a>
+    <a href="{% url 'ai_consultant:chat' %}" class="feature-link">
+      <div class="feature-card feature-cyan">
+        <div class="feature-icon"><i class="bi bi-robot"></i></div>
+        <h4>ИИ-консультант</h4>
+        <p>Ответы по ГОСТ/НПА с цитированием пунктов. Учитывает контекст диалога и уточнения.</p>
+      </div>
+    </a>
+    <a href="{% url 'cabinet' %}" class="feature-link">
+      <div class="feature-card feature-amber">
+        <div class="feature-icon"><i class="bi bi-grid-3x3-gap"></i></div>
+        <h4>Личный кабинет</h4>
+        <p>Все созданные карты, документы и история расчётов в одном месте.</p>
+      </div>
+    </a>
+    <a href="{% url 'forum_index' %}" class="feature-link">
+      <div class="feature-card feature-violet">
+        <div class="feature-icon"><i class="bi bi-chat-dots"></i></div>
+        <h4>Форум</h4>
+        <p>Общайтесь с коллегами, задавайте вопросы администратору по методам НК.</p>
+      </div>
+    </a>
+  </div>
+
+  <!-- ===== Два крупных блока ===== -->
+  <div class="row g-4 mb-5">
+    <div class="col-lg-6">
+      <div class="info-card">
+        <div class="info-card-header info-blue">
+          <i class="bi bi-search"></i>Оценка качества сварного соединения
         </div>
-        <p class="text-muted" style="font-size:0.9rem;">
+        <p class="info-text">
           Введите параметры объекта контроля и характеристики обнаруженных дефектов —
-          система мгновенно выдаст заключение о соответствии требованиям НП-105-18.
+          система выдаст заключение о соответствии требованиям НП-105-18.
         </p>
-        <ul class="list-unstyled" style="font-size:0.88rem;">
-          <li><i class="bi bi-check text-success me-2"></i>Поры, шлаковые включения</li>
-          <li><i class="bi bi-check text-success me-2"></i>Трещины, несплавления</li>
-          <li><i class="bi bi-check text-success me-2"></i>Подрезы, непровары</li>
-          <li><i class="bi bi-check text-success me-2"></i>Вольфрамовые включения</li>
+        <ul class="check-list">
+          <li><i class="bi bi-check-circle-fill"></i>Поры, шлаковые включения</li>
+          <li><i class="bi bi-check-circle-fill"></i>Трещины, несплавления</li>
+          <li><i class="bi bi-check-circle-fill"></i>Подрезы, непровары</li>
+          <li><i class="bi bi-check-circle-fill"></i>Вольфрамовые включения</li>
         </ul>
         {% if not user.is_authenticated %}
-        <div class="info-box" style="font-size:0.85rem;">
-          <i class="bi bi-info-circle me-1"></i>
-          Гостям доступно 3 бесплатных оценки. Для неограниченного доступа —
-          <a href="{% url 'register' %}">зарегистрируйтесь</a>.
+        <div class="info-hint">
+          <i class="bi bi-info-circle"></i>Гостям доступно 3 бесплатных оценки.
+          <a href="{% url 'register' %}">Зарегистрируйтесь</a> для неограниченного доступа.
         </div>
         {% endif %}
-        <a href="{% url 'quality_form' %}" class="btn btn-secondary mt-auto">
-          <i class="bi bi-play-circle me-2"></i>Начать оценку
+        <a href="{% url 'quality_form' %}" class="btn btn-secondary">
+          <i class="bi bi-play-circle"></i>Начать оценку
         </a>
       </div>
     </div>
 
-    <!-- ===== Новости и обновления ===== -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-header-section">
-          <i class="bi bi-newspaper me-2"></i>Обновления и новости
+    <div class="col-lg-6">
+      <div class="info-card">
+        <div class="info-card-header info-cyan">
+          <i class="bi bi-newspaper"></i>Обновления и новости
         </div>
         {% if updates %}
-        <ul class="list-unstyled" style="font-size:0.88rem;">
+        <ul class="news-list">
           {% for update in updates %}
-          <li class="mb-3 pb-3 border-bottom">
-            <div class="text-muted mb-1" style="font-size:0.78rem;">
-              <i class="bi bi-calendar3 me-1"></i>{{ update.date }}
-            </div>
-            <div>{{ update.text }}</div>
+          <li>
+            <div class="news-date"><i class="bi bi-calendar3"></i>{{ update.date }}</div>
+            <div class="news-text">{{ update.text }}</div>
           </li>
           {% endfor %}
         </ul>
+        {% else %}
+        <p class="info-text">Новых обновлений пока нет. Мы сообщим о важных изменениях нормативной базы.</p>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- ===== Подписки (краткое описание) ===== -->
+  <!-- ===== CTA ===== -->
   {% if not user.is_authenticated %}
-  <div class="card" style="background:linear-gradient(135deg,#f0f7ff,#e8f4fd);">
-    <div class="row align-items-center">
-      <div class="col-md-8">
-        <h4><i class="bi bi-gift me-2" style="color:var(--primary);"></i>Ознакомьтесь с возможностями системы</h4>
-        <p class="text-muted mb-0" style="font-size:0.9rem;">
-          Ознакомьтесь с функциями системы автоматизированной разработки технологических карт НК.
-          Зарегистрируйтесь, чтобы получить ознакомительную генерацию по каждому нормативному документу,
-          а затем оформите подписку с нужным лимитом генераций.
-        </p>
-      </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a href="{% url 'register' %}" class="btn btn-primary me-2">
-          <i class="bi bi-person-plus me-1"></i>Регистрация
-        </a>
-        <a href="{% url 'tariffs' %}" class="btn btn-outline-primary">
-          Подписки
-        </a>
-      </div>
+  <div class="cta-card">
+    <div class="cta-content">
+      <h4><i class="bi bi-gift"></i>Ознакомьтесь с возможностями системы</h4>
+      <p>
+        Зарегистрируйтесь и получите ознакомительную генерацию техкарты по каждому нормативному документу,
+        а затем оформите подписку с нужным лимитом.
+      </p>
+    </div>
+    <div class="cta-actions">
+      <a href="{% url 'register' %}" class="btn btn-primary">
+        <i class="bi bi-person-plus"></i>Регистрация
+      </a>
+      <a href="{% url 'tariffs' %}" class="btn btn-outline-primary">
+        Подписки
+      </a>
     </div>
   </div>
   {% endif %}
 
 </div>
+
+<style>
+/* Hero */
+.hero-section {
+  background: linear-gradient(135deg, #0d3b66 0%, #1a56a6 50%, #0d9488 100%);
+  color: #fff;
+  padding: 4rem 0 3.5rem;
+  margin-bottom: 3rem;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+.hero-content h1 {
+  color: #fff;
+  font-size: 2.6rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  line-height: 1.15;
+}
+.hero-content .text-accent { color: #7dd3fc; }
+.hero-content .lead {
+  color: rgba(255,255,255,0.9);
+  font-size: 1.15rem;
+  margin-bottom: 1.75rem;
+}
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.hero-actions .btn { display: inline-flex; align-items: center; gap: 0.5rem; }
+.btn-ai { background: #06b6d4; border-color: #06b6d4; color: #fff; }
+.btn-ai:hover { background: #0891b2; border-color: #0891b2; color: #fff; }
+.hero-card {
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+.counter-box { text-align: center; color: #fff; }
+.counter-number { font-size: 3.5rem; font-weight: 800; line-height: 1; }
+.counter-label { font-size: 1rem; opacity: 0.9; margin-bottom: 0.5rem; }
+.counter-plan { font-size: 0.85rem; opacity: 0.85; margin-bottom: 0.75rem; }
+.counter-plan i { margin-right: 0.4rem; }
+.counter-hint { font-size: 0.8rem; opacity: 0.8; }
+.counter-hint i { margin-right: 0.4rem; }
+
+/* Section header */
+.section-header { text-align: center; margin-bottom: 2rem; }
+.section-header h2 {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  color: var(--text-main); font-size: 1.6rem; margin-bottom: 0.4rem;
+}
+.section-header h2 i { color: var(--primary); }
+.section-header p { color: var(--text-muted); margin: 0; }
+
+/* Features */
+.features-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.feature-link { color: inherit; }
+.feature-link:hover { text-decoration: none; color: inherit; }
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1rem;
+  text-align: center;
+  height: 100%;
+  transition: all .25s;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+.feature-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+}
+.feature-blue::before  { background: linear-gradient(90deg, #2563eb, #60a5fa); }
+.feature-teal::before  { background: linear-gradient(90deg, #0d9488, #2dd4bf); }
+.feature-cyan::before  { background: linear-gradient(90deg, #0891b2, #22d3ee); }
+.feature-amber::before { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.feature-violet::before{ background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.feature-icon {
+  width: 64px; height: 64px; margin: 0 auto 1rem;
+  border-radius: var(--radius);
+  display: grid; place-items: center;
+  font-size: 1.8rem;
+}
+.feature-blue  .feature-icon { background: #eff6ff; color: #2563eb; }
+.feature-teal  .feature-icon { background: #f0fdfa; color: #0d9488; }
+.feature-cyan  .feature-icon { background: #ecfeff; color: #0891b2; }
+.feature-amber .feature-icon { background: #fffbeb; color: #d97706; }
+.feature-violet.feature-icon { background: #f5f3ff; color: #7c3aed; }
+.feature-card h4 { font-size: 1rem; margin-bottom: 0.5rem; }
+.feature-card p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+body[data-theme="dark"] .feature-blue  .feature-icon { background: rgba(37,99,235,0.15); }
+body[data-theme="dark"] .feature-teal  .feature-icon { background: rgba(13,148,136,0.15); }
+body[data-theme="dark"] .feature-cyan  .feature-icon { background: rgba(8,145,178,0.15); }
+body[data-theme="dark"] .feature-amber .feature-icon { background: rgba(217,119,6,0.15); }
+body[data-theme="dark"] .feature-violet .feature-icon { background: rgba(124,58,237,0.15); }
+
+/* Info cards */
+.info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  height: 100%;
+}
+.info-card-header {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-weight: 700; font-size: 1.05rem; margin-bottom: 1rem;
+  padding: 0.4rem 0.8rem; border-radius: var(--radius);
+}
+.info-blue { background: var(--primary-light); color: var(--primary); }
+.info-cyan { background: rgba(6,182,212,0.1); color: #0891b2; }
+.info-text { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1rem; }
+.check-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+.check-list li {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-main);
+}
+.check-list i { color: var(--success); font-size: 1rem; }
+.info-hint {
+  background: var(--primary-light);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.info-hint i { color: var(--info); margin-right: 0.4rem; }
+
+/* News list */
+.news-list { list-style: none; padding: 0; margin: 0; }
+.news-list li { padding: 0.9rem 0; border-bottom: 1px solid var(--border); }
+.news-list li:last-child { border-bottom: none; }
+.news-date { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+.news-date i { margin-right: 0.35rem; }
+.news-text { color: var(--text-main); font-size: 0.9rem; }
+
+/* CTA */
+.cta-card {
+  background: linear-gradient(135deg, var(--primary-light), rgba(37,99,235,0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap;
+}
+.cta-card h4 { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 1.15rem; }
+.cta-card h4 i { color: var(--primary); }
+.cta-card p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
+.cta-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.cta-actions .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+@media (max-width: 1100px) {
+  .features-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-content h1 { font-size: 1.9rem; }
+  .features-row { grid-template-columns: 1fr; }
+  .cta-card { flex-direction: column; align-items: flex-start; }
+}
+
+/* Dark theme overrides */
+body[data-theme="dark"] .hero-section { background: linear-gradient(135deg, #0a1628 0%, #0d2847 50%, #0f3d4a 100%); }
+body[data-theme="dark"] .info-card { background: var(--bg-card); border-color: var(--border); }
+body[data-theme="dark"] .feature-card { background: var(--bg-card); border-color: var(--border); }
+body[data-theme="dark"] .feature-blue  .feature-icon { background: rgba(37,99,235,0.2); color: #93bbfd; }
+body[data-theme="dark"] .feature-teal  .feature-icon { background: rgba(13,148,136,0.2); color: #6ee7df; }
+body[data-theme="dark"] .feature-cyan  .feature-icon { background: rgba(8,145,178,0.2); color: #7ee7f5; }
+body[data-theme="dark"] .feature-amber .feature-icon { background: rgba(217,119,6,0.2); color: #fcd085; }
+body[data-theme="dark"] .feature-violet .feature-icon { background: rgba(124,58,237,0.2); color: #c4b5fc; }
+body[data-theme="dark"] .cta-card { background: linear-gradient(135deg, rgba(37,99,235,0.15), rgba(37,99,235,0.06)); }
+
+</style>
 {% endblock %}

@@ -159,7 +159,7 @@ def _handle_wizard(session, question: str) -> dict | None:
     ], "session_id": str(session.id)}
 
 
-def ask_consultant(user, session_id, question, skip_tools=False):
+def ask_consultant(user, session_id, question, skip_tools=False, method_scope=None):
     """Основной метод. Возвращает dict: {answer, cited_sources, session_id}."""
     from ai_consultant.models import (
         ConsultantSession, ConsultantMessage, DocumentChunk, DocumentSource
@@ -244,7 +244,16 @@ def ask_consultant(user, session_id, question, skip_tools=False):
         }
 
     # 1. Retrieval (только для нарративных/текстовых вопросов)
-    relevant_chunks = hybrid_search(question, top_k=16)
+    # Контекстный режим метода НК: чанки профильных НД получают повышающий вес.
+    METHOD_ND_MAP = {
+        'РК': ['ГОСТ Р 50.05.07', 'НП-105', 'НП-104', 'ГОСТ 7512', 'ГОСТ Р 59023.2'],
+        'УЗК': ['ГОСТ Р 55724', 'ГОСТ 14782', 'СТО', 'СТЦК', 'РД'],
+        'ВИК': ['ГОСТ 3242', 'РД', 'СТО', 'ПНАЭ'],
+        'КГ': ['ГОСТ 32492', 'ГОСТ 18442', 'ГОСТ 24054', 'РД'],
+        'КК': ['ГОСТ 56542', 'ГОСТ 18437', 'ГОСТ 53697', 'РД'],
+    }
+    scope_nds = METHOD_ND_MAP.get((method_scope or '').strip().upper()) if method_scope else None
+    relevant_chunks = hybrid_search(question, top_k=16, preferred_nds=scope_nds)
 
     # Golden-якоря (обратный инжиниринг) — отдельно, с приоритетом
     golden_chunks = [c for c in relevant_chunks if getattr(c, 'is_golden', False)]
@@ -280,9 +289,30 @@ def ask_consultant(user, session_id, question, skip_tools=False):
         golden_block = "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме) ===\n" + \
                                "\n\n".join(golden_lines) + "\n=== КОНЕЦ ПРИОРИТЕТНЫХ ОТВЕТОВ ==="
 
+    # Контекстный режим метода НК (без амнезии базы, но с приоритетом профильных НД)
+    method_block = ""
+    if method_scope:
+        method_names = {
+            'РК': 'радиографический контроль (РГК)',
+            'УЗК': 'ультразвуковой контроль',
+            'ВИК': 'визуальный и измерительный контроль',
+            'КГ': 'контроль герметичности',
+            'КК': 'капиллярный контроль',
+        }
+        mname = method_names.get(method_scope.strip().upper(), method_scope)
+        method_block = (
+            f"\nКОНТЕКСТНЫЙ РЕЖИМ МЕТОДА: {method_scope.strip().upper()} ({mname}).\n"
+            "Держи ответ преимущественно в ключе этого метода НК и опирайся в первую очередь "
+            "на его нормативные документы из блока «Контекст». Это повышает точность цитирования "
+            "и снижает вероятность некорректных ответов. При этом НЕ забывай остальную базу: если "
+            "вопрос затрагивает смежные методы, упоминай их, но помечай, что основной фокус — "
+            f"{method_scope.strip().upper()}. Если по выбранному методу в базе нет данных — честно "
+            "скажи об этом и при необходимости подскажи, что есть в смежных разделах.\n"
+        )
+
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         context=context, golden_block=golden_block,
-        user_role_block=_get_user_role_block(user),
+        user_role_block=_get_user_role_block(user) + method_block,
     )
 
     # 3. LLM — передаём историю диалога + текущий вопрос

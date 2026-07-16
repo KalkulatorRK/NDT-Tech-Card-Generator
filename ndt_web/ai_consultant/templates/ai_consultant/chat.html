@@ -290,18 +290,35 @@
     background: var(--sidebar-bg);
     border-top: 1px solid var(--border);
   }
-  .quick-chips {
+  .method-switch {
     display: flex; gap: 8px; overflow-x: auto;
     padding-bottom: 10px; margin-bottom: 2px;
   }
-  .quick-chips::-webkit-scrollbar { display: none; }
-  .chip {
-    flex-shrink: 0; border: 1px solid var(--border); background: var(--bg-card);
-    color: var(--text-main); padding: 5px 12px; border-radius: 20px;
-    font-size: 0.82rem; cursor: pointer; transition: all .12s;
-    white-space: nowrap;
+  .method-switch::-webkit-scrollbar { display: none; }
+  .method-btn {
+    position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);
+    padding: 7px 14px; border-radius: 20px; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; transition: all .12s; white-space: nowrap;
   }
-  .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .method-btn i { font-size: 1rem; }
+  .method-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .method-btn.active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .method-btn.active i { color: #fff; }
+  .method-btn:disabled { opacity: 0.5; cursor: default; }
+  .method-btn .soon {
+    font-style: normal; font-size: 0.62rem; font-weight: 500; opacity: 0.8;
+    margin-left: 2px; padding: 1px 5px; border-radius: 8px;
+    background: rgba(128,128,128,0.18); color: var(--text-muted);
+  }
+  .method-btn.active .soon { background: rgba(255,255,255,0.22); color: #fff; }
+  .method-scope-hint {
+    font-size: 0.8rem; color: var(--text-muted); margin: -2px 0 4px; padding-left: 4px;
+  }
+  .method-scope-hint strong { color: var(--accent); }
+  body[data-theme="dark"] .method-scope-hint strong { color: #93bbfd; }
   .chat-input-bar {
     display: flex; gap: 10px; align-items: flex-end;
     background: var(--chat-bg); border: 1px solid var(--border);
@@ -425,12 +442,25 @@
     </div>
 
     <div class="input-panel">
-      <div class="quick-chips">
-        <span class="chip" data-q="Рассчитать f для схемы 3а">Рассчитать f</span>
-        <span class="chip" data-q="Расчёт экспозиции">Время экспозиции</span>
-        <span class="chip" data-q="Подобрать источник для стали 10 мм">Источник для стали 10 мм</span>
-        <span class="chip" data-q="Допуски дефектов категория II, толщина 10 мм">Допуски кат. II</span>
-        <span class="chip" data-q="Распад активности Se-75">Распад Se-75</span>
+      <div class="method-switch" id="methodSwitch">
+        <button type="button" class="method-btn active" data-method="РК" title="Радиографический контроль">
+          <i class="bi bi-badge-cc"></i><span>РК</span>
+        </button>
+        <button type="button" class="method-btn" data-method="УЗК" disabled title="Ультразвуковой контроль — в разработке">
+          <i class="bi bi-soundwave"></i><span>УЗК</span><em class="soon">в разработке</em>
+        </button>
+        <button type="button" class="method-btn" data-method="ВИК" disabled title="Визуальный и измерительный контроль — в разработке">
+          <i class="bi bi-eye"></i><span>ВИК</span><em class="soon">в разработке</em>
+        </button>
+        <button type="button" class="method-btn" data-method="КГ" disabled title="Контроль герметичности — в разработке">
+          <i class="bi bi-droplet-half"></i><span>КГ</span><em class="soon">в разработке</em>
+        </button>
+        <button type="button" class="method-btn" data-method="КК" disabled title="Капиллярный контроль — в разработке">
+          <i class="bi bi-grid-3x3-gap"></i><span>КК</span><em class="soon">в разработке</em>
+        </button>
+      </div>
+      <div class="method-scope-hint" id="methodScopeHint">
+        Активный метод: <strong id="activeMethod">РК</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.
       </div>
 
       <form id="chat-form" class="chat-input-bar">
@@ -582,6 +612,7 @@ async function apiAsk(q) {
   const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
   const fd = { question: q };
   if (sessionInput.value) fd.session_id = sessionInput.value;
+  if (activeMethod) fd.method_scope = activeMethod;
   try {
     const resp = await fetch('/api/consultant/ask/', {
       method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken': csrf},
@@ -621,9 +652,23 @@ input.addEventListener('keydown', (e) => {
   }
 });
 
-// Quick chips
-document.querySelectorAll('.chip').forEach(chip => {
-  chip.addEventListener('click', () => apiAsk(chip.dataset.q));
+// Переключатель метода НК (контекстный режим)
+let activeMethod = 'РК';
+const methodBtns = document.querySelectorAll('.method-btn');
+const activeMethodEl = document.getElementById('activeMethod');
+methodBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    methodBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeMethod = btn.dataset.method;
+    if (activeMethodEl) activeMethodEl.textContent = activeMethod;
+    const hint = document.getElementById('methodScopeHint');
+    if (hint) {
+      hint.innerHTML = 'Активный метод: <strong id="activeMethod">' + activeMethod +
+        '</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.';
+    }
+  });
 });
 
 // Session history

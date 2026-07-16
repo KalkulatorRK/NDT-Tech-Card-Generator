@@ -57,7 +57,8 @@ def ask_view(request):
     if not question:
         return JsonResponse({'error': 'question required'}, status=400)
     session_id = data.get('session_id')
-    result = _safe_ask(request.user, session_id, question)
+    method_scope = (data.get('method_scope') or '').strip() or None
+    result = _safe_ask(request.user, session_id, question, method_scope=method_scope)
     if result.get('subscription_required'):
         return JsonResponse(result, status=402)
     return JsonResponse(result, status=200)

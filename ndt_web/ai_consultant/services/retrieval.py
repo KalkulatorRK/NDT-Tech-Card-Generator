@@ -26,11 +26,23 @@ def _cosine_sim(a, b) -> float:
     return float(np.dot(a, b) / denom) if denom else 0.0
 
 
-def hybrid_search(query: str, top_k: int = 8) -> list:
+def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> list:
     from ai_consultant.models import DocumentChunk
     from ai_consultant.services.embeddings import embed_query
 
     q_vec = embed_query(query)
+
+    def _preferred_boost(c):
+        """Повышающий вес для чанков профильных НД выбранного метода НК."""
+        if not preferred_nds:
+            return 0.0
+        doc = getattr(getattr(c, 'source', None), 'doc_number', '') or ''
+        title = getattr(getattr(c, 'source', None), 'title', '') or ''
+        hay = (doc + ' ' + title).upper()
+        for nd in preferred_nds:
+            if nd.upper() in hay:
+                return 0.35
+        return 0.0
 
     if _is_pgvector():
         from django.contrib.postgres.search import SearchVector, SearchQuery
@@ -55,6 +67,7 @@ def hybrid_search(query: str, top_k: int = 8) -> list:
             # Приоритет справочника Горбачёва (выше, чем Назипов)
             if hasattr(c, 'source') and c.source and c.source.doc_number and 'Горбачёв' in c.source.doc_number:
                 c.score += 0.5
+            c.score += _preferred_boost(c)
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
@@ -73,6 +86,7 @@ def hybrid_search(query: str, top_k: int = 8) -> list:
             # Приоритет справочника Горбачёва
             if hasattr(c, 'source') and c.source and c.source.doc_number and 'Горбачёв' in c.source.doc_number:
                 c.score += 0.5
+            c.score += _preferred_boost(c)
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]

@@ -22,7 +22,7 @@
 
   .consultant-app {
     position: fixed;
-    top: var(--navbar-height, 56px);
+    top: 64px;
     left: 0;
     right: 0;
     bottom: 0;
@@ -82,11 +82,13 @@
   .session-item.active i { color: var(--accent); }
   .session-title {
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    font-size: 0.9rem;
+    font-size: 0.9rem; color: var(--header-bg); font-weight: 500;
   }
+  .session-item.active .session-title { color: var(--accent); }
   .session-date {
-    font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;
+    font-size: 0.7rem; color: #4b5563; white-space: nowrap; font-weight: 500;
   }
+  .session-item.active .session-date { color: var(--accent); }
 
   /* --- Main chat area --- */
   .consultant-main {

@@ -4,21 +4,28 @@
 {% block content %}
 <style>
   :root {
-    --chat-bg: #f4f6f9;
-    --sidebar-bg: #ffffff;
+    --chat-bg: var(--bg-main);
+    --sidebar-bg: var(--bg-card);
     --header-bg: #0d3b66;
-    --accent: #0d6efd;
-    --accent-light: #e7f1ff;
-    --text-main: #1f2937;
-    --text-muted: #6b7280;
-    --border: #e5e7eb;
-    --bot-bg: #ffffff;
-    --user-bg: #0d6efd;
-    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+    --accent: var(--primary);
+    --accent-light: var(--primary-light);
+    --bot-bg: var(--bg-card);
+    --user-bg: var(--primary);
+    --shadow: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+    --shadow-lg: 0 10px 25px rgba(15,23,42,0.08);
     --radius: 16px;
     --radius-sm: 10px;
   }
+
+  /* --- Dark theme overrides for chat --- */
+  body[data-theme="dark"] .msg-bubble { color: var(--text-main); }
+  body[data-theme="dark"] .msg-bubble strong { color: var(--text-main); }
+  body[data-theme="dark"] .msg-bubble code { background: #1e293b; color: #e2e8f0; }
+  body[data-theme="dark"] .citation-pill { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.25); color: #93bbfd; }
+  body[data-theme="dark"] .session-title { color: var(--text-main); }
+  body[data-theme="dark"] .msg-actions button:hover { background: var(--primary-light); }
+  body[data-theme="dark"] .new-chat-btn { border-color: var(--accent); color: var(--accent); }
+  body[data-theme="dark"] .new-chat-btn:hover { background: var(--accent-light); }
 
   .consultant-app {
     position: fixed;

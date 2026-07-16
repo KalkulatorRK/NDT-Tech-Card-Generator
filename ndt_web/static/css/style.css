@@ -977,27 +977,52 @@ a:hover { color: var(--primary-hover); }
 
 /* ---- Футер ---- */
 footer {
-  background: #2c3e50;
-  color: rgba(255,255,255,0.75);
-  padding: 2rem 0 1rem;
+  background: var(--bg-footer);
+  color: var(--text-on-dark);
+  padding: 2.5rem 0 1rem;
   margin-top: auto;
+  border-top: 1px solid var(--border);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 2rem;
+}
+
+.footer-col p {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin: 0;
+  line-height: 1.5;
 }
 
 footer .footer-title {
   color: #fff;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-footer a { color: rgba(255,255,255,0.7); }
-footer a:hover { color: #fff; }
+footer .footer-title img { border-radius: 6px; }
+
+.footer-col ul { margin: 0; padding: 0; }
+.footer-col ul li { margin-bottom: 0.45rem; font-size: 0.85rem; }
+.footer-col ul li i { margin-right: 0.4rem; }
+
+footer a { color: var(--text-on-dark); opacity: 0.8; }
+footer a:hover { opacity: 1; color: #fff; }
+
 footer .footer-bottom {
-  border-top: 1px solid rgba(255,255,255,0.1);
-  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
   padding-top: 1rem;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   text-align: center;
-  color: rgba(255,255,255,0.5);
+  opacity: 0.6;
 }
 
 /* ---- Страница дефектов (динамическая) ---- */

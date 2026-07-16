@@ -1076,8 +1076,130 @@ def _try_zone_width(text: str) -> ToolResult:
 
 # --- точка входа ---------------------------------------------------------
 
+def _try_activity_decay(text: str) -> ToolResult:
+    """Расчёт активности радионуклидного источника через спад:
+    A = A₀ · 2^(−t / T½). Берёт РЕАЛЬНЫЙ период полураспада из базы (приложение Б)."""
+    if not re.search(r"(активн|распад|спад|полураспад|радиоактивн|источник.*излучен|нуклид|источник.*se|источник.*ir|источник.*co)",
+                     text, re.IGNORECASE):
+        return ToolResult(matched=False)
+    # Нужны прошедшее время и начальная активность (или наоборот)
+    t_match = re.search(r"(\d+[.,]?\d*)\s*(дн|сут|год|лет|мес|час|ч\b)", text, re.IGNORECASE)
+    a_match = re.search(r"(\d+[.,]?\d*)\s*(Ки|ки|Бк|Кюри|кюри|Curie|Ci)", text, re.IGNORECASE)
+    if not t_match or not a_match:
+        # Данных не хватает — даём формулу и просим недостающее, не выдумывая
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Расчёт активности радионуклидного источника выполняется по закону "
+                "радиоактивного распада:\n"
+                "A(t) = A₀ · 2^(−t / T½),\n"
+                "где A₀ — начальная активность, t — прошедшее время, T½ — период "
+                "полураспада нуклида.\n\n"
+                "Назовите нуклид (например, Se-75, Ir-192, Co-60), начальную активность "
+                "и прошедшее время — рассчитаю текущую активность по реальному T½ из "
+                "ГОСТ Р 50.05.07-2018 (приложение Б)."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Б, табл. Б.1–Б.3]",
+        )
+    t_val = float(t_match.group(1).replace(',', '.'))
+    unit = t_match.group(2).lower()
+    # Приводим к суткам
+    if unit in ('год', 'лет'):
+        t_days = t_val * 365.25
+    elif unit in ('мес',):
+        t_days = t_val * 30.44
+    elif unit in ('час', 'ч'):
+        t_days = t_val / 24.0
+    else:  # дн / сут
+        t_days = t_val
+    a0 = float(a_match.group(1).replace(',', '.'))
+    a_unit = 'Ки' if re.search(r'(Ки|ки|Кюри|кюри|Curie|Ci)', a_match.group(0), re.IGNORECASE) else 'Бк'
+
+    from normative import gost_50_05_07 as M507
+    sources = getattr(M507, 'RADIATION_SOURCES', [])
+    isotope = None
+    for src in sources:
+        code = src.get('code', '')
+        # совпадение кода с возможным пробелом/слитно: Se-75 / Se75 / SE 75
+        code_pat = re.escape(code).replace(r'\-', r'\-?')
+        if re.search(r'\b' + code_pat + r'\b', text, re.IGNORECASE) \
+           or re.search(code_pat.replace('-', ' ?'), text, re.IGNORECASE):
+            isotope = src
+            break
+    if not isotope and re.search(r'селен', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Se'):
+                isotope = src
+                break
+    if not isotope and re.search(r'ирид', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Ir'):
+                isotope = src
+                break
+    if not isotope and re.search(r'кобальт', text, re.IGNORECASE):
+        for src in sources:
+            if src.get('code', '').startswith('Co'):
+                isotope = src
+                break
+
+    if not isotope:
+        return ToolResult(
+            matched=True,
+            answer=(
+                "Укажите нуклид (Se-75, Ir-192, Co-60 и др.), чтобы подставить его "
+                "реальный период полураспада из ГОСТ Р 50.05.07-2018 (приложение Б). "
+                "Формула спада: A(t) = A₀ · 2^(−t / T½)."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Б]",
+        )
+
+    # Парсим период полураспада из строки '119,8 сут' / '5,27 лет' и т.п.
+    hl_raw = isotope.get('half_life', '')
+    hl_match = re.search(r"(\d+[.,]?\d*)\s*(сут|дн|год|лет|мес)", hl_raw, re.IGNORECASE)
+    if not hl_match:
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"Для {isotope.get('name','')} в базе не удалось разобрать числовой "
+                f"период полураспада (указано: «{hl_raw}»). Назовите его — рассчитаю."
+            ),
+            citation="[ГОСТ Р 50.05.07-2018, приложение Б]",
+        )
+    hl_val = float(hl_match.group(1).replace(',', '.'))
+    hl_unit = hl_match.group(2).lower()
+    if hl_unit in ('год', 'лет'):
+        hl_days = hl_val * 365.25
+    elif hl_unit in ('мес',):
+        hl_days = hl_val * 30.44
+    else:  # сут / дн
+        hl_days = hl_val
+
+    ratio = 2 ** (-t_days / hl_days)
+    a_curr = a0 * ratio
+    name = isotope.get('name', '')
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Расчёт активности источника {name} по закону радиоактивного распада "
+            f"[ГОСТ Р 50.05.07-2018, приложение Б]:\n\n"
+            f"Исходные данные (из вопроса):\n"
+            f"— начальная активность A₀ = {a0:g} {a_unit};\n"
+            f"— прошедшее время t = {t_val:g} {unit} (~{t_days:.1f} сут);\n"
+            f"— период полураспада {name}: T½ = {hl_raw}.\n\n"
+            f"Формула: A(t) = A₀ · 2^(−t / T½).\n"
+            f"Показатель степени: −t/T½ = −{t_days:.1f} / {hl_days:.1f} = "
+            f"{-t_days/hl_days:.4f}.\n"
+            f"Коэффициент спада: 2^(−t/T½) = {ratio:.4f}.\n\n"
+            f"Текущая активность: A = {a0:g} · {ratio:.4f} = "
+            f"{a_curr:.2f} {a_unit}.\n\n"
+            f"Ответ: {a_curr:.2f} {a_unit}."
+        ),
+        citation="[ГОСТ Р 50.05.07-2018, приложение Б, табл. Б.1–Б.3]",
+    )
+
+
 _HANDLERS = [
-    _try_exposure_calc, _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
+    _try_activity_decay, _try_exposure_calc, _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
     _try_iqi_range, _try_xray_voltage, _try_zone_width,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,

@@ -418,7 +418,7 @@ def _try_geometry_f(text: str) -> ToolResult:
     # не перехватывать вопросы про ВРЕМЯ экспозиции / ток трубки (это не f)
     if re.search(r"время\s+экспозиц|экспозиц\w*\s+(время|ток|режим)|ток\s+(трубки|аппарата)|режим\s+(трубки|аппарата|рентген)|минут\w*\s+экспоз", text, re.IGNORECASE):
         return ToolResult(matched=False)
-    if not ('f' in tl or 'приложен' in tl or 'экспозиц' in tl or 'схем' in tl
+    if not ('f' in tl or 'приложен' in tl or 'схем' in tl
             or ('источник' in tl and 'расстоян' in tl) or 'расстоян' in tl):
         return ToolResult(matched=False)
     if M507 is None:
@@ -895,7 +895,7 @@ def _try_geometry_formula(text: str) -> ToolResult:
 
 def _try_exposure_calc(text: str) -> ToolResult:
     """Расчёт/пояснение времени экспозиции: ток × время = const."""
-    if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток|рассчитай.*экспоз|расчёт.*экспоз)",
+    if not re.search(r"(экспозиц|время.*экспоз|ток.*труб|ток.*увелич|удвоен.*ток|минут|экспозиц.*ток|рассчитай.*экспоз|расчёт.*экспоз|рассчитать.*экспоз|сколько.*экспоз|выдержк)",
                      text, re.IGNORECASE):
         return ToolResult(matched=False)
     # Ищем: было X мин, ток изменился в Y раз
@@ -1010,13 +1010,13 @@ def _try_zone_width(text: str) -> ToolResult:
 # --- точка входа ---------------------------------------------------------
 
 _HANDLERS = [
-    _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
+    _try_exposure_calc, _try_geometry_f, _try_xray_standard_types, _try_sensitivity, _try_wire_iqi,
     _try_iqi_range, _try_xray_voltage, _try_zone_width,
     _try_materials_separate_tables, _try_surface_defect_table,
     _try_methods, _try_iqi_types, _try_iqi_number, _try_marking_decode,
     _try_evaluate_weld_quality, _try_defect_cluster, _try_table_48_lookup,
     _try_geometric_unsharpness, _try_optical_density, _try_recommended_source,
-    _try_geometry_formula, _try_exposure_calc, _try_trap_comparison,
+    _try_geometry_formula, _try_trap_comparison,
 ]
 
 

@@ -34,6 +34,8 @@ from normative.calculations import resolve_table_b_thickness_mm
 from normative.gost_50_05_07 import get_suitable_sources, get_table_b_selection_info, get_suitable_films
 from normative.gost_59023_2 import resolve_material_type, get_material_display_name
 
+SESSION_KEY = 'techcard_data'
+
 
 def home_view(request):
     """Главная страница приложения."""
@@ -72,7 +74,10 @@ def cabinet_view(request):
     user = request.user
     balance, _ = UserBalance.objects.get_or_create(user=user)
     techcards = TechCard.objects.filter(user=user).select_related('normative_doc')
-    normative_docs = NormativeDocument.objects.filter(is_active=True)
+    normative_docs = NormativeDocument.objects.filter(
+        is_active=True,
+        document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+    )
 
     docs_status = []
     for doc in normative_docs:
@@ -117,12 +122,19 @@ def cabinet_view(request):
 
 
 def method_select_view(request):
-    """Страница выбора метода контроля и нормативного документа."""
-    normative_docs = NormativeDocument.objects.filter(is_active=True)
+    """Шаг выбора методического документа (по методу НК)."""
+    # Новый выбор методики — очищаем черновик сессии
+    if SESSION_KEY in request.session:
+        del request.session[SESSION_KEY]
+        request.session.modified = True
 
-    # Группировка по методу контроля
+    methodological_docs = NormativeDocument.objects.filter(
+        is_active=True,
+        document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+    )
+
     methods = {}
-    for doc in normative_docs:
+    for doc in methodological_docs:
         method = doc.get_control_method_display()
         if method not in methods:
             methods[method] = []
@@ -131,7 +143,53 @@ def method_select_view(request):
     return render(request, 'techcards/method_select.html', {'methods': methods})
 
 
-SESSION_KEY = 'techcard_data'
+def normative_select_view(request, doc_code):
+    """Шаг выбора нормативного документа оценки качества после методики."""
+    method_doc = get_object_or_404(
+        NormativeDocument,
+        code=doc_code,
+        is_active=True,
+        document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+    )
+    if not method_doc.is_implemented:
+        messages.info(request, f'Модуль для «{method_doc.code}» находится в разработке.')
+        return redirect('method_select')
+
+    normative_docs = NormativeDocument.objects.filter(
+        is_active=True,
+        document_kind=NormativeDocument.KIND_NORMATIVE,
+        control_method=method_doc.control_method,
+    ).order_by('sort_order', 'code')
+
+    return render(request, 'techcards/normative_select.html', {
+        'method_doc': method_doc,
+        'normative_docs': normative_docs,
+    })
+
+
+def select_quality_norm_view(request, doc_code, quality_norm_code):
+    """Фиксирует пару методика + нормативный документ и открывает шаг 1 формы."""
+    method_doc = get_object_or_404(
+        NormativeDocument,
+        code=doc_code,
+        is_active=True,
+        document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+        is_implemented=True,
+    )
+    quality_doc = get_object_or_404(
+        NormativeDocument,
+        code=quality_norm_code,
+        is_active=True,
+        document_kind=NormativeDocument.KIND_NORMATIVE,
+        control_method=method_doc.control_method,
+        is_implemented=True,
+    )
+    _save_session_data(request, {
+        'doc_code': method_doc.code,
+        'quality_norm_code': quality_doc.code,
+        'quality_norm_name': quality_doc.full_name,
+    })
+    return redirect('create_step1', doc_code=method_doc.code)
 
 
 def build_step3_scheme_data(
@@ -212,7 +270,12 @@ def _save_session_data(request, data: dict):
 
 def create_step1_view(request, doc_code):
     """Шаг 1: Идентификационные данные объекта."""
-    doc = get_object_or_404(NormativeDocument, code=doc_code, is_active=True)
+    doc = get_object_or_404(
+        NormativeDocument,
+        code=doc_code,
+        is_active=True,
+        document_kind=NormativeDocument.KIND_METHODOLOGICAL,
+    )
 
     if not doc.is_implemented:
         messages.info(request, f'Модуль для «{doc.code}» находится в разработке.')
@@ -222,6 +285,20 @@ def create_step1_view(request, doc_code):
     if not request.user.is_authenticated:
         messages.warning(request, 'Для создания технологической карты необходимо войти в систему.')
         return redirect('login')
+
+    session_data = _get_session_data(request)
+    quality_norm_code = (session_data.get('quality_norm_code') or '').strip()
+    if not quality_norm_code:
+        messages.info(request, 'Сначала выберите нормативный документ оценки качества.')
+        return redirect('normative_select', doc_code=doc_code)
+    quality_doc = NormativeDocument.objects.filter(
+        code=quality_norm_code,
+        document_kind=NormativeDocument.KIND_NORMATIVE,
+        is_active=True,
+    ).first()
+    if not quality_doc:
+        messages.warning(request, 'Выбранный нормативный документ недоступен. Выберите снова.')
+        return redirect('normative_select', doc_code=doc_code)
 
     # Проверка баланса
     balance, _ = UserBalance.objects.get_or_create(user=request.user)
@@ -237,15 +314,21 @@ def create_step1_view(request, doc_code):
     if request.method == 'POST':
         form = TechCardStep1Form(request.POST)
         if form.is_valid():
-            _save_session_data(request, {'doc_code': doc_code, **form.cleaned_data})
+            _save_session_data(request, {
+                'doc_code': doc_code,
+                'quality_norm_code': quality_doc.code,
+                'quality_norm_name': quality_doc.full_name,
+                **form.cleaned_data,
+            })
             return redirect('create_step2', doc_code=doc_code)
     else:
-        form = TechCardStep1Form()
+        form = TechCardStep1Form(initial=session_data)
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
     return render(request, 'techcards/create_step1.html', {
         'form': form,
         'doc': doc,
+        'quality_doc': quality_doc,
         'step': 1,
         'total_steps': 4,
         'step_labels': STEP_LABELS,
@@ -267,8 +350,16 @@ def create_step2_view(request, doc_code):
     if not request.user.is_authenticated:
         return redirect('login')
 
+    session_data = _get_session_data(request)
+    quality_norm_code = (session_data.get('quality_norm_code') or '').strip()
+    from normative.snip_3_05_05_84 import (
+        is_snip_quality_norm,
+        get_pipeline_category_choices,
+        PIPELINE_CATEGORIES,
+    )
+
     if request.method == 'POST':
-        form = TechCardStep2Form(request.POST)
+        form = TechCardStep2Form(request.POST, quality_norm_code=quality_norm_code)
         if form.is_valid():
             data = form.cleaned_data
             if not data.get('material') and data.get('material_custom'):
@@ -278,42 +369,99 @@ def create_step2_view(request, doc_code):
             _save_session_data(request, data)
             return redirect('create_step3', doc_code=doc_code)
     else:
-        form = TechCardStep2Form(initial=_step2_form_initial(request))
+        form = TechCardStep2Form(
+            initial=_step2_form_initial(request),
+            quality_norm_code=quality_norm_code,
+        )
 
-    from normative.gost_59023_2 import (
-        JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
-        iter_joint_codes, get_joint_thickness_ranges,
-        get_joint_scoped_applicability, format_joint_choice_label,
-        get_joint_applicability_for_display, get_joint_group_labels_for_ui,
-        get_joint_applicable_material_classes,
-    )
     from normative.np_105_18 import get_weld_category_choices
-    joint_data = {}
-    for code in iter_joint_codes():
-        info = JOINT_TYPES[code]
-        joint_data[code] = {
-            'name': info['name'],
-            'methods': info['methods'],
-            'groove': info['groove'],
-            'image': get_joint_image_path(code),
-            'material': info.get('material', 'perlit'),
-            'joint_type': info.get('joint_type', 'butt'),
-            'gost_table': info.get('gost_table', ''),
-            'bead_mode': info.get('bead_mode', 'equal'),
-            'thickness_ranges': get_joint_thickness_ranges(code),
-            'material_applicability': get_joint_scoped_applicability(code, info)
-            if info.get('material') in ('titanium', 'aluminum')
-            else get_joint_applicability_for_display(code, info),
-            'choice_label': format_joint_choice_label(code, info),
-            'applicability': info.get('applicability') or get_joint_applicability_for_display(code, info),
-            'applicable_materials': get_joint_applicable_material_classes(code),
-            'gost_tables_all': info.get('gost_tables_all', []),
-            'group_key': info.get('group_key', ''),
+
+    if is_snip_quality_norm(quality_norm_code):
+        from normative import gost_16037_80 as G16037
+        joint_data = {}
+        for code in G16037.iter_joint_codes():
+            info = G16037.JOINT_TYPES[code]
+            joint_data[code] = {
+                'name': info['name'],
+                'methods': info['methods'],
+                'groove': info.get('groove', ''),
+                'image': G16037.get_joint_image_path(code),
+                'image_static_root': True,
+                'material': info.get('material', 'steel_pipeline'),
+                'joint_type': info.get('joint_type', 'butt'),
+                'gost_table': info.get('gost_table', ''),
+                'bead_mode': info.get('bead_mode', 'equal'),
+                'thickness_ranges': G16037.get_joint_thickness_ranges(code),
+                'material_applicability': 'Стальные трубопроводы (ГОСТ 16037-80)',
+                'choice_label': G16037.format_joint_choice_label(code, info),
+                'applicability': (
+                    f'{info.get("connection_kind", "")}; '
+                    f'{info.get("weld_character", "")}'.strip('; ')
+                ),
+                'applicable_materials': ['steel_pipeline', 'perlit', 'steel'],
+                'gost_tables_all': [info.get('gost_table', '')] if info.get('gost_table') else [],
+                'group_key': info.get('group_key') or G16037.get_joint_group_key(code, info),
+            }
+        welding_labels = {
+            code: f'{code} — {info["name"]}'
+            for code, info in G16037.WELDING_PROCESSES.items()
         }
-    welding_labels = {
-        code: f'{code} — {info["name"]}'
-        for code, info in WELDING_PROCESSES.items()
-    }
+        joint_group_labels = G16037.get_joint_group_labels_for_ui()
+    else:
+        from normative.gost_59023_2 import (
+            JOINT_TYPES, WELDING_PROCESSES, get_joint_image_path,
+            iter_joint_codes, get_joint_thickness_ranges,
+            get_joint_scoped_applicability, format_joint_choice_label,
+            get_joint_applicability_for_display, get_joint_group_labels_for_ui,
+            get_joint_applicable_material_classes,
+        )
+        joint_data = {}
+        for code in iter_joint_codes():
+            info = JOINT_TYPES[code]
+            joint_data[code] = {
+                'name': info['name'],
+                'methods': info['methods'],
+                'groove': info['groove'],
+                'image': get_joint_image_path(code),
+                'image_static_root': False,
+                'material': info.get('material', 'perlit'),
+                'joint_type': info.get('joint_type', 'butt'),
+                'gost_table': info.get('gost_table', ''),
+                'bead_mode': info.get('bead_mode', 'equal'),
+                'thickness_ranges': get_joint_thickness_ranges(code),
+                'material_applicability': get_joint_scoped_applicability(code, info)
+                if info.get('material') in ('titanium', 'aluminum')
+                else get_joint_applicability_for_display(code, info),
+                'choice_label': format_joint_choice_label(code, info),
+                'applicability': info.get('applicability') or get_joint_applicability_for_display(code, info),
+                'applicable_materials': get_joint_applicable_material_classes(code),
+                'gost_tables_all': info.get('gost_tables_all', []),
+                'group_key': info.get('group_key', ''),
+            }
+        welding_labels = {
+            code: f'{code} — {info["name"]}'
+            for code, info in WELDING_PROCESSES.items()
+        }
+        joint_group_labels = get_joint_group_labels_for_ui()
+
+    if is_snip_quality_norm(quality_norm_code):
+        snip_cats = get_pipeline_category_choices()
+        weld_cat_json = {
+            'steel': snip_cats,
+            'aluminum': snip_cats,
+            'titanium': snip_cats,
+        }
+        snip_vol_map = {
+            code: info['control_volume_pct']
+            for code, info in PIPELINE_CATEGORIES.items()
+        }
+    else:
+        weld_cat_json = {
+            'steel': get_weld_category_choices('steel'),
+            'aluminum': get_weld_category_choices('aluminum'),
+            'titanium': get_weld_category_choices('titanium'),
+        }
+        snip_vol_map = {}
 
     return render(request, 'techcards/create_step2.html', {
         'form': form,
@@ -324,14 +472,13 @@ def create_step2_view(request, doc_code):
         'joint_data_json': json.dumps(joint_data, ensure_ascii=False),
         'joint_codes_ordered_json': json.dumps(list(joint_data.keys()), ensure_ascii=False),
         'joint_group_labels_json': json.dumps(
-            get_joint_group_labels_for_ui(), ensure_ascii=False,
+            joint_group_labels, ensure_ascii=False,
         ),
         'welding_labels_json': json.dumps(welding_labels, ensure_ascii=False),
-        'weld_category_choices_json': json.dumps({
-            'steel': get_weld_category_choices('steel'),
-            'aluminum': get_weld_category_choices('aluminum'),
-            'titanium': get_weld_category_choices('titanium'),
-        }, ensure_ascii=False),
+        'weld_category_choices_json': json.dumps(weld_cat_json, ensure_ascii=False),
+        'quality_norm_code': quality_norm_code,
+        'quality_is_snip': is_snip_quality_norm(quality_norm_code),
+        'snip_volume_by_category_json': json.dumps(snip_vol_map, ensure_ascii=False),
     })
 
 
@@ -361,6 +508,7 @@ def create_step3_view(request, doc_code):
             joint_designation=joint_designation,
             welding_process=welding_process,
             object_type=object_type,
+            doc_code=doc_code,
         )
         if form.is_valid():
             data = form.cleaned_data
@@ -373,6 +521,7 @@ def create_step3_view(request, doc_code):
             joint_designation=joint_designation,
             welding_process=welding_process,
             object_type=object_type,
+            doc_code=doc_code,
         )
 
     STEP_LABELS = ['Объект', 'Параметры', 'Источник', 'Подтверждение']
@@ -380,12 +529,27 @@ def create_step3_view(request, doc_code):
         wall_thickness, material_type, joint_designation, welding_process,
         object_type=object_type,
     )
+    from normative.gost_16037_80 import (
+        is_gost_16037_joint,
+        get_joint_info as get_joint_info_16037,
+        WELDING_PROCESSES as WELDING_16037,
+    )
     from normative.gost_59023_2 import get_joint_info, WELDING_PROCESSES
-    joint_info = get_joint_info(joint_designation) if joint_designation else {}
-    welding_label = ''
-    if welding_process and welding_process in WELDING_PROCESSES:
-        wp = WELDING_PROCESSES[welding_process]
-        welding_label = f'{welding_process} — {wp["name"]}'
+
+    joint_image_static_root = False
+    if joint_designation and is_gost_16037_joint(joint_designation):
+        joint_info = get_joint_info_16037(joint_designation)
+        joint_image_static_root = True
+        welding_label = ''
+        if welding_process and welding_process in WELDING_16037:
+            wp = WELDING_16037[welding_process]
+            welding_label = f'{welding_process} — {wp["name"]}'
+    else:
+        joint_info = get_joint_info(joint_designation) if joint_designation else {}
+        welding_label = ''
+        if welding_process and welding_process in WELDING_PROCESSES:
+            wp = WELDING_PROCESSES[welding_process]
+            welding_label = f'{welding_process} — {wp["name"]}'
 
     return render(request, 'techcards/create_step3.html', {
         'form': form,
@@ -399,10 +563,11 @@ def create_step3_view(request, doc_code):
         'session_material': session_data.get('material', ''),
         'joint_designation': joint_designation,
         'joint_info': joint_info,
+        'joint_image_static_root': joint_image_static_root,
         'welding_process': welding_process,
         'welding_label': welding_label,
         'object_type': object_type,
-        'scheme_ui_json': json.dumps(get_scheme_ui_data(), ensure_ascii=False),
+        'scheme_ui_json': json.dumps(get_scheme_ui_data(doc_code), ensure_ascii=False),
         'sources_by_scheme_json': json.dumps(
             scheme_data['sources_by_scheme'], ensure_ascii=False,
         ),
@@ -461,11 +626,21 @@ def _build_human_readable_summary(data: dict) -> list:
         'flat': 'Плоская деталь / пластина',
         'vessel': 'Сосуд давления / обечайка',
     }
-    WELD_CATS = {
-        'I': 'I — первый контур АЭУ',
-        'II': 'II — вспомогательные системы',
-        'III': 'III — прочее оборудование',
-    }
+    from normative.snip_3_05_05_84 import (
+        is_snip_quality_norm as _is_snip,
+        PIPELINE_CATEGORIES as _SNIP_CATS,
+    )
+    if _is_snip(data.get('quality_norm_code')):
+        WELD_CATS = {c: info['name'] for c, info in _SNIP_CATS.items()}
+    else:
+        WELD_CATS = {
+            'I': 'I — первый контур АЭУ',
+            'II': 'II — вспомогательные системы',
+            'III': 'III — прочее оборудование',
+            'Iн': 'Iн',
+            'IIн': 'IIн',
+            'IV': 'IV',
+        }
     SCHEME_LABELS = {
         code: info.get('name', get_scheme_user_label(code))
         for code, info in SCHEME_INFO.items()
@@ -578,6 +753,8 @@ def generate_card_view(request, doc_code):
     try:
         # Путь к шаблону DOCX (если загружен в card_templates/)
         template_path = get_default_template_path()
+        # Методика = выбранная кнопка документа (7512 / 50.05.07)
+        input_data = {**input_data, 'doc_code': doc_code}
         result = generate_tech_card(
             input_data, settings.MEDIA_ROOT,
             template_path=template_path,
@@ -809,15 +986,26 @@ def get_joint_zones_ajax(request):
     except (ValueError, TypeError):
         backing_thickness = None
 
+    from normative.gost_16037_80 import is_gost_16037_joint, get_inspection_zone as get_zone_16037
     from normative.gost_59023_2 import get_inspection_zone, resolve_material_type
-    result = get_inspection_zone(
-        joint_code, thickness, method,
-        material_type=resolve_material_type(material),
-        material=material,
-        reinforcement_removed=reinforcement_removed,
-        has_backing_ring=has_backing_ring,
-        backing_ring_thickness_mm=backing_thickness,
-    )
+
+    if is_gost_16037_joint(joint_code):
+        result = get_zone_16037(
+            joint_code, thickness, method or 'Р',
+            material_type=resolve_material_type(material),
+            reinforcement_removed=reinforcement_removed,
+            has_backing_ring=has_backing_ring,
+            backing_ring_thickness_mm=backing_thickness,
+        )
+    else:
+        result = get_inspection_zone(
+            joint_code, thickness, method,
+            material_type=resolve_material_type(material),
+            material=material,
+            reinforcement_removed=reinforcement_removed,
+            has_backing_ring=has_backing_ring,
+            backing_ring_thickness_mm=backing_thickness,
+        )
     return JsonResponse(result)
 
 

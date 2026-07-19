@@ -22,20 +22,31 @@
             {% if joint_designation and joint_info %}
             <div class="col-12">
               <label class="form-label fw-semibold">
+                {% if joint_image_static_root %}
+                Условное обозначение сварного соединения (ГОСТ 16037-80)
+                {% else %}
                 Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020)
+                {% endif %}
               </label>
               <div class="border rounded p-3 joint-reference-block" id="joint-reference-block">
                 <div class="row align-items-center g-3">
                   {% if joint_info.image %}
-                  <div class="col-md-4 col-lg-3 text-center">
+                  <div class="col-12 text-center mb-2">
+                    {% if joint_image_static_root %}
+                    <img src="{% static '' %}{{ joint_info.image }}"
+                         alt="Конструктивные элементы шва {{ joint_designation }}"
+                         class="joint-gost-image"
+                         style="max-height:420px; max-width:100%; width:auto; object-fit:contain;">
+                    {% else %}
                     <img src="{% static 'img/welds/' %}{{ joint_info.image }}"
                          alt="Конструктивные элементы шва {{ joint_designation }}"
                          class="joint-gost-image"
-                         style="max-height:200px; max-width:100%; object-fit:contain;">
+                         style="max-height:420px; max-width:100%; width:auto; object-fit:contain;">
+                    {% endif %}
                     <div class="text-muted small mt-1">Шов сварного соединения (в разрезе)</div>
                   </div>
                   {% endif %}
-                  <div class="col-md-{% if joint_info.image %}8{% else %}12{% endif %} col-lg-{% if joint_info.image %}9{% else %}12{% endif %}">
+                  <div class="col-12">
                     <div class="fw-semibold text-primary mb-1">{{ joint_designation }}</div>
                     <div class="joint-reference-name">{{ joint_info.name }}</div>
                     <div class="text-muted mt-2 joint-reference-meta">

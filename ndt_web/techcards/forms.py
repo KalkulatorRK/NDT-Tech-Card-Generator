@@ -389,8 +389,15 @@ class TechCardStep2Form(forms.Form):
         help_text='Учитывается при расчёте K и f при контроле через одну стенку.',
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, quality_norm_code=None, **kwargs):
+        self.quality_norm_code = (quality_norm_code or '').strip()
         super().__init__(*args, **kwargs)
+        from normative.snip_3_05_05_84 import (
+            is_snip_quality_norm,
+            get_pipeline_category_choices,
+            get_default_control_volume_pct,
+        )
+
         joint = ''
         material = ''
         material_custom = ''
@@ -406,15 +413,73 @@ class TechCardStep2Form(forms.Form):
             material_custom = (self.initial.get('material_custom') or '').strip()
             weld_category = self.initial.get('weld_category', '')
 
-        self.fields['joint_designation'].choices = get_joint_type_choices()
-        if joint:
-            self.fields['welding_process'].choices = (
-                get_welding_process_choices_for_joint(joint)
+        if is_snip_quality_norm(self.quality_norm_code):
+            from normative import gost_16037_80 as G16037
+            self.fields['joint_designation'].choices = G16037.get_joint_type_choices()
+            self.fields['joint_designation'].label = (
+                'Условное обозначение сварного соединения (ГОСТ 16037-80) *'
             )
-        material_type = resolve_material_type_for_categories(
-            material, material_custom, weld_category,
-        )
-        self.fields['weld_category'].choices = get_weld_category_choices(material_type)
+            self.fields['joint_designation'].help_text = (
+                'С — стыковое, У — угловое, Н — нахлёсточное. '
+                'Типы и размеры — по ГОСТ 16037-80 (трубопроводы); '
+                'тавровые соединения этим стандартом не нормируются.'
+            )
+            self.fields['welding_process'].label = (
+                'Способ сварки (по ГОСТ 16037-80) *'
+            )
+            self.fields['welding_process'].help_text = (
+                'ЗП — в защитном газе плавящимся электродом; '
+                'ЗН — неплавящимся; Р — ручная дуговая; Ф — под флюсом; Г — газовая.'
+            )
+            if joint:
+                self.fields['welding_process'].choices = (
+                    G16037.get_welding_process_choices_for_joint(joint)
+                )
+            else:
+                self.fields['welding_process'].choices = (
+                    [('', '— Выберите способ сварки —')]
+                    + G16037.get_welding_process_choices()
+                )
+        else:
+            self.fields['joint_designation'].choices = get_joint_type_choices()
+            if joint:
+                self.fields['welding_process'].choices = (
+                    get_welding_process_choices_for_joint(joint)
+                )
+
+        if is_snip_quality_norm(self.quality_norm_code):
+            self.fields['weld_category'].choices = get_pipeline_category_choices()
+            self.fields['weld_category'].label = (
+                'Категория трубопровода (по СНиП 3.05.05-84) *'
+            )
+            self.fields['control_volume_pct'].choices = [
+                (100, '100 % — Py свыше 10 МПа'),
+                (20, '20 % — категория I'),
+                (10, '10 % — категория II'),
+                (2, '2 % — категория III'),
+                (1, '1 % — категория IV'),
+            ]
+            self.fields['control_volume_pct'].help_text = (
+                'По СНиП 3.05.05-84, п. 4.11. Объём РК/УЗК по категории '
+                '(не менее одного стыка от каждого сварщика). '
+                'Контроль — по всему периметру стыка.'
+            )
+            self.fields['joint_mobility'].help_text = (
+                'Указывается в техкарте; для СНиП нормы корня — по п. 4.10 '
+                '(не по табл. 4.3–4.6 НП-105).'
+            )
+            if not self.is_bound:
+                cat = weld_category or 'III'
+                if cat not in dict(get_pipeline_category_choices()):
+                    cat = 'III'
+                    self.initial['weld_category'] = cat
+                if not self.initial.get('control_volume_pct'):
+                    self.initial['control_volume_pct'] = get_default_control_volume_pct(cat)
+        else:
+            material_type = resolve_material_type_for_categories(
+                material, material_custom, weld_category,
+            )
+            self.fields['weld_category'].choices = get_weld_category_choices(material_type)
 
     def clean_outer_diameter(self):
         """Диаметр обязателен для трубопровода."""
@@ -448,10 +513,32 @@ class TechCardStep2Form(forms.Form):
             cleaned['material'] = grade
         cleaned['material_custom'] = grade
 
+        from normative.snip_3_05_05_84 import is_snip_quality_norm as _is_snip_qn
+        use_16037 = _is_snip_qn(self.quality_norm_code)
+
         joint = cleaned.get('joint_designation', '')
         wall = cleaned.get('wall_thickness')
         if joint and wall is not None:
-            if not is_joint_thickness_allowed(joint, float(wall)):
+            if use_16037:
+                from normative import gost_16037_80 as G16037
+                method = (cleaned.get('welding_process') or '').strip() or None
+                dn = cleaned.get('outer_diameter')
+                if not G16037.is_joint_thickness_allowed(
+                    joint, float(wall), method=method,
+                    dn_mm=float(dn) if dn else None,
+                ):
+                    table_ref = G16037.JOINT_TYPES.get(joint, {}).get('gost_table', '')
+                    ranges_txt = G16037.format_joint_thickness_ranges(joint)
+                    table_part = f'табл. {table_ref} ' if table_ref else ''
+                    self.add_error(
+                        'wall_thickness',
+                        (
+                            f'Для соединения {joint} по {table_part}'
+                            f'ГОСТ 16037-80 допустима толщина S: {ranges_txt}. '
+                            f'Значение {wall:g} мм вне диапазона.'
+                        ),
+                    )
+            elif not is_joint_thickness_allowed(joint, float(wall)):
                 table_ref = JOINT_TYPES.get(joint, {}).get('gost_table', '')
                 ranges_txt = format_joint_thickness_ranges(joint)
                 table_part = f'табл. {table_ref} ' if table_ref else ''
@@ -467,12 +554,18 @@ class TechCardStep2Form(forms.Form):
         process = (cleaned.get('welding_process') or '').strip()
         custom_process = (cleaned.get('welding_process_custom') or '').strip()
         if joint and process:
-            allowed = JOINT_TYPES.get(joint, {}).get('methods', [])
+            if use_16037:
+                from normative import gost_16037_80 as G16037
+                allowed = G16037.JOINT_TYPES.get(joint, {}).get('methods', [])
+                gost_name = 'ГОСТ 16037-80'
+            else:
+                allowed = JOINT_TYPES.get(joint, {}).get('methods', [])
+                gost_name = 'ГОСТ Р 59023.2-2020'
             if process not in allowed:
                 self.add_error(
                     'welding_process',
                     'Выбранный способ сварки не допускается для данного типа соединения '
-                    f'по ГОСТ Р 59023.2-2020 (допустимо: {", ".join(allowed)}).',
+                    f'по {gost_name} (допустимо: {", ".join(allowed)}).',
                 )
         elif joint and not process and not custom_process:
             self.add_error(
@@ -483,23 +576,29 @@ class TechCardStep2Form(forms.Form):
         if cleaned.get('has_backing_ring') and not cleaned.get('backing_ring_thickness_mm'):
             cleaned['backing_ring_thickness_mm'] = cleaned.get('wall_thickness')
 
-        material_type = resolve_material_type_for_categories(
-            cleaned.get('material', ''),
-            (cleaned.get('material_custom') or '').strip(),
-            cleaned.get('weld_category', ''),
-        )
-        weld_cat = cleaned.get('weld_category')
-        if weld_cat in ('Iн', 'IIн') and material_type != 'steel':
-            self.add_error(
-                'weld_category',
-                'Категории Iн и IIн применимы только для стальных сварных соединений '
-                '(табл. 4.9 НП-105-18).',
+        from normative.snip_3_05_05_84 import is_snip_quality_norm
+
+        if not is_snip_quality_norm(self.quality_norm_code):
+            material_type = resolve_material_type_for_categories(
+                cleaned.get('material', ''),
+                (cleaned.get('material_custom') or '').strip(),
+                cleaned.get('weld_category', ''),
             )
+            weld_cat = cleaned.get('weld_category')
+            if weld_cat in ('Iн', 'IIн') and material_type != 'steel':
+                self.add_error(
+                    'weld_category',
+                    'Категории Iн и IIн применимы только для стальных сварных соединений '
+                    '(табл. 4.9 НП-105-18).',
+                )
 
         return cleaned
 
     def clean_joint_designation(self):
         """Проверяем что обозначение шва выбрано и не является заголовком группы."""
+        from normative.snip_3_05_05_84 import is_snip_quality_norm
+        from normative import gost_16037_80 as G16037
+
         designation = self.cleaned_data.get('joint_designation')
         if not designation:
             raise forms.ValidationError('Выберите условное обозначение сварного соединения.')
@@ -507,7 +606,12 @@ class TechCardStep2Form(forms.Form):
             raise forms.ValidationError(
                 'Выберите конкретный тип сварного соединения из списка, а не заголовок группы.'
             )
-        if designation not in JOINT_TYPES:
+        known = (
+            G16037.JOINT_TYPES
+            if is_snip_quality_norm(self.quality_norm_code)
+            else JOINT_TYPES
+        )
+        if designation not in known:
             raise forms.ValidationError(
                 f'Неизвестное обозначение сварного соединения: {designation}.'
             )
@@ -524,15 +628,21 @@ class TechCardStep3Form(forms.Form):
 
     def __init__(self, *args, wall_thickness=None, material_type='steel',
                  joint_designation='', welding_process='30', object_type='pipe',
-                 **kwargs):
+                 doc_code=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._wall_thickness = wall_thickness
         self._material_type = material_type
         self._joint_designation = joint_designation
         self._welding_process = welding_process
         self._object_type = object_type
+        self._doc_code = doc_code
+        from techcards.methodology import get_methodology
+        self._methodology = get_methodology(doc_code)
         self._allowed_schemes = set(get_schemes_for_object_type(object_type))
-        self.fields['scheme_type'].choices = get_scheme_choices_for_object_type(object_type)
+        self.fields['scheme_type'].choices = get_scheme_choices_for_object_type(
+            object_type, doc_code=doc_code,
+        )
+        self.fields['scheme_type'].help_text = self._methodology.scheme_help
         if len(self._allowed_schemes) == 1 and not self.is_bound:
             self.fields['scheme_type'].initial = next(iter(self._allowed_schemes))
         self._allowed_films = []
@@ -579,10 +689,7 @@ class TechCardStep3Form(forms.Form):
                     [('', '— Выберите плёнку —')]
                     + [(f, f) for f in self._allowed_films]
                 )
-                self.fields['film_name'].help_text = (
-                    'Допустимые плёнки по табл. Б ГОСТ Р 50.05.07-2018 '
-                    'для выбранного источника и радиационной толщины.'
-                )
+                self.fields['film_name'].help_text = self._methodology.film_help
 
     scheme_type = forms.ChoiceField(
         choices=SCHEME_CHOICES,

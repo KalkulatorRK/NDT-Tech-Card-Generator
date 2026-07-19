@@ -136,7 +136,7 @@
                 <td>
                   {% if item.doc.is_implemented %}
                     {% if item.can_create %}
-                      <a href="{% url 'create_step1' item.doc.code %}" class="btn btn-sm btn-outline-primary">
+                      <a href="{% url 'normative_select' item.doc.code %}" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-plus me-1"></i>Создать
                       </a>
                     {% else %}

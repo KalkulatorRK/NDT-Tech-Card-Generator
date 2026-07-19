@@ -32,6 +32,7 @@ DOC_MAP = {
     'НП-104-18': 'НП-104-18',
     'ГОСТ 7512-82': 'ГОСТ 7512-82',
     'ГОСТ Р 59023.2-2020': 'ГОСТ Р 59023.2-2020',
+    'СНиП 3.05.05-84': 'СНиП 3.05.05-84',
 }
 
 PREFIX = ''  # префикс убран: в выдаче нужны только строгие ссылки НД+пункт
@@ -499,6 +500,50 @@ def _build_gost500509():
     _add_chunks(src, specs, doc_number=DOC_MAP['ГОСТ Р 50.05.09-2018'])
 
 
+def _build_snip_3050584():
+    from normative import snip_3_05_05_84 as M
+    src = DocumentSource.objects.filter(doc_number=DOC_MAP['СНиП 3.05.05-84']).first()
+    if not src:
+        print("СНиП 3.05.05-84 нет в базе, пропуск")
+        return
+    print("СНиП 3.05.05-84:")
+    specs = []
+    for code, info in M.PIPELINE_CATEGORIES.items():
+        uc = info['undercut_allowed_mm']
+        uc_txt = 'не допускаются' if uc <= 0 else f'не более {uc:g} мм'
+        pre = (
+            ' До РК/УЗК — МПД или КК шва и зоны +20 мм.'
+            if info['pre_rt_surface_ndt'] else ''
+        )
+        specs.append((
+            f"п. 4.11–4.13 кат. {code}",
+            f"{M.DOCUMENT_CODE}: {info['name']}. Объём РК/УЗК {info['control_volume_pct']} % "
+            f"(п. 4.11). Браковка при суммарном балле ≥ {info['reject_score_min']} (п. 4.12). "
+            f"Чувствительность — класс {info['sensitivity_class_gost7512']} по ГОСТ 7512-82 "
+            f"(п. 4.13). Подрезы: {uc_txt} (п. 4.10).{pre}",
+        ))
+    for score, rows in M.SCORE_TABLES.items():
+        for tmin, tmax, w, L, cl, s100 in rows:
+            tmax_s = f'{tmax:g}' if tmax is not None else '∞'
+            specs.append((
+                f"прил. 4 балл {score} t={tmin:g}-{tmax_s}",
+                f"{M.DOCUMENT_CODE}, приложение 4, оценка в баллах: балл {score}, "
+                f"толщина стенки {tmin:g}–{tmax_s} мм: ширина (диаметр) включения "
+                f"не более {w:g} мм; длина не более {L:g} мм; скопление не более {cl:g} мм; "
+                f"суммарная длина на любом участке 100 мм — не более {s100:g} мм. "
+                f"Превышение норм балла 3 → балл 6. Включения ≤0,2 мм не учитывают "
+                f"(прим. 1), если не образуют скопление или сетку.",
+            ))
+    specs.append((
+        "п. 4.12 удвоение объёма",
+        f"{M.DOCUMENT_CODE}, п. 4.12: при браковке стыка объём контроля у сварщика "
+        f"удваивают; для категории III при балле 4 и категории IV при балле 5 стык "
+        f"не исправляют, но объём удваивают; при повторном браке в удвоенном объёме — "
+        f"100 % стыков сварщика; при браке на 100 % — отстранение сварщика.",
+    ))
+    _add_chunks(src, specs, doc_number=DOC_MAP['СНиП 3.05.05-84'])
+
+
 if __name__ == '__main__':
     _build_np105()
     _build_gost500507()
@@ -506,5 +551,6 @@ if __name__ == '__main__':
     _build_np104()
     _build_gost7512()
     _build_gost59023()
+    _build_snip_3050584()
     _build_fact_guards()
     print("СИНХРОНИЗАЦИЯ ЗАВЕРШЕНА")

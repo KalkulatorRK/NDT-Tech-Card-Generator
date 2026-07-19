@@ -4,7 +4,10 @@
 {% block content %}
 <div class="container py-4">
   <h2 class="mb-2"><i class="bi bi-file-earmark-plus me-2" style="color:var(--primary);"></i>Создание технологической карты</h2>
-  <p class="text-muted mb-4">Выберите метод неразрушающего контроля и документ (нормативный или методический).</p>
+  <p class="text-muted mb-4">
+    Шаг 1 из 2: выберите <strong>методический документ</strong> (методику контроля).
+    Далее откроется выбор нормативного документа оценки качества.
+  </p>
 
   {% for method_name, docs in methods.items %}
   <div class="card mb-4">
@@ -26,7 +29,7 @@
             {{ doc.full_name|truncatechars:100 }}
           </div>
           {% if doc.is_implemented %}
-          <a href="{% url 'create_step1' doc.code %}" class="btn btn-sm btn-primary">
+          <a href="{% url 'normative_select' doc.code %}" class="btn btn-sm btn-primary">
             <i class="bi bi-play-circle me-1"></i>Выбрать
           </a>
           {% else %}
@@ -40,7 +43,7 @@
     </div>
   </div>
   {% empty %}
-  <div class="alert alert-info">Нормативные документы не найдены.</div>
+  <div class="alert alert-info">Методические документы не найдены.</div>
   {% endfor %}
 </div>
 {% endblock %}

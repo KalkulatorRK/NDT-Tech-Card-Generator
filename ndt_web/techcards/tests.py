@@ -330,6 +330,44 @@ class QualityAssessmentLogicTests(TestCase):
         self.assertEqual(len(result['aggregates']), 2)
 
 
+class Gost7512MethodologyRoutingTests(TestCase):
+    """Кнопка ГОСТ 7512 задаёт подписи схем (черт. 5а…), не 3а…"""
+
+    def test_scheme_labels_7512_vs_500507(self):
+        from techcards.scheme_display import get_scheme_card_name, get_scheme_choices_for_object_type
+        self.assertEqual(get_scheme_card_name('5zh', 'ГОСТ 7512-82'), 'Черт. 5е')
+        self.assertEqual(get_scheme_card_name('5zh', 'ГОСТ Р 50.05.07-2018'), 'Чертёж 3ж')
+        labels_7512 = dict(get_scheme_choices_for_object_type('pipe', 'ГОСТ 7512-82'))
+        self.assertIn('5а', labels_7512['5a'])
+        labels_507 = dict(get_scheme_choices_for_object_type('pipe', 'ГОСТ Р 50.05.07-2018'))
+        self.assertIn('3а', labels_507['5a'])
+
+    def test_calculator_uses_7512_cite(self):
+        from techcards.generator import RadiographicTechCardCalculator
+        calc = RadiographicTechCardCalculator({
+            'doc_code': 'ГОСТ 7512-82',
+            'wall_thickness': 10,
+            'outer_diameter': 159,
+            'material': 'Сталь 20',
+            'weld_category': 'III',
+            'scheme_type': '5g',
+            'source_code': 'Ir-192',
+            'film_name': 'РТ-5М',
+            'joint_designation': 'С-17',
+            'welding_process': '111',
+            'object_type': 'pipe',
+            'iqi_side': 'source',
+            'control_volume_pct': 100,
+            'organization': 'Test',
+            'object_name': 'Pipe',
+            'card_number': '7512-t',
+            'focal_spot_mm': 3,
+        })
+        params = calc.calculate()
+        self.assertEqual(params.get('method_doc_cite'), 'ГОСТ 7512-82')
+        self.assertEqual(params.get('scheme_info', {}).get('name'), 'Черт. 5г')
+
+
 class Gost7512DefectNotationTests(TestCase):
     """Условная запись дефектов по ГОСТ 7512-82, приложения 5–6."""
 

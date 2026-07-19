@@ -288,14 +288,46 @@ def _format_sensitivity_desc(
     )
 
 
+def _format_quality_norm_cite(params: dict) -> str:
+    """П. 2.2 — нормативный документ оценки качества."""
+    from normative.snip_3_05_05_84 import is_snip_quality_norm
+
+    qn = (params.get('quality_norm_code') or NP105_CODE).strip()
+    if is_snip_quality_norm(qn):
+        return qn
+    if qn.startswith('НП-105'):
+        return f'{qn}; {NP104_CODE}'
+    return qn
+
+
+def _format_weld_category_field(params: dict, method_cite: str = '') -> str:
+    """П. 3.1 — категория сварного соединения / трубопровода."""
+    from normative.snip_3_05_05_84 import (
+        is_snip_quality_norm,
+        get_pipeline_category_info,
+    )
+
+    weld_cat = params.get('weld_category', '')
+    qn = params.get('quality_norm_code') or NP105_CODE
+    if is_snip_quality_norm(qn):
+        info = get_pipeline_category_info(weld_cat)
+        return f'{info["name"]} (по СНиП 3.05.05-84)'
+    if '7512' in (method_cite or ''):
+        return f'{weld_cat} (по ТД / НП-105-18)'
+    return f'{weld_cat} (по НП-105-18)'
+
+
 # ---------------------------------------------------------------
 # Расчётное ядро (без изменений)
 # ---------------------------------------------------------------
 
 class RadiographicTechCardCalculator:
     """
-    Вычислительное ядро: рассчитывает все параметры техкарты
-    по ГОСТ Р 50.05.07-2018 на основе введённых пользователем данных.
+    Вычислительное ядро техкарты РГК.
+
+    Методика (ГОСТ 7512-82 или ГОСТ Р 50.05.07-2018) задаётся полем
+    ``doc_code`` из выбранной кнопки документа. Геометрия схем общая;
+    подписи чертежей и ссылки в карте — по выбранной методике.
     """
 
     def __init__(self, input_data: dict):
@@ -303,10 +335,20 @@ class RadiographicTechCardCalculator:
         self.params = {}
         self.errors = []
         self.warnings = []
+        from techcards.methodology import get_methodology
+        self.methodology = get_methodology(input_data.get('doc_code'))
 
     def calculate(self) -> dict:
         """Выполняет все расчёты и возвращает словарь параметров."""
         self._extract_inputs()
+        self.params['doc_code'] = self.methodology.code
+        self.params['methodology_code'] = self.methodology.code
+        self.params['method_doc_cite'] = self.methodology.method_doc_cite
+        qn = (self.data.get('quality_norm_code') or '').strip() or NP105_CODE
+        self.params['quality_norm_code'] = qn
+        self.params['quality_norm_name'] = (
+            self.data.get('quality_norm_name') or qn
+        )
         # Сначала получаем g_min/g_max из таблиц сварных соединений
         self._calc_inspection_zones()
         # Нормативное K по НП-105 (S_K), затем ужесточение по п. 6.1.11 при ИКИ
@@ -372,7 +414,10 @@ class RadiographicTechCardCalculator:
             'joint_mobility': d.get('joint_mobility', 'non_rotating'),
             'welding_process': d.get('welding_process', '30'),
             'weld_category': d.get('weld_category', 'II'),
-            'control_volume_pct': normalize_control_volume_pct(d.get('control_volume_pct', 100)),
+            'control_volume_pct': self._normalize_volume_for_quality_norm(
+                d.get('control_volume_pct', 100),
+                d.get('quality_norm_code'),
+            ),
             'reinforcement_removed': bool(d.get('reinforcement_removed')),
             'has_backing_ring': bool(d.get('has_backing_ring')),
             'backing_ring_thickness_mm': float(d.get('backing_ring_thickness_mm', 0) or 0),
@@ -434,31 +479,54 @@ class RadiographicTechCardCalculator:
 
     def _calc_inspection_zones(self):
         """
-        Рассчитывает ширину валика шва, ОШЗ и контролируемую зону
-        по ГОСТ Р 59023.2-2020 и НП-105-18.
+        Рассчитывает ширину валика шва, ОШЗ и контролируемую зону.
+        НП-105 / АЭУ: ГОСТ Р 59023.2-2020; СНиП: ГОСТ 16037-80.
         Сохраняет g_min, g_max для расчёта радиационной толщины в схеме.
         Заполняет поля техкарты 4.2.2, 4.2.4, 4.2.5.
         """
+        from normative.snip_3_05_05_84 import is_snip_quality_norm
+        from normative.gost_16037_80 import (
+            is_gost_16037_joint,
+            get_inspection_zone as get_zone_16037,
+            get_joint_info as get_joint_info_16037,
+            get_joint_image_path as get_image_16037,
+        )
         from normative.gost_59023_2 import get_inspection_zone, get_joint_info
 
         joint_code = self.params.get('joint_designation', '')
         S = self.params['wall_thickness']
-        method = self.params.get('welding_process', '30')
+        qn = self.params.get('quality_norm_code') or self.data.get('quality_norm_code')
+        use_16037 = is_snip_quality_norm(qn) or is_gost_16037_joint(joint_code)
+        method = self.params.get('welding_process', 'Р' if use_16037 else '30')
         dn = self.params.get('outer_diameter')
         s1_override = self.params.get('s1_mm')
         if s1_override in (None, ''):
             s1_override = None
 
-        zone = get_inspection_zone(
-            joint_code, S, method,
-            material_type=self.params.get('material_type', 'steel'),
-            outer_diameter_mm=float(dn) if dn not in (None, '') else None,
-            s1_override_mm=float(s1_override) if s1_override is not None else None,
-            reinforcement_removed=self.params.get('reinforcement_removed', False),
-            has_backing_ring=self.params.get('has_backing_ring', False),
-            backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,
-        )
-        joint_info = get_joint_info(joint_code)
+        if use_16037:
+            zone = get_zone_16037(
+                joint_code, S, method or 'Р',
+                material_type=self.params.get('material_type', 'steel'),
+                outer_diameter_mm=float(dn) if dn not in (None, '') else None,
+                s1_override_mm=float(s1_override) if s1_override is not None else None,
+                reinforcement_removed=self.params.get('reinforcement_removed', False),
+                has_backing_ring=self.params.get('has_backing_ring', False),
+                backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,
+            )
+            joint_info = get_joint_info_16037(joint_code)
+            self.params['joint_standard'] = 'ГОСТ 16037-80'
+        else:
+            zone = get_inspection_zone(
+                joint_code, S, method,
+                material_type=self.params.get('material_type', 'steel'),
+                outer_diameter_mm=float(dn) if dn not in (None, '') else None,
+                s1_override_mm=float(s1_override) if s1_override is not None else None,
+                reinforcement_removed=self.params.get('reinforcement_removed', False),
+                has_backing_ring=self.params.get('has_backing_ring', False),
+                backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,
+            )
+            joint_info = get_joint_info(joint_code)
+            self.params['joint_standard'] = 'ГОСТ Р 59023.2-2020'
 
         self.params['weld_bead_width_mm'] = zone.get('bead_width_mm', '')
         self.params['weld_bead_width_inner_mm'] = zone.get('bead_width_inner_mm', '')
@@ -483,8 +551,13 @@ class RadiographicTechCardCalculator:
         self.params['joint_groove'] = joint_info.get('groove', '')
         self.params['joint_name'] = joint_info.get('name', joint_code)
         self.params['joint_sketch'] = joint_info.get('sketch', '')
-        from normative.gost_59023_2 import get_joint_image_path
-        self.params['joint_image'] = get_joint_image_path(joint_code)
+        if use_16037:
+            self.params['joint_image'] = get_image_16037(joint_code)
+            self.params['joint_image_static_root'] = True
+        else:
+            from normative.gost_59023_2 import get_joint_image_path
+            self.params['joint_image'] = get_joint_image_path(joint_code)
+            self.params['joint_image_static_root'] = False
 
         # S / S1 по ГОСТ Р 59023.2-2020 (S_eff для радиационной толщины)
         self.params['s_mm'] = zone.get('s_mm', S)
@@ -500,17 +573,18 @@ class RadiographicTechCardCalculator:
 
     def _calc_sensitivity_value(self):
         """
-        Рассчитывает требуемое значение чувствительности K по НП-105-18.
+        Требуемая чувствительность K по выбранному нормативному документу.
 
-        По НП-105-18, п. 46 / Табл. 4.8:
-            S_K = S + g_min + Sпк  (одна просвечиваемая стенка)
-            S_K = S + S            (две стенки)
-
-        Для расчёта расстояния f:
-            S_рад(f) = S + g_max       (1 стенка)
-            S_рад(f) = 2S + 2×g_max   (2 стенки)
+        НП-105-18: табл. 4.8–4.11, S_K с учётом g_min / двух стенок.
+        СНиП 3.05.05-84: класс 2/3 по ГОСТ 7512-82 (п. 4.13) → абсолютное K.
         """
         from normative.calculations import calc_radiation_thickness
+        from normative.snip_3_05_05_84 import (
+            is_snip_quality_norm,
+            get_required_sensitivity_mm as snip_get_k,
+            get_sensitivity_class,
+            get_pipeline_category_info,
+        )
 
         # Для расточенных соединений (S ≠ S1) в путь излучения идёт S1
         S_nom = self.params['wall_thickness']
@@ -520,20 +594,12 @@ class RadiographicTechCardCalculator:
         g_min = self.params.get('g_min_mm', 0.5)
         g_max = self.params.get('g_max_mm', 3.5)
         s_pk = self.params.get('backing_thickness_mm', 0.0)
+        qn = self.params.get('quality_norm_code') or NP105_CODE
 
         rad = calc_radiation_thickness(S, g_min, g_max, scheme, s_pk)
         self.params['rad_thickness'] = rad
 
         s_k = rad['s_rad_k_mm']
-        K = get_sensitivity(s_k, weld_cat)
-        mm_val = get_sensitivity_mm(s_k, weld_cat)
-
-        self.params['required_sensitivity_pct'] = K
-        self.params['required_sensitivity_mm'] = mm_val
-        self.params['required_sensitivity_norm_mm'] = mm_val
-        self.params['s_k_mm'] = s_k
-        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
-
         s_label = 'S1' if not self.params.get('s_equals_s1_actual', True) else 'S'
         if rad['wall_count'] == 2:
             sk_desc = f'S_K = {s_label} + {s_label} = {S} + {S} = {s_k} мм'
@@ -546,6 +612,34 @@ class RadiographicTechCardCalculator:
         if s_label == 'S1':
             sk_desc += f' (номинальная S = {S_nom} мм; {self.params.get("wall_summary", "")})'
 
+        if is_snip_quality_norm(qn):
+            from normative.snip_3_05_05_84 import DOCUMENT_CODE as SNIP_CODE
+
+            mm_val = snip_get_k(s_k, weld_cat)
+            sens_cls = get_sensitivity_class(weld_cat)
+            cat_info = get_pipeline_category_info(weld_cat)
+            self.params['required_sensitivity_pct'] = None
+            self.params['required_sensitivity_mm'] = mm_val
+            self.params['required_sensitivity_norm_mm'] = mm_val
+            self.params['s_k_mm'] = s_k
+            self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
+            self.params['sk_desc'] = sk_desc
+            self.params['sensitivity_k_display_mm'] = mm_val
+            self.params['sensitivity_class_gost7512'] = sens_cls
+            self.params['sensitivity_desc'] = (
+                f'K ≤ {mm_val:g} мм (класс {sens_cls} по ГОСТ 7512-82; '
+                f'{SNIP_CODE}, п. 4.13; {cat_info["name"]}; {sk_desc})'
+            )
+            return
+
+        K = get_sensitivity(s_k, weld_cat)
+        mm_val = get_sensitivity_mm(s_k, weld_cat)
+
+        self.params['required_sensitivity_pct'] = K
+        self.params['required_sensitivity_mm'] = mm_val
+        self.params['required_sensitivity_norm_mm'] = mm_val
+        self.params['s_k_mm'] = s_k
+        self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
         self.params['sk_desc'] = sk_desc
         self.params['sensitivity_k_display_mm'] = mm_val
         self.params['sensitivity_desc'] = _format_sensitivity_desc(
@@ -568,7 +662,10 @@ class RadiographicTechCardCalculator:
 
         iqi_side = self.params.get('iqi_side', 'source') or 'source'
         scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
-        placement = resolve_iqi_placement(scheme, wall_count=0, iqi_side=iqi_side)
+        placement = resolve_iqi_placement(
+            scheme, wall_count=0, iqi_side=iqi_side,
+            doc_code=self.methodology.code,
+        )
         self.params['iqi_placement'] = placement
         self.params['iqi_side'] = iqi_side
 
@@ -751,10 +848,13 @@ class RadiographicTechCardCalculator:
                 calc_result['N'] = n_full
                 calc_result['N_segments'] = n_full
 
-        # Информация о схеме (описание, изображение)
-        scheme_info = SCHEME_INFO.get(scheme, {})
+        # Информация о схеме: имена чертежей по выбранной методике
+        from techcards.scheme_display import resolve_scheme_info_for_display
+        scheme_info = resolve_scheme_info_for_display(
+            scheme, self.params.get('doc_code') or self.methodology.code,
+        )
 
-        # Флаг «опытным путём» по ГОСТ Р 50.05.07-2018 п. Г.5
+        # Флаг «опытным путём» (50.05.07 п. Г.5 / аналогичные случаи 7512 прил. 4)
         is_empirical = calc_result.get('is_empirical', False)
         empirical_reason = calc_result.get('empirical_reason', '')
 
@@ -820,6 +920,7 @@ class RadiographicTechCardCalculator:
 
         placement = self.params.get('iqi_placement') or resolve_iqi_placement(
             scheme, wall_count=0, iqi_side=iqi_side,
+            doc_code=self.methodology.code,
         )
         self.params['iqi_placement'] = placement
         self.params['iqi_side'] = iqi_side
@@ -869,12 +970,50 @@ class RadiographicTechCardCalculator:
         self.params['safety_requirements'] = SAFETY_REQUIREMENTS
 
     def _fill_acceptance_criteria(self):
+        from normative.snip_3_05_05_84 import (
+            is_snip_quality_norm,
+            build_acceptance_criteria_docx_data as snip_acceptance_docx,
+            build_quality_criteria_summary as snip_quality_summary,
+            undercut_limit_mm,
+            surface_ndt_before_rt_required,
+            DOCUMENT_CODE as SNIP_CODE,
+        )
+
         weld_cat = self.params['weld_category']
         material_type = self.params.get('material_type', 'steel')
         wall = float(self.params.get('wall_thickness', 0) or 0)
         assess_raw = self.params.get('assessment_thickness_mm')
         thickness = float(assess_raw) if assess_raw not in (None, '') else wall
         self.params['assessment_thickness_used_mm'] = thickness
+        qn = self.params.get('quality_norm_code') or NP105_CODE
+
+        if is_snip_quality_norm(qn):
+            docx_data = snip_acceptance_docx(material_type, weld_cat, thickness)
+            self.params['acceptance_table_ref'] = docx_data.get('table_ref', 'прил. 4')
+            self.params['acceptance_criteria_docx'] = docx_data
+            self.params['quality_normative'] = SNIP_CODE
+            self.params['quality_criteria_summary'] = snip_quality_summary(
+                weld_cat, thickness,
+            )
+            self.params['root_acceptance_limits'] = None
+            uc = undercut_limit_mm(weld_cat)
+            uc_txt = (
+                'подрезы не допускаются'
+                if uc <= 0
+                else f'подрезы не более {uc:g} мм'
+            )
+            root_txt = (
+                f'По {SNIP_CODE}, п. 4.10: трещины, прожоги, незаваренные кратеры, '
+                f'грубая чешуйчатость — не допускаются; {uc_txt}.'
+            )
+            if surface_ndt_before_rt_required(weld_cat):
+                root_txt += (
+                    ' До РК/УЗК — МПД или КК поверхности шва и зоны +20 мм '
+                    'с каждой стороны.'
+                )
+            self.params['root_acceptance_docx'] = root_txt
+            return
+
         table_ref = resolve_acceptance_table(material_type, weld_cat)
         docx_data = build_acceptance_criteria_docx_data(
             material_type, weld_cat, thickness,
@@ -955,10 +1094,23 @@ class RadiographicTechCardCalculator:
             exposure['N'] = n_adj
             exposure['N_segments'] = n_seg_adj
 
+    @staticmethod
+    def _normalize_volume_for_quality_norm(raw, quality_norm_code) -> int:
+        """НП-105: 100/50/25/10/5; СНиП 3.05.05-84: 100/20/10/2/1 (п. 4.11)."""
+        from normative.snip_3_05_05_84 import (
+            is_snip_quality_norm,
+            normalize_control_volume_pct as snip_normalize_volume,
+        )
+        if is_snip_quality_norm(quality_norm_code):
+            return snip_normalize_volume(raw)
+        return normalize_control_volume_pct(raw)
+
     def _calc_control_volume(self):
         """Объём контроля — значение, выбранное пользователем (п. 3.2)."""
-        self.params['control_volume_pct'] = normalize_control_volume_pct(
+        qn = self.params.get('quality_norm_code') or NP105_CODE
+        self.params['control_volume_pct'] = self._normalize_volume_for_quality_norm(
             self.params.get('control_volume_pct', 100),
+            qn,
         )
 
 
@@ -1054,16 +1206,25 @@ def _build_value_map(params: dict) -> dict:
     empirical_reason = params.get('empirical_reason', '')
 
     # --- Формирование полей 6.5, 6.6, 6.7, 6.8 ---
-    EMPIRICAL_TEXT = (
-        'Определяется опытным путём в соответствии с требованиями '
-        'ГОСТ Р 50.05.07-2018, п. Г.5'
-    )
+    method_cite = params.get('method_doc_cite') or DOCUMENT_CODE
+    if '7512' in method_cite:
+        EMPIRICAL_TEXT = (
+            'Определяется опытным путём в соответствии с требованиями '
+            'ГОСТ 7512-82, приложение 4'
+        )
+        empirical_short = 'Определяется опытным путём (ГОСТ 7512-82, прил. 4)'
+    else:
+        EMPIRICAL_TEXT = (
+            'Определяется опытным путём в соответствии с требованиями '
+            'ГОСТ Р 50.05.07-2018, п. Г.5'
+        )
+        empirical_short = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
 
     if is_empirical:
-        # Схемы 3б (l < d_вн) и 3ж: f и N — опытным путём
+        # Схемы 5б/3б (l < d_вн) и панорамные: f и N — опытным путём
         f_field = EMPIRICAL_TEXT
-        N_str = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
-        l_field = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
+        N_str = empirical_short
+        l_field = empirical_short
         segments_str = N_str
         if f_val is not None and f_val != '':
             f_field += f'\n(справочно: f_расч ≥ {f_val} мм)'
@@ -1122,8 +1283,13 @@ def _build_value_map(params: dict) -> dict:
 
     object_type = params.get('object_type', 'pipe')
     joint_code = params.get('joint_designation', '')
+    joint_std = params.get('joint_standard') or 'ГОСТ Р 59023.2-2020'
+    from normative.gost_16037_80 import is_gost_16037_joint, get_joint_info as get_info_16037
     from normative.gost_59023_2 import get_joint_info
-    joint_info = get_joint_info(joint_code) if joint_code else {}
+    if joint_code and (is_gost_16037_joint(joint_code) or '16037' in joint_std):
+        joint_info = get_info_16037(joint_code)
+    else:
+        joint_info = get_joint_info(joint_code) if joint_code else {}
     joint_type = joint_info.get('joint_type', 'butt')
     mobility = _JOINT_MOBILITY_LABELS.get(
         params.get('joint_mobility', 'non_rotating'), 'неповоротное',
@@ -1147,6 +1313,21 @@ def _build_value_map(params: dict) -> dict:
         else '—'
     )
 
+    _weld_proc = params.get('welding_process', '')
+    _weld_proc_names = {
+        '10': 'АДФ под флюсом', '11': 'АДФ с подваркой корня', '20': 'ЭШС',
+        '30': 'РДС', '31': 'РДС с подваркой корня', '32': 'РДС на подкладке',
+        '40': 'Комбинированная (корень АДС)', '42': 'Комбинированная на подкладке',
+        '51': 'АДС без присадки', '52': 'АДС с присадкой', '53': 'АДС плавящимся',
+        '60': 'ЭЛС',
+        'ЗП': 'в защитном газе плавящимся электродом',
+        'ЗН': 'в защитном газе неплавящимся электродом',
+        'Р': 'ручная дуговая',
+        'Ф': 'под флюсом',
+        'Г': 'газовая',
+    }
+    _weld_proc_label = _weld_proc_names.get(_weld_proc, '')
+
     return {
         # ---- Раздел 1: Объект контроля ----
         '1.1': params.get('organization', ''),
@@ -1157,7 +1338,7 @@ def _build_value_map(params: dict) -> dict:
         '1.6': f'{_WELD_TYPE_NAMES.get(joint_type, "Стыковое")} ({mobility})',
         '1.7': (
             (
-                f'{joint_code}, по ГОСТ Р 59023.2-2020'
+                f'{joint_code}, по {joint_std}'
                 + (
                     f'; {params.get("wall_summary")}'
                     if params.get('wall_summary') else ''
@@ -1166,26 +1347,19 @@ def _build_value_map(params: dict) -> dict:
             if joint_code else ''
         ),
         '1.8': (
-            f'{params.get("welding_process", "")} — '
-            + {
-                '10': 'АДФ под флюсом', '11': 'АДФ с подваркой корня', '20': 'ЭШС',
-                '30': 'РДС', '31': 'РДС с подваркой корня', '32': 'РДС на подкладке',
-                '40': 'Комбинированная (корень АДС)', '42': 'Комбинированная на подкладке',
-                '51': 'АДС без присадки', '52': 'АДС с присадкой', '53': 'АДС плавящимся',
-                '60': 'ЭЛС',
-            }.get(params.get('welding_process', ''), '')
-            + ', по ГОСТ Р 59023.2-2020'
-            if params.get('welding_process') else ''
+            f'{_weld_proc} — {_weld_proc_label}'.rstrip(' —')
+            + f', по {joint_std}'
+            if _weld_proc else ''
         ),
         '1.9': params.get('material_display', params.get('material', '')),
         '1.10': params.get('weld_material', ''),
 
         # ---- Раздел 2: Документация ----
-        '2.1': DOCUMENT_CODE,
-        '2.2': f'{NP104_CODE}; {NP105_CODE}; ГОСТ 7512-82',
+        '2.1': method_cite,
+        '2.2': _format_quality_norm_cite(params),
 
         # ---- Раздел 3: Требования ----
-        '3.1': f'{weld_cat} (по НП-105-18)',
+        '3.1': _format_weld_category_field(params, method_cite),
         '3.2': f'{params.get("control_volume_pct", 100)} %',
 
         # ---- Раздел 4: Тип и размеры ----
@@ -1796,17 +1970,29 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
     """
     docx_data = params.get('acceptance_criteria_docx')
     if not docx_data:
-        material_type = params.get('material_type', 'steel')
-        docx_data = build_acceptance_criteria_docx_data(
-            material_type,
-            params.get('weld_category', 'II'),
-            float(params.get('wall_thickness', 0) or 0),
+        from normative.snip_3_05_05_84 import (
+            is_snip_quality_norm,
+            build_acceptance_criteria_docx_data as snip_acceptance_docx,
         )
+        material_type = params.get('material_type', 'steel')
+        cat = params.get('weld_category', 'II')
+        th = float(params.get('wall_thickness', 0) or 0)
+        qn = params.get('quality_norm_code') or NP105_CODE
+        if is_snip_quality_norm(qn):
+            docx_data = snip_acceptance_docx(material_type, cat, th)
+        else:
+            docx_data = build_acceptance_criteria_docx_data(material_type, cat, th)
 
     headers = docx_data.get('headers') or []
     row_values = docx_data.get('row_values') or []
     if not headers:
         return
+
+    # НП-105: одна строка значений; СНиП (баллы): список строк
+    if row_values and isinstance(row_values[0], (list, tuple)):
+        data_rows = list(row_values)
+    else:
+        data_rows = [row_values]
 
     section_table = None
     row_idx = -1
@@ -1832,14 +2018,16 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
     if intro_para.runs:
         intro_para.runs[0].font.size = Pt(12)
 
-    nested = cell.add_table(rows=2, cols=len(headers))
+    nested = cell.add_table(rows=1 + len(data_rows), cols=len(headers))
     nested.alignment = WD_TABLE_ALIGNMENT.CENTER
     _add_table_borders(nested)
 
     for ci, header in enumerate(headers):
         _set_cell_text(nested.rows[0].cells[ci], header, bold=True, font_size=9)
-        val = row_values[ci] if ci < len(row_values) else '—'
-        _set_cell_text(nested.rows[1].cells[ci], val, font_size=9)
+    for ri, values in enumerate(data_rows, start=1):
+        for ci in range(len(headers)):
+            val = values[ci] if ci < len(values) else '—'
+            _set_cell_text(nested.rows[ri].cells[ci], val, font_size=9)
 
     _trim_empty_paragraphs_after_last_table(cell)
     _clear_table_row_height(section_table.rows[row_idx])
@@ -2020,40 +2208,98 @@ def _trim_empty_paragraphs_before(doc: Document, *needles: str, keep: int = 1):
         parent.remove(el)
 
 
+def _prepare_gost16037_sketch_for_docx(image_path: str) -> str:
+    """
+    Подготавливает эскиз ГОСТ 16037 для п. 4.3 техкарты:
+    тот же принцип, что в UI — оба чертежа без текста шапки таблицы.
+    Возвращает путь к временному PNG (или исходный при ошибке).
+    """
+    try:
+        from PIL import Image
+        from normative.gost_16037_sketches import refine_dual_sketch
+
+        with Image.open(image_path) as im:
+            im = refine_dual_sketch(im.convert('RGB'))
+            tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+            im.save(tmp_path, format='PNG', optimize=True)
+            return tmp_path
+    except Exception:
+        logger.exception('Не удалось подготовить эскиз ГОСТ 16037: %s', image_path)
+        return image_path
+
+
 def _insert_joint_sketch_into_docx(doc: Document, params: dict, static_root: str):
     """
     Вставляет эскиз сварного соединения в п. 4.3 шаблона техкарты.
 
     Используется то же изображение, что на шаге 3 (get_joint_image_path).
+    Для ГОСТ 16037 — крупнее (84 мм ≈ ×2 к прежним 42 мм) и с точным кропом.
     """
     from normative.gost_59023_2 import get_joint_image_path
+    from normative.gost_16037_80 import (
+        is_gost_16037_joint,
+        get_joint_image_path as get_image_16037,
+        get_joint_image_abs_path,
+    )
 
     idx = _find_paragraph_index(doc, '4.3')
     if idx < 0 or 'эскиз' not in doc.paragraphs[idx].text.lower():
         return
 
     joint_code = params.get('joint_designation', '')
-    image_rel = params.get('joint_image') or get_joint_image_path(joint_code)
-    image_path = _resolve_static_image_path(static_root, image_rel)
+    use_16037 = bool(
+        params.get('joint_image_static_root') or is_gost_16037_joint(joint_code)
+    )
+    if use_16037:
+        image_rel = params.get('joint_image') or get_image_16037(joint_code)
+        abs16037 = get_joint_image_abs_path(joint_code)
+        image_path = str(abs16037) if abs16037 else _resolve_static_image_path(
+            static_root, image_rel,
+        )
+    else:
+        image_rel = params.get('joint_image') or get_joint_image_path(joint_code)
+        image_path = _resolve_static_image_path(static_root, image_rel)
     if not image_path:
         logger.warning('Эскиз шва не найден: %s', image_rel)
         return
 
-    if idx + 1 < len(doc.paragraphs):
-        _insert_picture_in_paragraph(doc.paragraphs[idx + 1], image_path, width_mm=42)
+    # ГОСТ 16037: эскизы шире (два чертежа в ряд) — 84 мм; 59023 — 42 мм
+    width_mm = 84 if use_16037 else 42
+    insert_path = image_path
+    tmp_path = None
+    if use_16037:
+        prepared = _prepare_gost16037_sketch_for_docx(image_path)
+        if prepared != image_path:
+            tmp_path = prepared
+            insert_path = prepared
 
-    if idx + 2 < len(doc.paragraphs):
-        caption = doc.paragraphs[idx + 2]
-        if joint_code:
-            _set_paragraph_text(
-                caption,
-                f'Сварное соединение {joint_code} по ГОСТ Р 59023.2-2020'
-                + (
-                    f' ({params.get("wall_summary")})'
-                    if params.get('wall_summary') else ''
-                ),
-                font_size=9,
+    try:
+        if idx + 1 < len(doc.paragraphs):
+            _insert_picture_in_paragraph(
+                doc.paragraphs[idx + 1], insert_path, width_mm=width_mm,
             )
+
+        if idx + 2 < len(doc.paragraphs):
+            caption = doc.paragraphs[idx + 2]
+            if joint_code:
+                _set_paragraph_text(
+                    caption,
+                    f'Сварное соединение {joint_code} по '
+                    f'{params.get("joint_standard") or "ГОСТ Р 59023.2-2020"}'
+                    + (
+                        f' ({params.get("wall_summary")})'
+                        if params.get('wall_summary') else ''
+                    ),
+                    font_size=9,
+                )
+    finally:
+        if tmp_path and os.path.isfile(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: str):
@@ -2084,7 +2330,9 @@ def _insert_scheme_section_into_docx(doc: Document, params: dict, static_root: s
         return
 
     width_mm = get_scheme_docx_image_width(scheme_code, doc)
-    caption_text = get_scheme_docx_caption(scheme_code, scheme_info)
+    caption_text = get_scheme_docx_caption(
+        scheme_code, scheme_info, doc_code=params.get('doc_code'),
+    )
 
     image_idx = None
     caption_idx = None
@@ -2885,7 +3133,9 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     story.append(Paragraph('РАДИОГРАФИЧЕСКОГО КОНТРОЛЯ', title_s))
     story.append(Paragraph(
         f'№ {card_num}     Дата: {dev_date}     '
-        f'Методический документ: {DOCUMENT_CODE}', norm_s))
+        f'Методический документ: {params.get("method_doc_cite", DOCUMENT_CODE)}',
+        norm_s,
+    ))
     story.append(Spacer(1, 5*mm))
 
     src = params.get('selected_source') or {}
@@ -2925,9 +3175,9 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
         ('1.6 Тип сварного соединения', _WELD_TYPE_NAMES.get(params.get('weld_type', ''), '')),
         ('1.8 Способ сварки', params.get('welding_process')),
         ('1.9 Основной металл', params.get('material_display') or params.get('material')),
-        ('2.1 Методическая документация', DOCUMENT_CODE),
-        ('2.2 Нормативная документация', NP105_CODE),
-        ('3.1 Категория сварного соединения', params.get('weld_category')),
+        ('2.1 Методическая документация', params.get('method_doc_cite', DOCUMENT_CODE)),
+        ('2.2 Нормативная документация', _format_quality_norm_cite(params)),
+        ('3.1 Категория сварного соединения', _format_weld_category_field(params)),
         ('3.2 Объём контроля', str(params.get('control_volume_pct', 100)) + ' %'),
     ])
 
@@ -2971,7 +3221,7 @@ def generate_radiographic_pdf(params: dict, output_path: str) -> str:
     section('7–10. ПОДГОТОВКА, УСЛОВИЯ, ОЦЕНКА', [
         ('8.3 Состав рабочего звена', pers.get('level')),
         ('8.4 Диапазон рабочих температур, °С', '+5 ÷ +40'),
-        ('9. Нормативный документ оценки качества (НП-105-18)', params.get('quality_normative')),
+        ('9. Нормативный документ оценки качества', params.get('quality_normative') or _format_quality_norm_cite(params)),
         ('10. Критерии качества', params.get('quality_criteria_summary')),
         ('Специалист НК', params.get('inspector_name') or '___________________'),
     ])
@@ -3218,7 +3468,7 @@ def _generate_docx_fallback(params: dict, output_path: str) -> str:
     sub.add_run(
         f'№ {params.get("card_number","___")}     '
         f'Дата: {params.get("develop_date","")}     '
-        f'Документ: {DOCUMENT_CODE}'
+        f'Документ: {params.get("method_doc_cite", DOCUMENT_CODE)}'
     ).font.size = Pt(9)
 
     doc.add_paragraph()

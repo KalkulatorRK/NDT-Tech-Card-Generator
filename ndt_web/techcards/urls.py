@@ -13,8 +13,18 @@ urlpatterns = [
     # Список техкарт
     path('techcards/', views.techcard_list_view, name='techcard_list'),
 
-    # Выбор метода и документа
+    # Выбор методического, затем нормативного документа
     path('techcards/method/', views.method_select_view, name='method_select'),
+    path(
+        'techcards/create/<str:doc_code>/normative/',
+        views.normative_select_view,
+        name='normative_select',
+    ),
+    path(
+        'techcards/create/<str:doc_code>/normative/<str:quality_norm_code>/',
+        views.select_quality_norm_view,
+        name='select_quality_norm',
+    ),
 
     # Многошаговая форма создания техкарты
     path('techcards/create/<str:doc_code>/step1/', views.create_step1_view, name='create_step1'),

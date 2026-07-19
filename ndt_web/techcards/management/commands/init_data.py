@@ -64,11 +64,48 @@ class Command(BaseCommand):
                 'code': 'ГОСТ 7512-82',
                 'full_name': 'ГОСТ 7512-82 «Контроль неразрушающий. Сварные соединения. Радиографический метод»',
                 'control_method': 'RT',
-                'is_implemented': False,
+                'is_implemented': True,
                 'is_active': True,
                 'sort_order': 20,
                 'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
-                'description': 'Общие требования к радиографическому контролю сварных соединений.',
+                'description': (
+                    'Базовый методический документ РГК для любых отраслей. '
+                    'ГОСТ Р 50.05.07-2018 дополняет его для атомной энергетики.'
+                ),
+            },
+            {
+                'code': 'НП-105-18',
+                'full_name': (
+                    'НП-105-18 «Федеральные нормы и правила в области использования '
+                    'атомной энергии. Правила контроля металла оборудования и '
+                    'трубопроводов атомных энергетических установок при изготовлении '
+                    'и монтаже»'
+                ),
+                'control_method': 'RT',
+                'is_implemented': True,
+                'is_active': True,
+                'sort_order': 5,
+                'document_kind': NormativeDocument.KIND_NORMATIVE,
+                'description': (
+                    'Нормы оценки качества сварных соединений и чувствительности РГК '
+                    'для АЭУ (табл. 4.8/4.9 и др.).'
+                ),
+            },
+            {
+                'code': 'СНиП 3.05.05-84',
+                'full_name': (
+                    'СНиП 3.05.05-84 «Технологическое оборудование и технологические '
+                    'трубопроводы»'
+                ),
+                'control_method': 'RT',
+                'is_implemented': True,
+                'is_active': True,
+                'sort_order': 15,
+                'document_kind': NormativeDocument.KIND_NORMATIVE,
+                'description': (
+                    'Нормативный документ для технологических трубопроводов и '
+                    'оборудования (общие строительные нормы).'
+                ),
             },
             {
                 'code': 'СТО 2-3.2-318-2018',
@@ -77,6 +114,7 @@ class Command(BaseCommand):
                 'is_implemented': False,
                 'is_active': True,
                 'sort_order': 30,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
                 'description': 'Визуальный и измерительный контроль сварных соединений.',
             },
             {
@@ -86,6 +124,7 @@ class Command(BaseCommand):
                 'is_implemented': False,
                 'is_active': True,
                 'sort_order': 40,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
                 'description': 'Капиллярный контроль в области атомной энергетики.',
             },
             {
@@ -95,6 +134,7 @@ class Command(BaseCommand):
                 'is_implemented': False,
                 'is_active': True,
                 'sort_order': 50,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
                 'description': 'Контроль герметичности оборудования и трубопроводов АЭУ.',
             },
         ]

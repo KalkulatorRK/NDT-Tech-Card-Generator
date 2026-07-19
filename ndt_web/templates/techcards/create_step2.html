@@ -147,13 +147,13 @@
             <div class="col-12" id="joint-sketch-block" style="display:none;">
               <div class="border rounded p-3 bg-light">
                 <div class="row align-items-center">
-                  <div class="col-md-3 text-center">
+                  <div class="col-12 text-center mb-2">
                     <img id="joint-sketch-img" src="" alt="Шов сварного соединения в разрезе"
                          class="joint-gost-image"
-                         style="max-height:180px; max-width:100%; object-fit:contain;">
+                         style="max-height:420px; max-width:100%; width:auto; object-fit:contain;">
                     <div class="text-muted small mt-1">Шов сварного соединения (в разрезе)</div>
                   </div>
-                  <div class="col-md-9">
+                  <div class="col-12">
                     <div id="joint-sketch-info" class="text-muted" style="font-size:0.88rem;"></div>
                     <div id="joint-dimensions" class="mt-2" style="font-size:0.85rem; display:none;">
                       <div class="row g-2">
@@ -227,6 +227,9 @@ var JOINT_DATA = {{ joint_data_json|safe }};
 var JOINT_CODES_ORDERED = {{ joint_codes_ordered_json|safe }};
 var WELDING_LABELS = {{ welding_labels_json|safe }};
 var WELDS_STATIC = '{% static "img/welds/" %}';
+var STATIC_ROOT = '{% static "" %}';
+var QUALITY_IS_SNIP = {{ quality_is_snip|yesno:"true,false" }};
+var SNIP_VOLUME_BY_CATEGORY = {{ snip_volume_by_category_json|safe }};
 
 var JOINT_GROUP_LABELS = {{ joint_group_labels_json|safe }};
 
@@ -332,7 +335,11 @@ function updateJointUI(jointCode) {
   var info = JOINT_DATA[jointCode];
 
   if (info.image) {
-    sketchImg.src = WELDS_STATIC + info.image;
+    if (info.image_static_root || (info.image.indexOf('techcards/') === 0)) {
+      sketchImg.src = STATIC_ROOT + info.image;
+    } else {
+      sketchImg.src = WELDS_STATIC + info.image;
+    }
     sketchImg.style.display = '';
   } else {
     sketchImg.style.display = 'none';
@@ -353,7 +360,9 @@ function updateJointUI(jointCode) {
   var applicable = info.applicable_materials || [];
   if (userMaterialClass && applicable.length &&
       applicable.indexOf(userMaterialClass) < 0) {
-    sketchInfo.innerHTML += '<br><span class="text-warning">Выбранный материал объекта может не соответствовать области применения этого типа (см. п. 5–8 ГОСТ Р 59023.2-2020).</span>';
+    if (!QUALITY_IS_SNIP) {
+      sketchInfo.innerHTML += '<br><span class="text-warning">Выбранный материал объекта может не соответствовать области применения этого типа (см. п. 5–8 ГОСТ Р 59023.2-2020).</span>';
+    }
   }
 
   sketchBlock.style.display = '';
@@ -474,6 +483,23 @@ function updateWeldCategoryChoices() {
   if (typeof updateCategoryInfo === 'function') {
     updateCategoryInfo(categorySelect.value);
   }
+  if (QUALITY_IS_SNIP && typeof syncSnipControlVolume === 'function') {
+    syncSnipControlVolume(categorySelect.value);
+  }
+}
+
+function syncSnipControlVolume(cat) {
+  var volSel = document.getElementById('id_control_volume_pct');
+  if (!volSel || !SNIP_VOLUME_BY_CATEGORY) return;
+  var pct = SNIP_VOLUME_BY_CATEGORY[cat];
+  if (pct === undefined || pct === null) return;
+  var target = String(pct);
+  for (var i = 0; i < volSel.options.length; i++) {
+    if (volSel.options[i].value === target) {
+      volSel.value = target;
+      break;
+    }
+  }
 }
 
 function updateMaterialUI() {
@@ -568,5 +594,12 @@ if (objectTypeSelect) {
 }
 
 rebuildJointChoices(jointSelect ? jointSelect.value : '');
+
+var weldCatSel = document.getElementById('id_weld_category');
+if (weldCatSel && QUALITY_IS_SNIP) {
+  weldCatSel.addEventListener('change', function () {
+    syncSnipControlVolume(this.value);
+  });
+}
 </script>
 {% endblock %}

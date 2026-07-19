@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Выбор нормативного документа{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'method_select' %}">Методический документ</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Нормативный документ</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-2">
+    <i class="bi bi-journal-text me-2" style="color:var(--primary);"></i>
+    Нормативный документ оценки качества
+  </h2>
+  <p class="text-muted mb-2">
+    Методический документ:
+    <strong>{{ method_doc.code }}</strong>
+    <span class="badge doc-kind-badge ms-1">{{ method_doc.get_document_kind_display }}</span>
+  </p>
+  <p class="text-muted mb-4">
+    Выберите нормативный документ, по которому будут задаваться нормы оценки качества,
+    объём контроля и связанные требования.
+  </p>
+
+  <div class="row g-3">
+    {% for doc in normative_docs %}
+    <div class="col-md-6 col-lg-4">
+      <div class="border rounded p-3 h-100 d-flex flex-column method-doc-card">
+        <div class="fw-semibold mb-1">
+          {{ doc.code }}
+          <span class="badge doc-kind-badge ms-1">
+            {{ doc.get_document_kind_display }}
+          </span>
+        </div>
+        <div class="text-muted flex-grow-1 mb-3">
+          {{ doc.full_name|truncatechars:140 }}
+        </div>
+        {% if doc.is_implemented %}
+        <a href="{% url 'select_quality_norm' method_doc.code doc.code %}"
+           class="btn btn-sm btn-primary">
+          <i class="bi bi-play-circle me-1"></i>Выбрать
+        </a>
+        {% else %}
+        <button class="btn btn-sm btn-secondary" disabled>
+          <i class="bi bi-tools me-1"></i>В разработке
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="alert alert-info">Нормативные документы для этого метода пока не добавлены.</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-4">
+    <a href="{% url 'method_select' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Назад к методическим документам
+    </a>
+  </div>
+</div>
+{% endblock %}

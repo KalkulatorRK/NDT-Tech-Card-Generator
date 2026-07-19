@@ -1,0 +1,2648 @@
+{
+  "document": {
+    "code": "ГОСТ 16037-80",
+    "title": "Соединения сварные стальных трубопроводов. Основные типы, конструктивные элементы и размеры",
+    "title_en": "Welded joints in steel pipelines. Main types, design elements and dimensions",
+    "replaces": "ГОСТ 16037-70",
+    "effective_from": "1981-07-01",
+    "source_pdf": "normative_docs/ГОСТ 16037-80.pdf",
+    "source_pdf_original": "c:\\Users\\torf1\\Downloads\\gost_16037-80.pdf",
+    "edition_note": "Переиздание (май 1999 г.) с Изменением № 1 (ИУС 3-91)",
+    "scope": "Сварные соединения трубопроводов из сталей: трубы с трубами и арматурой. Не распространяется на соединения при изготовлении самих труб из листа/полосы."
+  },
+  "welding_processes": {
+    "ЗП": {
+      "code": "ЗП",
+      "name": "Дуговая сварка в защитном газе плавящимся электродом",
+      "iso_ref": "GMAW/MIG-MAG"
+    },
+    "ЗН": {
+      "code": "ЗН",
+      "name": "Дуговая сварка в защитном газе неплавящимся электродом",
+      "iso_ref": "GTAW/TIG"
+    },
+    "Р": {
+      "code": "Р",
+      "name": "Ручная дуговая сварка",
+      "iso_ref": "SMAW"
+    },
+    "Ф": {
+      "code": "Ф",
+      "name": "Дуговая сварка под флюсом",
+      "iso_ref": "SAW"
+    },
+    "Г": {
+      "code": "Г",
+      "name": "Газовая сварка",
+      "iso_ref": "OFW"
+    }
+  },
+  "dimension_symbols": {
+    "s": "толщина стенки свариваемых деталей",
+    "s1": "толщина стенки второй детали",
+    "b": "зазор между кромками после прихватки",
+    "e": "ширина сварного шва",
+    "g": "выпуклость сварного шва",
+    "delta": "толщина подкладного кольца (δ)",
+    "a": "толщина шва",
+    "c": "притупление кромки",
+    "B": "ширина нахлестки",
+    "l": "длина муфты",
+    "K": "катет углового шва",
+    "K1": "катет углового шва со стороны разъема фланца",
+    "Dn": "наружный диаметр трубы",
+    "f": "фаска фланца"
+  },
+  "joint_type_map": {
+    "butt": "стыковое (С)",
+    "corner": "угловое (У)",
+    "lap": "нахлесточное (Н)",
+    "tee": "тавровое — не применяется в ГОСТ 16037-80"
+  },
+  "codes_by_category": {
+    "стыковые": [
+      "С2",
+      "С4",
+      "С5",
+      "С8",
+      "С10",
+      "С17",
+      "С18",
+      "С19",
+      "С46",
+      "С47",
+      "С48",
+      "С49",
+      "С50",
+      "С51",
+      "С52",
+      "С53",
+      "С54",
+      "С55",
+      "С56"
+    ],
+    "угловые": [
+      "У5",
+      "У7",
+      "У8",
+      "У15",
+      "У16",
+      "У17",
+      "У18",
+      "У19",
+      "У20",
+      "У21"
+    ],
+    "тавровые": [],
+    "нахлёсточные": [
+      "Н1",
+      "Н3",
+      "Н4"
+    ]
+  },
+  "joint_count": 32,
+  "JOINT_TYPES": {
+    "С2": {
+      "code": "С2",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, без скоса кромок, односторонний",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Ф",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 5,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 3,
+          "dn_min": 10,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 5,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Ф": {
+          "s_min": 4,
+          "s_max": 6,
+          "dn_min": 133,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 1,
+          "s_max": 3,
+          "dn_min": 150,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 1,
+        "s_max": 6
+      },
+      "gost_table": "2",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 2.0,
+          "b_nom": 0.5,
+          "b_tol": "+0,5",
+          "e_nom": 4,
+          "e_tol": "+2"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 3.0,
+          "b_nom": 1.0,
+          "e_nom": 4
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s_min": 4.0,
+          "s_max": 5.0,
+          "b_nom": 1.5,
+          "e_nom": 4
+        },
+        {
+          "methods": [
+            "Ф"
+          ],
+          "s": 4.0,
+          "e_nom": 8
+        },
+        {
+          "methods": [
+            "Ф"
+          ],
+          "s": 6.0,
+          "e_nom": 10
+        },
+        {
+          "methods": [
+            "ЗН"
+          ],
+          "s_min": 2.0,
+          "s_max": 3.0,
+          "b_nom": 0,
+          "b_tol": "+0,3"
+        },
+        {
+          "methods": [
+            "Г"
+          ],
+          "s_min": 1.0,
+          "s_max": 1.6,
+          "b_nom": 0.5,
+          "b_tol": "±0,3",
+          "e_nom": 3,
+          "e_tol": "+1",
+          "g_nom": 0.5,
+          "g_tol": "+0,5"
+        },
+        {
+          "methods": [
+            "Г"
+          ],
+          "s_min": 2.0,
+          "s_max": 3.0,
+          "b_nom": 1.0,
+          "b_tol": "±0,5",
+          "e_nom": 4,
+          "e_tol": "+2",
+          "g_nom": 1.0,
+          "g_tol": "±0,5"
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С2.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С2.png",
+      "sketch_source": {
+        "pdf_page": 9,
+        "crop_frac": [
+          0.08,
+          0.24,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1356,
+          289
+        ],
+        "bytes": 4628
+      }
+    },
+    "С4": {
+      "code": "С4",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, без скоса кромок, односторонний на съемной подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний на съемной подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 4,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 3,
+          "dn_min": 10,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 3,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 4
+      },
+      "gost_table": "3",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "Р",
+            "ЗН"
+          ],
+          "s_min": 2,
+          "s_max": 3
+        },
+        {
+          "methods": [
+            "ЗП"
+          ],
+          "s_min": 2,
+          "s_max": 4
+        }
+      ],
+      "dimensions_notes": "Размеры b, e, g — по эскизу табл. 3 (детали в основном на чертеже).",
+      "sketch": "techcards/joints/gost_16037/С4.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С4.png",
+      "sketch_source": {
+        "pdf_page": 9,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.56,
+          0.72
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2075,
+          548
+        ],
+        "bytes": 11779
+      }
+    },
+    "С5": {
+      "code": "С5",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, без скоса кромок, односторонний на остающейся цилиндрической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 3,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 3,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 3
+      },
+      "gost_table": "4",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р"
+          ],
+          "s_min": 2,
+          "s_max": 3
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С5.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "В табл. 1 для С5 указан ЗП 2–3/25; в табл. 4 способы ЗП; ЗН; Р — 2–3 мм.",
+      "uncertain": [
+        "methods_table4_lists_ЗН: табл.4 указывает ЗП;ЗН;Р при s=2-3, в табл.1 для С5 явно ЗП (и по скану также Р)"
+      ],
+      "sketch_file": "static/techcards/joints/gost_16037/С5.png",
+      "sketch_source": {
+        "pdf_page": 9,
+        "crop_frac": [
+          0.08,
+          0.8,
+          0.54,
+          0.94
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2071,
+          840
+        ],
+        "bytes": 15552
+      }
+    },
+    "С8": {
+      "code": "С8",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом одной кромки, односторонний",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 3,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 3,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 3,
+        "s_max": 20
+      },
+      "gost_table": "5",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 3,
+          "b_nom": 1,
+          "b_tol": "+0,5",
+          "c_nom": 0.5,
+          "c_tol": "+0,5",
+          "e_nom": 8,
+          "e_tol": "+2",
+          "g_nom": 1.5,
+          "g_tol": "+1,5/-1,0"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 4,
+          "e_nom": 10
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 5,
+          "e_nom": 11
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 6,
+          "e_nom": 12
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 7,
+          "e_nom": 13,
+          "e_tol": "+3"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 8,
+          "e_nom": 14,
+          "g_nom": 2.0,
+          "g_tol": "+2,0/-1,5"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 9,
+          "b_nom": 2,
+          "c_nom": 1.0,
+          "c_tol": "±0,5",
+          "e_nom": 16,
+          "e_tol": "+4"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 10,
+          "e_nom": 18
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 12,
+          "b_tol": "+1,0",
+          "e_nom": 20
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 14,
+          "e_nom": 22,
+          "e_tol": "+5"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 16,
+          "e_nom": 25
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 18,
+          "e_nom": 27
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 20,
+          "e_nom": 29,
+          "e_tol": "+7"
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С8.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С8.png",
+      "sketch_source": {
+        "pdf_page": 10,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1953,
+          605
+        ],
+        "bytes": 13686
+      }
+    },
+    "С10": {
+      "code": "С10",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом одной кромки, односторонний на остающейся цилиндрической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 57,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 20
+      },
+      "gost_table": "6",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 2,
+          "b_nom": 2,
+          "b_tol": "+2",
+          "e_nom": 9,
+          "e_tol": "+2",
+          "g_nom": 1.5,
+          "g_tol": "+1,5/-1,0"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 3,
+          "e_nom": 10
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 4,
+          "e_nom": 11
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 5,
+          "e_nom": 12,
+          "e_tol": "+3"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 6,
+          "e_nom": 13
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 7,
+          "e_nom": 14,
+          "e_tol": "+4"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 8,
+          "b_nom": 4,
+          "e_nom": 16,
+          "g_nom": 2.0,
+          "g_tol": "+2,0/-1,0"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 9,
+          "e_nom": 18
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 10,
+          "e_nom": 19
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 12,
+          "b_nom": 5,
+          "b_tol": "+2/-1",
+          "e_nom": 21,
+          "e_tol": "+5"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 14,
+          "e_nom": 23,
+          "e_tol": "+6"
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 16,
+          "e_nom": 26
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 18,
+          "e_nom": 28
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s": 20,
+          "e_nom": 31,
+          "e_tol": "+7"
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С10.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С10.png",
+      "sketch_source": {
+        "pdf_page": 10,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2017,
+          683
+        ],
+        "bytes": 14004
+      }
+    },
+    "С17": {
+      "code": "С17",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок, односторонний",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок (V-образная)",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 3,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 3,
+          "s_max": 20,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 3,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 3,
+          "s_max": 7,
+          "dn_min": 14,
+          "dn_max": 150
+        }
+      },
+      "thickness_range": {
+        "s_min": 3,
+        "s_max": 20
+      },
+      "gost_table": "7",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "Подробные e/g/b/c по s — в табл. 7 (скан); частично OCR-шум в HTML-источнике.",
+      "sketch": "techcards/joints/gost_16037/С17.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [
+        "dimensions_rows: числовые ряды e/g для всех s — уточнить по скану табл. 7"
+      ],
+      "sketch_file": "static/techcards/joints/gost_16037/С17.png",
+      "sketch_source": {
+        "pdf_page": 11,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1945,
+          725
+        ],
+        "bytes": 14232
+      }
+    },
+    "С18": {
+      "code": "С18",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок, односторонний на съемной подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок (V-образная)",
+      "weld_character": "Односторонний на съемной подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Ф"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 40,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 40,
+          "dn_min": 10,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 40,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Ф": {
+          "s_min": 6,
+          "s_max": 40,
+          "dn_min": 377,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 40
+      },
+      "gost_table": "8",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С18.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С18.png",
+      "sketch_source": {
+        "pdf_page": 11,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2010,
+          1418
+        ],
+        "bytes": 19336
+      }
+    },
+    "С19": {
+      "code": "С19",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок, односторонний на остающейся цилиндрической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок (V-образная)",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 10,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 20
+      },
+      "gost_table": "9",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С19.png",
+      "sketch_page_table1": 3,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С19.png",
+      "sketch_source": {
+        "pdf_page": 12,
+        "crop_frac": [
+          0.05,
+          0.22,
+          0.55,
+          0.4
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2012,
+          806
+        ],
+        "bytes": 13746
+      }
+    },
+    "С46": {
+      "code": "С46",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок, односторонний с расплавляемой вставкой",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок",
+      "weld_character": "Односторонний с расплавляемой вставкой",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 4,
+        "s_max": 20
+      },
+      "gost_table": "10",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С46.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С46.png",
+      "sketch_source": {
+        "pdf_page": 12,
+        "crop_frac": [
+          0.05,
+          0.58,
+          0.55,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1474,
+          743
+        ],
+        "bytes": 11213
+      }
+    },
+    "С47": {
+      "code": "С47",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, с криволинейным скосом кромок, односторонний",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "С криволинейным скосом кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗН"
+      ],
+      "methods_limits": {
+        "ЗН": {
+          "s_min": 5,
+          "s_max": 6,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 5,
+        "s_max": 6
+      },
+      "gost_table": "11",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С47.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С47.png",
+      "sketch_source": {
+        "pdf_page": 13,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1233,
+          832
+        ],
+        "bytes": 11285
+      }
+    },
+    "С48": {
+      "code": "С48",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, с криволинейным скосом кромок с расточкой, односторонний",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "С криволинейным скосом кромок с расточкой",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗН"
+      ],
+      "methods_limits": {
+        "ЗН": {
+          "s_min": 6,
+          "s_max": 25,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 6,
+        "s_max": 25
+      },
+      "gost_table": "12",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С48.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С48.png",
+      "sketch_source": {
+        "pdf_page": 13,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2017,
+          1348
+        ],
+        "bytes": 28078
+      }
+    },
+    "С49": {
+      "code": "С49",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок с расточкой, односторонний на остающейся цилиндрической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок с расточкой",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 57,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 6,
+        "s_max": 20
+      },
+      "gost_table": "13",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С49.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С49.png",
+      "sketch_source": {
+        "pdf_page": 14,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1101,
+          684
+        ],
+        "bytes": 9594
+      }
+    },
+    "С50": {
+      "code": "С50",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок с расточкой, односторонний на остающейся конической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок с расточкой",
+      "weld_character": "Односторонний на остающейся конической подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 6,
+          "s_max": 20,
+          "dn_min": 57,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 6,
+        "s_max": 20
+      },
+      "gost_table": "14",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С50.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "В табл. 1 для С50 пределы толщин в отдельной ячейке не заполнены — наследуют ряд со скосом/расточкой; уточнено по табл. 14 и соседним строкам.",
+      "uncertain": [
+        "methods_limits_table1_empty: пределы S/Dn для С50 в табл.1 без чисел — взяты по контексту/табл.14"
+      ],
+      "sketch_file": "static/techcards/joints/gost_16037/С50.png",
+      "sketch_source": {
+        "pdf_page": 14,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1622,
+          1507
+        ],
+        "bytes": 19886
+      }
+    },
+    "С51": {
+      "code": "С51",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, со скосом кромок с раздачей",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "Со скосом кромок с раздачей",
+      "weld_character": "Односторонний (на остающейся конической подкладке — по эскизу табл.1/15)",
+      "methods": [
+        "ЗП",
+        "ЗН"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 6,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 6,
+          "dn_min": 10,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 6
+      },
+      "gost_table": "15",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С51.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [
+        "weld_character: формулировка характера шва в табл.1 для С51 частично общая с С50"
+      ],
+      "sketch_file": "static/techcards/joints/gost_16037/С51.png",
+      "sketch_source": {
+        "pdf_page": 15,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1919,
+          732
+        ],
+        "bytes": 15345
+      }
+    },
+    "С52": {
+      "code": "С52",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, с криволинейным скосом кромок с расточкой, односторонний на остающейся цилиндрической подкладке",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "С криволинейным скосом кромок с расточкой",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Ф"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 7,
+          "s_max": 60,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 7,
+          "s_max": 60,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 7,
+          "s_max": 60,
+          "dn_min": 57,
+          "dn_max": null
+        },
+        "Ф": {
+          "s_min": 7,
+          "s_max": 60,
+          "dn_min": 377,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 7,
+        "s_max": 60
+      },
+      "gost_table": "16",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С52.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С52.png",
+      "sketch_source": {
+        "pdf_page": 15,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2093,
+          611
+        ],
+        "bytes": 15716
+      }
+    },
+    "С53": {
+      "code": "С53",
+      "name": "Стыковое соединение трубы с трубой или с арматурой, с криволинейным скосом кромок с расточкой, односторонний на остающейся цилиндрической подкладке (усиленный ряд)",
+      "joint_type": "butt",
+      "connection_kind": "труба с трубой или с арматурой",
+      "groove": "С криволинейным скосом кромок с расточкой",
+      "weld_character": "Односторонний на остающейся цилиндрической подкладке",
+      "methods": [
+        "ЗП",
+        "Р",
+        "Ф"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 16,
+          "s_max": 60,
+          "dn_min": 68,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 16,
+          "s_max": 60,
+          "dn_min": 68,
+          "dn_max": null
+        },
+        "Ф": {
+          "s_min": 16,
+          "s_max": 60,
+          "dn_min": 377,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 16,
+        "s_max": 60
+      },
+      "gost_table": "17",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С53.png",
+      "sketch_page_table1": 4,
+      "material": "steel_pipeline",
+      "notes": "Та же форма кромок/шва, что у С52, но другие пределы S и Dn.",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С53.png",
+      "sketch_source": {
+        "pdf_page": 16,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1298,
+          847
+        ],
+        "bytes": 13045
+      }
+    },
+    "С54": {
+      "code": "С54",
+      "name": "Стыковое соединение секторов колен (отводов), со скосом кромок, двусторонний",
+      "joint_type": "butt",
+      "connection_kind": "секторы колен (отводов)",
+      "groove": "Со скосом кромок",
+      "weld_character": "Двусторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 3,
+          "s_max": 25,
+          "dn_min": 108,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 3,
+          "s_max": 25,
+          "dn_min": 108,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 3,
+        "s_max": 25
+      },
+      "gost_table": "18",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С54.png",
+      "sketch_page_table1": 5,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С54.png",
+      "sketch_source": {
+        "pdf_page": 16,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2152,
+          652
+        ],
+        "bytes": 15706
+      }
+    },
+    "С55": {
+      "code": "С55",
+      "name": "Стыковое соединение секторов колен (отводов), со скосом кромок, односторонний на съемной подкладке",
+      "joint_type": "butt",
+      "connection_kind": "секторы колен (отводов)",
+      "groove": "Со скосом кромок",
+      "weld_character": "Односторонний на съемной подкладке",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 3,
+          "s_max": 25,
+          "dn_min": 108,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 3,
+          "s_max": 25,
+          "dn_min": 108,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 3,
+        "s_max": 25
+      },
+      "gost_table": "19",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С55.png",
+      "sketch_page_table1": 5,
+      "material": "steel_pipeline",
+      "notes": "В табл. 1 числовые пределы для С55 объединены с С54 (ЗП/Р 3–25/108).",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С55.png",
+      "sketch_source": {
+        "pdf_page": 17,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2137,
+          546
+        ],
+        "bytes": 12566
+      }
+    },
+    "С56": {
+      "code": "С56",
+      "name": "Стыковое соединение фланца с трубой, с двумя несимметричными скосами двух кромок, двусторонний",
+      "joint_type": "butt",
+      "connection_kind": "фланец с трубой",
+      "groove": "С двумя несимметричными скосами двух кромок",
+      "weld_character": "Двусторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 3,
+          "s_max": 40,
+          "dn_min": 70,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 3,
+          "s_max": 40,
+          "dn_min": 70,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 3,
+        "s_max": 40
+      },
+      "gost_table": "20",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/С56.png",
+      "sketch_page_table1": 5,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/С56.png",
+      "sketch_source": {
+        "pdf_page": 17,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1724,
+          1521
+        ],
+        "bytes": 22319
+      }
+    },
+    "Н1": {
+      "code": "Н1",
+      "name": "Нахлесточное соединение промежуточного штуцера или ниппеля с трубой, без скоса кромок, односторонний",
+      "joint_type": "lap",
+      "connection_kind": "промежуточный штуцер или ниппель с трубой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 5,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 5,
+          "dn_min": 10,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 5,
+          "dn_min": 22,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 1,
+          "s_max": 5,
+          "dn_min": 6,
+          "dn_max": 150
+        }
+      },
+      "thickness_range": {
+        "s_min": 1,
+        "s_max": 5
+      },
+      "gost_table": "21",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "Г"
+          ],
+          "s": 1.0,
+          "K": 2
+        },
+        {
+          "methods": [
+            "Г"
+          ],
+          "s": 1.5,
+          "K": 2
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 2.0,
+          "K": 3
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 2.5,
+          "K": 3
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 3.0,
+          "K": 4
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 3.5,
+          "K": 5
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 4.0,
+          "K": 5
+        },
+        {
+          "methods": [
+            "ЗП",
+            "ЗН",
+            "Р",
+            "Г"
+          ],
+          "s": 5.0,
+          "K": 7
+        }
+      ],
+      "dimensions_notes": "Допускается применение штуцеров и ниппелей с фаской (прим. к табл. 21).",
+      "sketch": "techcards/joints/gost_16037/Н1.png",
+      "sketch_page_table1": 5,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/Н1.png",
+      "sketch_source": {
+        "pdf_page": 18,
+        "crop_frac": [
+          0.08,
+          0.1,
+          0.54,
+          0.26
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2587,
+          1312
+        ],
+        "bytes": 29461
+      }
+    },
+    "Н3": {
+      "code": "Н3",
+      "name": "Нахлесточное соединение труб с раздачей одного конца трубы, без скоса кромок, односторонний",
+      "joint_type": "lap",
+      "connection_kind": "трубы с раздачей одного конца",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "Р",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 1.6,
+          "s_max": 7,
+          "dn_min": 14,
+          "dn_max": 150
+        }
+      },
+      "thickness_range": {
+        "s_min": 1.6,
+        "s_max": 20
+      },
+      "gost_table": "22",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s_min": 2,
+          "s_max": 20,
+          "K": "s+1",
+          "B_max_by_Dn": [
+            {
+              "dn_max": 32,
+              "B_max": 30
+            },
+            {
+              "dn_min": 32,
+              "dn_max": 108,
+              "B_max": 40
+            },
+            {
+              "dn_min": 108,
+              "B_max": 50
+            }
+          ]
+        },
+        {
+          "methods": [
+            "Г"
+          ],
+          "s_min": 1.6,
+          "s_max": 7.0
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/Н3.png",
+      "sketch_page_table1": 5,
+      "material": "steel_pipeline",
+      "notes": "Обозначение Н2 в ГОСТ 16037-80 отсутствует (после Н1 сразу Н3).",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/Н3.png",
+      "sketch_source": {
+        "pdf_page": 18,
+        "crop_frac": [
+          0.08,
+          0.38,
+          0.54,
+          0.54
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1694,
+          545
+        ],
+        "bytes": 11118
+      }
+    },
+    "Н4": {
+      "code": "Н4",
+      "name": "Нахлесточное соединение труб муфтой, без скоса кромок, односторонний двойной",
+      "joint_type": "lap",
+      "connection_kind": "трубы муфтой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний двойной",
+      "methods": [
+        "ЗП",
+        "Р",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 1.6,
+          "s_max": 7,
+          "dn_min": 14,
+          "dn_max": 150
+        }
+      },
+      "thickness_range": {
+        "s_min": 1.6,
+        "s_max": 20
+      },
+      "gost_table": "23",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "s_min": 2,
+          "s_max": 20,
+          "K": "1,3s+1",
+          "l_by_Dn": [
+            {
+              "dn_max": 32,
+              "l": 40
+            },
+            {
+              "dn_min": 32,
+              "dn_max": 108,
+              "l": 50
+            },
+            {
+              "dn_min": 108,
+              "l": 60
+            }
+          ],
+          "l_tol": "±5"
+        },
+        {
+          "methods": [
+            "Г"
+          ],
+          "s_min": 1.6,
+          "s_max": 7.0
+        }
+      ],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/Н4.png",
+      "sketch_page_table1": 6,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/Н4.png",
+      "sketch_source": {
+        "pdf_page": 18,
+        "crop_frac": [
+          0.08,
+          0.66,
+          0.54,
+          0.82
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1696,
+          1343
+        ],
+        "bytes": 21982
+      }
+    },
+    "У15": {
+      "code": "У15",
+      "name": "Угловое соединение фланца или кольца с трубой, со скосом одной кромки, односторонний с раздачей и развальцовкой",
+      "joint_type": "corner",
+      "connection_kind": "фланец или кольцо с трубой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний с раздачей и развальцовкой",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 12,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 12,
+          "dn_min": 14,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 12
+      },
+      "gost_table": "24",
+      "gost_table_overview": "1",
+      "dimensions": [
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "Dn_min": 14,
+          "Dn_max": 25,
+          "f": "K-1",
+          "K_min": 3,
+          "b_max": 0.05
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "Dn_min": 32,
+          "Dn_max": 57,
+          "K_min": 4
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "Dn_min": 76,
+          "Dn_max": 159,
+          "K_min": 5
+        },
+        {
+          "methods": [
+            "ЗП",
+            "Р"
+          ],
+          "Dn": 194,
+          "K_min": 6
+        }
+      ],
+      "dimensions_notes": "Значение K определяется при проектировании (прим. к табл. 24).",
+      "sketch": "techcards/joints/gost_16037/У15.png",
+      "sketch_page_table1": 6,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У15.png",
+      "sketch_source": {
+        "pdf_page": 19,
+        "crop_frac": [
+          0.08,
+          0.1,
+          0.54,
+          0.26
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1686,
+          1300
+        ],
+        "bytes": 21973
+      }
+    },
+    "У5": {
+      "code": "У5",
+      "name": "Угловое соединение фланца или кольца с трубой, без скоса кромок, двусторонний",
+      "joint_type": "corner",
+      "connection_kind": "фланец или кольцо с трубой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Двусторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 15
+      },
+      "gost_table": "25",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У5.png",
+      "sketch_page_table1": 6,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У5.png",
+      "sketch_source": {
+        "pdf_page": 19,
+        "crop_frac": [
+          0.08,
+          0.38,
+          0.54,
+          0.54
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2587,
+          1312
+        ],
+        "bytes": 31075
+      }
+    },
+    "У7": {
+      "code": "У7",
+      "name": "Угловое соединение фланца или кольца с трубой, со скосом одной кромки, двусторонний",
+      "joint_type": "corner",
+      "connection_kind": "фланец или кольцо с трубой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Двусторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 15
+      },
+      "gost_table": "26",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У7.png",
+      "sketch_page_table1": 6,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У7.png",
+      "sketch_source": {
+        "pdf_page": 19,
+        "crop_frac": [
+          0.08,
+          0.66,
+          0.54,
+          0.82
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2510,
+          919
+        ],
+        "bytes": 23416
+      }
+    },
+    "У8": {
+      "code": "У8",
+      "name": "Угловое соединение фланца или кольца с трубой, с симметричным скосом одной кромки, двусторонний",
+      "joint_type": "corner",
+      "connection_kind": "фланец или кольцо с трубой",
+      "groove": "С симметричным скосом одной кромки",
+      "weld_character": "Двусторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 15,
+          "dn_min": 14,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 15
+      },
+      "gost_table": "27",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У8.png",
+      "sketch_page_table1": 6,
+      "material": "steel_pipeline",
+      "notes": "В табл. 1 числовые пределы для У8 объединены с У7.",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У8.png",
+      "sketch_source": {
+        "pdf_page": 20,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2289,
+          1391
+        ],
+        "bytes": 28501
+      }
+    },
+    "У16": {
+      "code": "У16",
+      "name": "Угловое соединение отростка с трубой равных размеров, без скоса кромок, односторонний",
+      "joint_type": "corner",
+      "connection_kind": "отросток с трубой равных размеров",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 4,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 4,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 4
+      },
+      "gost_table": "28",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У16.png",
+      "sketch_page_table1": 7,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У16.png",
+      "sketch_source": {
+        "pdf_page": 20,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2040,
+          546
+        ],
+        "bytes": 11281
+      }
+    },
+    "У17": {
+      "code": "У17",
+      "name": "Угловое соединение отростка, ответвительного штуцера или приварыша с трубой, без скоса кромок, односторонний",
+      "joint_type": "corner",
+      "connection_kind": "отросток / ответвительный штуцер / приварыш с трубой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р",
+        "Г"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        },
+        "Г": {
+          "s_min": 1,
+          "s_max": 7,
+          "dn_min": 14,
+          "dn_max": 150
+        }
+      },
+      "thickness_range": {
+        "s_min": 1,
+        "s_max": 20
+      },
+      "gost_table": "29",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У17.png",
+      "sketch_page_table1": 7,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У17.png",
+      "sketch_source": {
+        "pdf_page": 21,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2637,
+          1533
+        ],
+        "bytes": 28916
+      }
+    },
+    "У18": {
+      "code": "У18",
+      "name": "Угловое соединение отростка, ответвительного штуцера или приварыша с трубой, без скоса кромок, односторонний (ряд 2–25)",
+      "joint_type": "corner",
+      "connection_kind": "отросток / ответвительный штуцер / приварыш с трубой",
+      "groove": "Без скоса кромок",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 2,
+          "s_max": 25,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 2,
+          "s_max": 25,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 2,
+          "s_max": 25,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 2,
+        "s_max": 25
+      },
+      "gost_table": "30",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У18.png",
+      "sketch_page_table1": 7,
+      "material": "steel_pipeline",
+      "notes": "Та же категория, что У17; иные пределы S. Размеры e и g в сечении А–А — при проектировании (п. 12 стандарта).",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У18.png",
+      "sketch_source": {
+        "pdf_page": 21,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2637,
+          1283
+        ],
+        "bytes": 24872
+      }
+    },
+    "У19": {
+      "code": "У19",
+      "name": "Угловое соединение отростка, ответвительного штуцера или приварыша с трубой, со скосом одной кромки, односторонний",
+      "joint_type": "corner",
+      "connection_kind": "отросток / ответвительный штуцер / приварыш с трубой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 4,
+          "s_max": 25,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 4,
+          "s_max": 25,
+          "dn_min": 14,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 4,
+          "s_max": 25,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 4,
+        "s_max": 25
+      },
+      "gost_table": "31",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У19.png",
+      "sketch_page_table1": 8,
+      "material": "steel_pipeline",
+      "notes": "Размеры e и g в сечении А–А — при проектировании (п. 12).",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У19.png",
+      "sketch_source": {
+        "pdf_page": 22,
+        "crop_frac": [
+          0.06,
+          0.2,
+          0.54,
+          0.38
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          1187,
+          1521
+        ],
+        "bytes": 16757
+      }
+    },
+    "У20": {
+      "code": "У20",
+      "name": "Угловое соединение ответвительного штуцера или приварыша с трубой, со скосом одной кромки, односторонний на цилиндрическом усе",
+      "joint_type": "corner",
+      "connection_kind": "ответвительный штуцер или приварыш с трубой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний на цилиндрическом усе",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 12,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 12,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 4,
+        "s_max": 20
+      },
+      "gost_table": "32",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У20.png",
+      "sketch_page_table1": 8,
+      "material": "steel_pipeline",
+      "notes": "",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У20.png",
+      "sketch_source": {
+        "pdf_page": 22,
+        "crop_frac": [
+          0.06,
+          0.58,
+          0.54,
+          0.76
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2583,
+          1498
+        ],
+        "bytes": 32255
+      }
+    },
+    "У21": {
+      "code": "У21",
+      "name": "Угловое соединение ответвительного штуцера или приварыша с трубой, со скосом одной кромки, односторонний на съемной подкладке",
+      "joint_type": "corner",
+      "connection_kind": "ответвительный штуцер или приварыш с трубой",
+      "groove": "Со скосом одной кромки",
+      "weld_character": "Односторонний на съемной подкладке",
+      "methods": [
+        "ЗП",
+        "ЗН",
+        "Р"
+      ],
+      "methods_limits": {
+        "ЗП": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 12,
+          "dn_max": null
+        },
+        "ЗН": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 12,
+          "dn_max": null
+        },
+        "Р": {
+          "s_min": 4,
+          "s_max": 20,
+          "dn_min": 25,
+          "dn_max": null
+        }
+      },
+      "thickness_range": {
+        "s_min": 4,
+        "s_max": 20
+      },
+      "gost_table": "33",
+      "gost_table_overview": "1",
+      "dimensions": [],
+      "dimensions_notes": "",
+      "sketch": "techcards/joints/gost_16037/У21.png",
+      "sketch_page_table1": 8,
+      "material": "steel_pipeline",
+      "notes": "В табл. 1 пределы для У21 объединены с У20.",
+      "uncertain": [],
+      "sketch_file": "static/techcards/joints/gost_16037/У21.png",
+      "sketch_source": {
+        "pdf_page": 23,
+        "crop_frac": [
+          0.08,
+          0.16,
+          0.54,
+          0.34
+        ],
+        "note": "Эскизы из детальной табл. ГОСТ 16037-80; refine_dual_sketch — оба чертежа без текста шапки",
+        "size_px": [
+          2500,
+          1399
+        ],
+        "bytes": 28940
+      }
+    }
+  },
+  "sketches": {
+    "С2": "techcards/joints/gost_16037/С2.png",
+    "С4": "techcards/joints/gost_16037/С4.png",
+    "С5": "techcards/joints/gost_16037/С5.png",
+    "С8": "techcards/joints/gost_16037/С8.png",
+    "С10": "techcards/joints/gost_16037/С10.png",
+    "С17": "techcards/joints/gost_16037/С17.png",
+    "С18": "techcards/joints/gost_16037/С18.png",
+    "С19": "techcards/joints/gost_16037/С19.png",
+    "С46": "techcards/joints/gost_16037/С46.png",
+    "С47": "techcards/joints/gost_16037/С47.png",
+    "С48": "techcards/joints/gost_16037/С48.png",
+    "С49": "techcards/joints/gost_16037/С49.png",
+    "С50": "techcards/joints/gost_16037/С50.png",
+    "С51": "techcards/joints/gost_16037/С51.png",
+    "С52": "techcards/joints/gost_16037/С52.png",
+    "С53": "techcards/joints/gost_16037/С53.png",
+    "С54": "techcards/joints/gost_16037/С54.png",
+    "С55": "techcards/joints/gost_16037/С55.png",
+    "С56": "techcards/joints/gost_16037/С56.png",
+    "Н1": "techcards/joints/gost_16037/Н1.png",
+    "Н3": "techcards/joints/gost_16037/Н3.png",
+    "Н4": "techcards/joints/gost_16037/Н4.png",
+    "У15": "techcards/joints/gost_16037/У15.png",
+    "У5": "techcards/joints/gost_16037/У5.png",
+    "У7": "techcards/joints/gost_16037/У7.png",
+    "У8": "techcards/joints/gost_16037/У8.png",
+    "У16": "techcards/joints/gost_16037/У16.png",
+    "У17": "techcards/joints/gost_16037/У17.png",
+    "У18": "techcards/joints/gost_16037/У18.png",
+    "У19": "techcards/joints/gost_16037/У19.png",
+    "У20": "techcards/joints/gost_16037/У20.png",
+    "У21": "techcards/joints/gost_16037/У21.png"
+  },
+  "sketch_dir": "static/techcards/joints/gost_16037",
+  "gaps_and_uncertain": [
+    {
+      "code": "С5",
+      "items": [
+        "methods_table1_vs_table4: табл.1 показывает только ЗП, табл.4 — ЗП/ЗН/Р"
+      ]
+    },
+    {
+      "code": "С17",
+      "items": [
+        "dimensions_rows: числовые ряды e/g для всех s — уточнить по скану табл. 7"
+      ]
+    },
+    {
+      "code": "С50",
+      "items": [
+        "methods_limits_table1_empty: пределы S/Dn для С50 в табл.1 без чисел — взяты по контексту/табл.14"
+      ]
+    },
+    {
+      "code": "С51",
+      "items": [
+        "weld_character: формулировка характера шва в табл.1 для С51 частично общая с С50"
+      ]
+    },
+    {
+      "code": null,
+      "items": [
+        "PDF — растровый скан без текстового слоя; числа размерных табл. 5–33 частично восстановлены из HTML-текста стандарта и требуют выборочной сверки со сканом.",
+        "Тавровые соединения (Т*) в ГОСТ 16037-80 не нормируются — только С / У / Н.",
+        "Обозначение Н2 отсутствует в табл. 1 и табл. 21–23 (после Н1 идёт Н3).",
+        "Пропуски в нумерации стыковых (нет С1, С3, С6… С45 и т.п.) — норма для данного ГОСТ (номера из ГОСТ 16037-70 частично исключены).",
+        "Эскизы PNG вырезаны из табл. 1 (столбец поперечных сечений); более крупные эскизы есть в табл. 2–33 на стр. 9–22 PDF."
+      ]
+    }
+  ],
+  "notes_for_implementer": [
+    "Поля JOINT_TYPES выровнены под gost_59023_2.py: code, name, joint_type, groove, methods, dimensions, sketch, gost_table, material.",
+    "methods — коды способов ГОСТ 16037 (ЗП/ЗН/Р/Ф/Г), не коды ГОСТ Р 59023.2.",
+    "methods_limits — пределы S и Dn из табл. 1 (числитель/знаменатель).",
+    "dimensions — строки из табл. 2–33 где удалось извлечь; иначе пусто + dimensions_notes.",
+    "Для UI sketch path: static/techcards/joints/gost_16037/<CODE>.png"
+  ],
+  "sketch_count": 32
+}

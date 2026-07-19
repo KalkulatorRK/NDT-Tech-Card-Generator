@@ -10,6 +10,7 @@ cmds = [
     "python manage.py collectstatic --noinput",
     "python manage.py migrate",
     "python manage.py init_data",
+    "python manage.py ingest_gost_50_05_09 || true",
 ]
 
 [start]

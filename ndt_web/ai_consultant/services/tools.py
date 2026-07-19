@@ -18,11 +18,12 @@ from typing import Optional
 
 try:
     from normative import gost_50_05_07 as M507
+    from normative import gost_50_05_09 as M509
     from normative import gost_7512 as M7512
     from normative import np_105_18 as M105
     from normative import np_104_18 as M104
 except Exception:
-    M507 = M7512 = M105 = M104 = None
+    M507 = M509 = M7512 = M105 = M104 = None
 
 # --- регулярные шаблоны -------------------------------------------------
 
@@ -1209,11 +1210,270 @@ _HANDLERS = [
 ]
 
 
-def resolve(question: str) -> ToolResult:
+def _try_pt_sensitivity_class(text: str, force_pt: bool = False) -> ToolResult:
+    """Классы чувствительности КК — ГОСТ Р 50.05.09, табл. 1."""
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    has_pt_cue = bool(re.search(
+        r"капилляр|пенетрант|\bкк\b|\bpt\b|50\.05\.09|"
+        r"чувствительн\w*\s*капилляр|раскрыт\w*\s*(трещин|несплошн|мкм)",
+        q,
+        re.IGNORECASE,
+    ))
+    if not has_pt_cue and not force_pt:
+        return ToolResult(matched=False)
+    if re.search(r"радиограф|ргк|\bрк\b|плёнк|пленк|ики|проволок", q) and not has_pt_cue:
+        return ToolResult(matched=False)
+
+    # ширина раскрытия в мкм
+    m_um = re.search(
+        r"(\d+(?:[.,]\d+)?)\s*(?:мкм|µm|um)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if m_um:
+        w = float(m_um.group(1).replace(",", "."))
+        cls = M509.get_sensitivity_class_by_crack_um(w)
+        if not cls:
+            return ToolResult(
+                matched=True,
+                answer=(
+                    f"Ширина раскрытия {fmt(w)} мкм вне диапазонов табл. 1 "
+                    f"(I: <1,0; II: 1,0–10,0; III: 10,0–100,0 мкм)."
+                ),
+                citation=f"[{M509.DOCUMENT_CODE}, табл. 1]",
+            )
+        info = M509.SENSITIVITY_CLASSES[cls]
+        return ToolResult(
+            matched=True,
+            answer=(
+                f"По ширине раскрытия {fmt(w)} мкм на контрольном образце "
+                f"соответствует класс чувствительности {cls} "
+                f"({info['description']})."
+            ),
+            citation=f"[{M509.DOCUMENT_CODE}, табл. 1]",
+        )
+
+    m_cls = re.search(
+        r"класс(?:а|у)?\s*(?:чувствительности\s*)?([IiVvХх]{1,3}|[123])\b",
+        text,
+    )
+    if m_cls or re.search(r"класс\w*\s*чувствительн|табл\.?\s*1", q):
+        if m_cls:
+            info = M509.get_sensitivity_class_info(m_cls.group(1))
+            if info:
+                return ToolResult(
+                    matched=True,
+                    answer=(
+                        f"Класс чувствительности {info['code']}: "
+                        f"{info['description']} "
+                        f"(ширина раскрытия несплошности на КО)."
+                    ),
+                    citation=f"[{M509.DOCUMENT_CODE}, табл. 1]",
+                )
+        return ToolResult(
+            matched=True,
+            answer=M509.format_sensitivity_table(),
+            citation=f"[{M509.DOCUMENT_CODE}, табл. 1, п. 5.7–5.8]",
+        )
+    return ToolResult(matched=False)
+
+
+def _try_pt_ambient(text: str, force_pt: bool = False) -> ToolResult:
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    has_pt_cue = bool(re.search(r"капилляр|\bкк\b|пенетрант|50\.05\.09", q))
+    topic = bool(re.search(
+        r"температур\w*\s*(контрол|окруж|воздух)|влажност|"
+        r"не гарантир|раскрыт\w*\s*0[,.]5",
+        q,
+    ))
+    if not ((has_pt_cue and topic) or (force_pt and topic) or (
+        has_pt_cue and re.search(r"услови|сред|воздух", q)
+    )):
+        return ToolResult(matched=False)
+    if re.search(r"радиограф|ргк|плёнк|пленк", q) and not has_pt_cue:
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=M509.format_ambient_rules(),
+        citation=f"[{M509.DOCUMENT_CODE}, п. 5.5–5.6]",
+    )
+
+
+def _try_pt_contact_time(text: str, force_pt: bool = False) -> ToolResult:
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    topic = bool(re.search(
+        r"время\s*контакт|выдержк\w*\s*пенетрант|контакт\w*\s*пенетрант|"
+        r"пенетрант\w*.{0,40}(мин|время)|капилляр.{0,40}время",
+        q,
+    ))
+    if not topic:
+        if force_pt and re.search(r"(выдержк|контакт).{0,20}(пенетрант|поверхност)", q):
+            topic = True
+        else:
+            return ToolResult(matched=False)
+    kind = 'weld'
+    if re.search(r"основн\w*\s*металл|без\s*свар", q):
+        kind = 'base_metal'
+    elif re.search(r"щелоч|кислот", q):
+        kind = 'chem'
+    mins = M509.get_min_penetrant_contact_min(kind)
+    if kind == 'base_metal':
+        detail = (
+            f"для основного металла — не менее {mins} мин"
+        )
+    elif kind == 'chem':
+        detail = (
+            f"после контакта со щелочной или кислой средой рекомендуется "
+            f"увеличить время контакта до {mins} мин"
+        )
+    else:
+        detail = (
+            f"для сварных соединений (включая околошовную зону) — не менее "
+            f"{mins} мин; для основного металла — не менее "
+            f"{M509.PENETRANT_CONTACT_MIN_BASE_METAL_MIN} мин"
+        )
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"Время контакта пенетранта с поверхностью зависит от ДМ и условий, "
+            f"но по {M509.DOCUMENT_CODE}, п. 8.2.1.1: {detail}. "
+            f"Высыхание пенетранта на поверхности не допускается (п. 8.2.1.2)."
+        ),
+        citation=f"[{M509.DOCUMENT_CODE}, п. 8.2.1.1–8.2.1.2]",
+    )
+
+
+def _try_pt_illuminance(text: str, force_pt: bool = False) -> ToolResult:
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    topic = bool(re.search(
+        r"освещ[её]нн|облуч[её]нн|ультрафиолет|\bуф\b|люминесцентн\w*\s*ламп",
+        q,
+    ))
+    has_pt_cue = bool(re.search(r"капилляр|\bкк\b|пенетрант|50\.05\.09", q))
+    if not topic:
+        return ToolResult(matched=False)
+    if not has_pt_cue and not force_pt:
+        return ToolResult(matched=False)
+    m_cls = re.search(r"класс(?:а|у)?\s*(?:чувствительности\s*)?([IiVv]{1,3}|[123])\b", text)
+    cls = m_cls.group(1) if m_cls else 'II'
+    info = M509.get_sensitivity_class_info(cls)
+    if not info:
+        return ToolResult(matched=False)
+    ill = M509.get_illuminance(info['code'])
+    uv = M509.get_uv_irradiance(info['code'])
+    parts = [
+        f"Для класса {info['code']} по табл. 2 ({M509.DOCUMENT_CODE}): "
+        f"люминесцентные лампы — комбинированная {ill['fluorescent_combined']} лк, "
+        f"общая {ill['fluorescent_general']} лк; "
+        f"лампы накаливания — комбинированная {ill['incandescent_combined']} лк, "
+        f"общая {ill['incandescent_general']} лк."
+    ]
+    if uv is not None:
+        parts.append(
+            f"УФ-облучённость контролируемой поверхности (табл. 3) — "
+            f"не менее {uv} мкВт/см²."
+        )
+    return ToolResult(
+        matched=True,
+        answer=' '.join(parts),
+        citation=f"[{M509.DOCUMENT_CODE}, табл. 2–3, п. 8.1.23–8.1.24]",
+    )
+
+
+def _try_pt_dm_sets(text: str, force_pt: bool = False) -> ToolResult:
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    topic = bool(re.search(
+        r"набор\w*\s*дм|дефектоскопическ\w*\s*материал|смеш\w*\s*набор|"
+        r"пенетрант\w*.{0,30}проявител|прил\.?\s*а|приложение\s*а|"
+        r"совместим\w*\s*набор",
+        q,
+    ))
+    has_pt_cue = bool(re.search(r"капилляр|\bкк\b|пенетрант|дм|50\.05\.09", q))
+    if not topic:
+        return ToolResult(matched=False)
+    if not has_pt_cue and not force_pt:
+        return ToolResult(matched=False)
+    m_cls = re.search(r"класс(?:а|у)?\s*(?:чувствительности\s*)?([IiVv]{1,3}|[123])\b", text)
+    answer = M509.format_dm_rules()
+    if m_cls:
+        kits = M509.kits_for_class(m_cls.group(1))
+        if kits:
+            names = '; '.join(
+                f"{k['name']} ({k['method']}, {k['temp_c'][0]}…{k['temp_c'][1]} °C)"
+                for k in kits[:8]
+            )
+            answer += (
+                f" Рекомендуемые наборы для класса {kits[0]['class']} "
+                f"(прил. А, табл. А.1): {names}."
+            )
+    return ToolResult(
+        matched=True,
+        answer=answer,
+        citation=f"[{M509.DOCUMENT_CODE}, п. 6.1.1, прил. А]",
+    )
+
+
+def _try_pt_roughness(text: str, force_pt: bool = False) -> ToolResult:
+    if M509 is None:
+        return ToolResult(matched=False)
+    q = text.lower()
+    topic = bool(re.search(r"шероховат|ra\s*\d|rz\s*\d|подготовк\w*\s*поверхност", q))
+    has_pt_cue = bool(re.search(r"капилляр|\bкк\b|пенетрант|50\.05\.09", q))
+    if not topic:
+        return ToolResult(matched=False)
+    if re.search(r"радиограф|ргк", q) and not has_pt_cue:
+        return ToolResult(matched=False)
+    if not has_pt_cue and not force_pt:
+        return ToolResult(matched=False)
+    return ToolResult(
+        matched=True,
+        answer=(
+            f"По {M509.DOCUMENT_CODE}, п. 8.1.5 участки контроля механически обрабатывают "
+            f"до шероховатости Ra {fmt(M509.SURFACE_ROUGHNESS_RA_TARGET)} "
+            f"(Rz {fmt(M509.SURFACE_ROUGHNESS_RZ_TARGET)}). "
+            f"Допускается не более Ra {fmt(M509.SURFACE_ROUGHNESS_RA_MAX_ALLOWED)} "
+            f"(Rz {fmt(M509.SURFACE_ROUGHNESS_RZ_MAX_ALLOWED)}) при отсутствии "
+            f"недопустимого окрашенного фона. Контроль шероховатости — образцы по "
+            f"{M509.SURFACE_ROUGHNESS_STANDARD}."
+        ),
+        citation=f"[{M509.DOCUMENT_CODE}, п. 8.1.5]",
+    )
+
+
+_PT_HANDLERS = [
+    _try_pt_sensitivity_class,
+    _try_pt_ambient,
+    _try_pt_contact_time,
+    _try_pt_illuminance,
+    _try_pt_dm_sets,
+    _try_pt_roughness,
+]
+
+
+def resolve(question: str, method_scope: Optional[str] = None) -> ToolResult:
     """Пытаемся ответить точным вызовом normative.*. Возвращает ToolResult."""
-    for h in _HANDLERS:
+    scope = (method_scope or '').strip().upper()
+    force_pt = scope == 'КК'
+    pt_handlers = _PT_HANDLERS
+    handlers = pt_handlers if force_pt else (list(pt_handlers) + list(_HANDLERS))
+
+    for h in handlers:
         try:
-            r = h(question)
+            # PT-хендлеры принимают force_pt; РГК-хендлеры — только question
+            if h in _PT_HANDLERS:
+                r = h(question, force_pt=force_pt)
+            else:
+                r = h(question)
             if r.matched:
                 return r
         except Exception:

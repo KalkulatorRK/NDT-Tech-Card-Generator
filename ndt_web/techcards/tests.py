@@ -6,7 +6,7 @@
 
 import os
 
-from django.test import TestCase, Client
+from django.test import TestCase, SimpleTestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
@@ -1500,17 +1500,49 @@ class DocumentKindTests(TestCase):
         )
         self.assertEqual(doc.get_document_kind_display(), 'Методический документ')
 
+
+class GostJointImageExtractionTests(SimpleTestCase):
+    """Эскизы ГОСТ Р 59023.2 — столбец шва (g/g1), не подготовка кромок."""
+
+    databases = []
+
     def test_joint_gost_image_is_weld_cross_section(self):
-        """Изображение шва — из столбца «шва сварного соединения», не кромок."""
         from normative.gost_59023_2 import get_joint_image_path
+
         path = get_joint_image_path('С-1')
         self.assertEqual(path, 'gost/С_1.gif')
         full = os.path.join(
             os.path.dirname(__file__), '..', 'static', 'img', 'welds', path,
         )
         self.assertTrue(os.path.isfile(full), msg=full)
-        # Размер соответствует извлечению из правого столбца таблицы 9.1
-        self.assertGreater(os.path.getsize(full), 1900)
+        # Правый столбец (шов с g/g1); левый (кромки) у С-1 крупнее и раньше перетирал файл
+        self.assertGreater(os.path.getsize(full), 1500)
+        self.assertLess(os.path.getsize(full), 2500)
+
+        c14 = get_joint_image_path('С-14')
+        self.assertEqual(c14, 'gost/С_14.gif')
+        c14_full = os.path.join(
+            os.path.dirname(__file__), '..', 'static', 'img', 'welds', c14,
+        )
+        # 1808 = столбец шва; 2851 = ошибочно взятые кромки
+        self.assertEqual(os.path.getsize(c14_full), 1808)
+
+    def test_pick_weld_seam_image_prefers_right_of_pair(self):
+        from techcards.management.commands.extract_gost_joint_images import (
+            _pick_weld_seam_image,
+        )
+
+        small = b'GIF87a' + b'\x01' * 60
+        large = b'GIF87a' + b'\x02' * 120
+        cells = [
+            b'code C-99 ',
+            b'\\pard ' + large.hex().encode('ascii'),
+            b'\\pard ' + small.hex().encode('ascii'),
+        ]
+        picked = _pick_weld_seam_image(cells, weld_col_idx=2, edge_col_idx=1)
+        self.assertIsNotNone(picked)
+        self.assertEqual(picked[0], 'gif')
+        self.assertEqual(picked[1], small)
 
 
 class SessionSerializationTests(TestCase):
@@ -1965,8 +1997,8 @@ class TemplateCommentsTests(TestCase):
             static_root = str(settings.STATICFILES_DIRS[0])
             generate_from_template(params, template, out, static_root=static_root)
             gen_breaks, gen_empty = _layout_stats(out)
-            # +2 разрыва: п. 4.3 (стр. 3) и п. 6.9 (схема просвечивания)
-            self.assertEqual(gen_breaks, tpl_breaks + 2)
+            # +1 разрыв: только п. 4.3; п. 6.9 идёт сразу после 6.8 без page break
+            self.assertEqual(gen_breaks, tpl_breaks + 1)
             # Пустые строки схлопнуты — не более одной подряд
             self.assertLess(gen_empty, tpl_empty)
             doc = Document(out)
@@ -2398,12 +2430,13 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('NUMPAGES', header_xml)
             self.assertNotIn('Страница 1', header_xml)
 
-    def test_section_69_has_page_break_before_gap(self):
-        """П. 6.9 — разрыв страницы; ровно 1 строка от колонтитула через top_margin."""
+    def test_section_69_follows_68_without_page_break(self):
+        """П. 6.9 сразу после 6.8: одна пустая строка, без разрыва страницы."""
         from techcards.generator import (
             generate_from_template, get_default_template_path,
             _is_empty_body_paragraph, _paragraph_has_page_break,
             _estimate_header_part_height_mm, _BODY_LINE_MM,
+            _MIN_HEADER_DISTANCE_MM,
         )
         import tempfile
         from docx import Document
@@ -2428,10 +2461,11 @@ class TemplateCommentsTests(TestCase):
             while prev is not None and _is_empty_body_paragraph(prev):
                 empty += 1
                 prev = prev.getprevious()
-            self.assertEqual(empty, 0)
+            self.assertEqual(empty, 1)
             self.assertIsNotNone(prev)
-            self.assertTrue(_paragraph_has_page_break(prev))
+            self.assertFalse(_paragraph_has_page_break(prev))
             section = doc.sections[0]
+            self.assertGreaterEqual(section.header_distance.mm, _MIN_HEADER_DISTANCE_MM - 0.05)
             header_h = _estimate_header_part_height_mm(section.header)
             needed = section.header_distance.mm + header_h + _BODY_LINE_MM
             self.assertGreaterEqual(section.top_margin.mm, needed - 0.6)

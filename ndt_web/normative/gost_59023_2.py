@@ -1059,6 +1059,30 @@ def get_joint_thickness_ranges(joint_code: str) -> list[tuple[float, float]]:
     return [(row[0], row[1]) for row in info.get('dimensions', [])]
 
 
+def is_joint_thickness_allowed(joint_code: str, thickness_mm: float) -> bool:
+    """True, если S попадает в один из рядов таблицы ГОСТ для данного типа."""
+    ranges = get_joint_thickness_ranges(joint_code)
+    if not ranges:
+        return True
+    return any(s_min <= thickness_mm <= s_max for s_min, s_max in ranges)
+
+
+def format_joint_thickness_ranges(joint_code: str) -> str:
+    """Краткая строка допустимых S для сообщения об ошибке (напр. «2; 3; 4 мм»)."""
+    ranges = get_joint_thickness_ranges(joint_code)
+    if not ranges:
+        return ''
+    parts = []
+    for s_min, s_max in ranges:
+        if abs(s_min - s_max) < 1e-9:
+            parts.append(f'{s_min:g}'.replace('.', ','))
+        else:
+            parts.append(
+                f'{s_min:g}–{s_max:g}'.replace('.', ',')
+            )
+    return '; '.join(parts) + ' мм'
+
+
 def resolve_material_class(material: str = '', material_custom: str = '') -> str | None:
     if material == MATERIAL_TITANIUM:
         return 'titanium'
@@ -1313,14 +1337,47 @@ def get_weld_width(
             match_row = row
             break
 
+    # Вне диапазона ГОСТ — не подставлять «ближайший» ряд молча (раньше С-14 + S=5
+    # брало размеры ряда S=4 и писало «приближённо»).
     if match_row is None and dims:
-        match_row = min(dims, key=lambda d: abs((d[0] + d[1]) / 2 - thickness_mm))
+        table_ref = info.get('gost_table', '')
+        ranges_txt = format_joint_thickness_ranges(joint_code)
+        table_part = f'табл. {table_ref} ' if table_ref else ''
+        return {
+            'e_mm': None,
+            'e_max_mm': None,
+            'e1_mm': None,
+            'e1_max_mm': None,
+            'effective_e_mm': None,
+            'effective_e_max_mm': None,
+            'e_tol_mm': None,
+            'e1_tol_mm': None,
+            'bead_mode': info.get('bead_mode', 'equal'),
+            'e_display': '—',
+            'e1_display': '—',
+            'g_nom': None,
+            'g_min_mm': None,
+            'g_max_mm': None,
+            'g_display': '—',
+            'g1_nom': None,
+            'g1_min_mm': None,
+            'g1_max_mm': None,
+            'g1_display': None,
+            'out_of_range': True,
+            'is_approximate': False,
+            'note': (
+                f'Для {joint_code} по {table_part}ГОСТ Р 59023.2-2020 '
+                f'допустима толщина S: {ranges_txt}. '
+                f'Задано S={thickness_mm:g} мм — вне диапазона.'
+            ),
+        }
 
     if match_row is None:
         return {
             'e_mm': None, 'g_nom': 2.0,
             'g_min_mm': 0.5, 'g_max_mm': 3.5,
             'note': 'Нет данных',
+            'out_of_range': True,
         }
 
     bead_mode = info.get('bead_mode', 'equal')
@@ -1336,12 +1393,17 @@ def get_weld_width(
     g1_max = None
 
     sketch_bead = info.get('sketch_inner_bead') or get_sketch_inner_bead(joint_code)
+    # Размеры с эскиза по умолчанию — числа без e1/g1 (см. gost_59023_sketch_beads)
+    labeled_as_e1 = False
+    labeled_as_g1 = False
     if bead_mode == 'dual' and sketch_bead:
         if e1 is None or abs(e1 - e) < 0.01:
             e1 = sketch_bead['e1_mm']
         g1_nom = sketch_bead.get('g1_nom')
         g1_min = sketch_bead.get('g1_min_mm')
         g1_max = sketch_bead.get('g1_max_mm')
+        labeled_as_e1 = bool(sketch_bead.get('labeled_as_e1', False))
+        labeled_as_g1 = bool(sketch_bead.get('labeled_as_g1', False))
 
     if e_tol is None:
         e_tol = _default_e_tolerance_mm(e)
@@ -1367,6 +1429,58 @@ def get_weld_width(
     e_max = round(e + e_tol, 1)
     e1_max = round(e1 + e1_tol, 1) if e1 else 0.0
 
+    g_face_display = (
+        f'{g_nom:g}±{g_max - g_nom:g}'.replace('.', ',')
+        if abs((g_max - g_nom) - (g_nom - g_min)) < 0.05 and g_nom > 0 else
+        f'{g_nom:.1f} ({g_min:.1f}–{g_max:.1f})'.replace('.', ',')
+    )
+    g1_display = None
+    if g1_nom is not None:
+        g1_tol = None
+        if sketch_bead and sketch_bead.get('g1_tol_mm') is not None:
+            g1_tol = float(sketch_bead['g1_tol_mm'])
+        elif g1_max is not None:
+            g1_tol = g1_max - g1_nom
+        if g1_tol is not None:
+            g1_display = format_dimension_with_tolerance(g1_nom, g1_tol)
+
+    # e / e1: если ширина обратного валика с эскиза без обозначения e1 — «по эскизу»
+    e_face_display = format_dimension_with_tolerance(e, e_tol)
+    e1_raw = format_dimension_with_tolerance(e1, e1_tol) if e1 else None
+    if e1_raw and sketch_bead and not labeled_as_e1:
+        e1_display = f'по эскизу: {e1_raw}'
+        e_label_inner = 'внутренней поверхности (по эскизу)'
+    elif e1_raw and labeled_as_e1:
+        e1_display = f'e1 = {e1_raw}'
+        e_label_inner = 'внутренней поверхности (e1)'
+    else:
+        e1_display = e1_raw or '—'
+        e_label_inner = 'внутренней поверхности'
+
+    # g / g1: не писать «g=g1», если на эскизе нет обозначения g1
+    if g1_display and labeled_as_g1:
+        if (
+            abs(g_nom - g1_nom) < 0.05
+            and g1_max is not None
+            and abs(g_max - g1_max) < 0.05
+            and g1_min is not None
+            and abs(g_min - g1_min) < 0.05
+        ):
+            g_display = f'g = g1 = {g_face_display}'
+            g_label = '4.2.3. Высота валика усиления (g = g1)'
+        else:
+            g_display = f'g = {g_face_display}; g1 = {g1_display}'
+            g_label = '4.2.3. Высота валика усиления (g, g1)'
+    elif g1_display and not labeled_as_g1:
+        g_display = (
+            f'g = {g_face_display}; '
+            f'обратный валик (по эскизу) = {g1_display}'
+        )
+        g_label = '4.2.3. Высота валика усиления (g)'
+    else:
+        g_display = g_face_display
+        g_label = '4.2.3. Высота валика усиления (g)'
+
     return {
         'e_mm': e,
         'e_max_mm': e_max,
@@ -1377,24 +1491,22 @@ def get_weld_width(
         'e_tol_mm': e_tol,
         'e1_tol_mm': e1_tol,
         'bead_mode': bead_mode,
-        'e_display': format_dimension_with_tolerance(e, e_tol),
-        'e1_display': format_dimension_with_tolerance(e1, e1_tol),
+        'e_display': e_face_display,
+        'e1_display': e1_display,
+        'e_label_inner': e_label_inner,
+        'labeled_as_e1': labeled_as_e1,
         'g_nom': g_nom,
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
         'g1_nom': g1_nom,
         'g1_min_mm': round(g1_min, 1) if g1_min is not None else None,
         'g1_max_mm': round(g1_max, 1) if g1_max is not None else None,
-        'g1_display': (
-            format_dimension_with_tolerance(g1_nom, (g1_max - g1_nom))
-            if g1_nom is not None and g1_max is not None else None
-        ),
+        'g1_display': g1_display,
+        'labeled_as_g1': labeled_as_g1,
         'sketch_bead_source': sketch_bead.get('source') if sketch_bead else None,
-        'g_display': (
-            f'{g_nom:g}±{g_max - g_nom:g}'.replace('.', ',')
-            if abs((g_max - g_nom) - (g_nom - g_min)) < 0.05 and g_nom > 0 else
-            f'{g_nom:.1f} ({g_min:.1f}–{g_max:.1f})'.replace('.', ',')
-        ),
+        'g_face_display': g_face_display,
+        'g_display': g_display,
+        'g_label': g_label,
         'note': note,
     }
 
@@ -1555,6 +1667,11 @@ def get_inspection_zone(
         'e1_display': weld.get('e1_display', format_dimension_with_tolerance(e1, weld.get('e1_tol_mm', 1.5))),
         'bead_height_mm': round(g_nom, 1),
         'g_display': weld.get('g_display', f'{g_nom:.1f}'.replace('.', ',')),
+        'g_label': weld.get('g_label', '4.2.3. Высота валика усиления (g)'),
+        'g_face_display': weld.get('g_face_display'),
+        'labeled_as_g1': weld.get('labeled_as_g1', False),
+        'labeled_as_e1': weld.get('labeled_as_e1', False),
+        'e_label_inner': weld.get('e_label_inner'),
         'g_min_mm': round(g_min, 1),
         'g_max_mm': round(g_max, 1),
         'g1_display': weld.get('g1_display'),

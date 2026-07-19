@@ -23,6 +23,7 @@ from normative.gost_59023_2 import (
     get_pipe_diameters, JOINT_TYPES, MATERIAL_CLASS_CHOICES,
     MATERIAL_TITANIUM, MATERIAL_ALUMINUM, requires_material_grade,
     resolve_material_type,
+    is_joint_thickness_allowed, format_joint_thickness_ranges,
 )
 from normative.np_105_18 import (
     get_weld_category_choices,
@@ -448,6 +449,21 @@ class TechCardStep2Form(forms.Form):
         cleaned['material_custom'] = grade
 
         joint = cleaned.get('joint_designation', '')
+        wall = cleaned.get('wall_thickness')
+        if joint and wall is not None:
+            if not is_joint_thickness_allowed(joint, float(wall)):
+                table_ref = JOINT_TYPES.get(joint, {}).get('gost_table', '')
+                ranges_txt = format_joint_thickness_ranges(joint)
+                table_part = f'табл. {table_ref} ' if table_ref else ''
+                self.add_error(
+                    'wall_thickness',
+                    (
+                        f'Для соединения {joint} по {table_part}'
+                        f'ГОСТ Р 59023.2-2020 допустима толщина S: {ranges_txt}. '
+                        f'Значение {wall:g} мм вне диапазона.'
+                    ),
+                )
+
         process = (cleaned.get('welding_process') or '').strip()
         custom_process = (cleaned.get('welding_process_custom') or '').strip()
         if joint and process:

@@ -28,6 +28,7 @@ from ai_consultant.services.embeddings import embed_texts, get_embedding_model_n
 DOC_MAP = {
     'НП-105-18': 'НП-105-18',
     'ГОСТ Р 50.05.07-2018': 'ГОСТ Р 50.05.07-2018',
+    'ГОСТ Р 50.05.09-2018': 'ГОСТ Р 50.05.09-2018',
     'НП-104-18': 'НП-104-18',
     'ГОСТ 7512-82': 'ГОСТ 7512-82',
     'ГОСТ Р 59023.2-2020': 'ГОСТ Р 59023.2-2020',
@@ -417,9 +418,91 @@ def _build_gost500507_full():
     _add_chunks(src, specs, doc_number=DOC_MAP['ГОСТ Р 50.05.07-2018'])
 
 
+def _build_gost500509():
+    """Эталонные чанки ГОСТ Р 50.05.09-2018 (капиллярный контроль) из .py."""
+    from normative import gost_50_05_09 as M
+    src = _get_or_create_source(
+        DOC_MAP['ГОСТ Р 50.05.09-2018'],
+        M.DOCUMENT_FULL_NAME,
+        'gost',
+    )
+    print("ГОСТ Р 50.05.09-2018:")
+    specs = [
+        ("табл. 1 классы чувствительности", M.format_sensitivity_table()),
+        ("п. 5.5–5.6 условия среды", M.format_ambient_rules()),
+        ("п. 6.1.1 наборы ДМ", M.format_dm_rules()),
+        (
+            "п. 6.2 персонал",
+            f"{M.DOCUMENT_CODE}, п. 6.2: капиллярный контроль выполняет персонал, "
+            f"квалификация которого подтверждена по {M.PERSONNEL_STANDARD}.",
+        ),
+        (
+            "п. 8.1.5 шероховатость",
+            f"{M.DOCUMENT_CODE}, п. 8.1.5: участки контроля обрабатывают до "
+            f"Ra {M.SURFACE_ROUGHNESS_RA_TARGET} (Rz {M.SURFACE_ROUGHNESS_RZ_TARGET}). "
+            f"Допускается Ra {M.SURFACE_ROUGHNESS_RA_MAX_ALLOWED} "
+            f"(Rz {M.SURFACE_ROUGHNESS_RZ_MAX_ALLOWED}) без недопустимого окрашенного фона. "
+            f"Образцы шероховатости — {M.SURFACE_ROUGHNESS_STANDARD}.",
+        ),
+        (
+            "п. 8.2.1.1 время контакта пенетранта",
+            f"{M.DOCUMENT_CODE}, п. 8.2.1.1: минимальное время контакта пенетранта — "
+            f"не менее {M.PENETRANT_CONTACT_MIN_WELD_MIN} мин для сварных соединений "
+            f"(включая околошовную зону) и не менее {M.PENETRANT_CONTACT_MIN_BASE_METAL_MIN} мин "
+            f"для основного металла. Высыхание пенетранта на поверхности не допускается "
+            f"(п. 8.2.1.2).",
+        ),
+        (
+            "п. 8.3.2 осмотр после проявителя",
+            f"{M.DOCUMENT_CODE}, п. 8.3.2: при отсутствии указаний производителя осмотр "
+            f"проводят дважды — через {M.DEVELOPER_INSPECTION_FIRST_MIN[0]}–"
+            f"{M.DEVELOPER_INSPECTION_FIRST_MIN[1]} мин после нанесения проявителя и через "
+            f"{M.DEVELOPER_INSPECTION_SECOND_MIN} мин после его высыхания.",
+        ),
+        (
+            "п. 5.1–5.4 общие положения КК",
+            f"{M.DOCUMENT_CODE}, п. 5.1–5.4: капиллярный метод основан на проникновении "
+            f"индикаторных жидкостей в поверхностные несплошности и регистрации индикаторных "
+            f"следов. Контролируют поверхности, признанные годными по ВИК. КК проводят после "
+            f"ВИК и перед другими методами НК (УЗК, МПД, РГК и др.).",
+        ),
+        (
+            "п. 7.1–7.3 технологические карты",
+            f"{M.DOCUMENT_CODE}, п. 7.1–7.3: контроль проводят по технологическим картам. "
+            f"В карте указывают способ и класс чувствительности, набор ДМ, условия "
+            f"(температура, влажность, освещённость), КО, подготовку поверхности, "
+            f"шероховатость, последовательность операций и нормы оценки качества.",
+        ),
+    ]
+    for code, row in M.ILLUMINANCE_LX.items():
+        specs.append((
+            f"табл. 2 освещённость класс {code}",
+            f"{M.DOCUMENT_CODE}, табл. 2, класс {code}: люминесцентные лампы — "
+            f"комбинированная {row['fluorescent_combined']} лк, общая "
+            f"{row['fluorescent_general']} лк; накаливания — комбинированная "
+            f"{row['incandescent_combined']} лк, общая {row['incandescent_general']} лк.",
+        ))
+    for code, uv in M.UV_IRRADIANCE_UW_PER_CM2.items():
+        specs.append((
+            f"табл. 3 УФ класс {code}",
+            f"{M.DOCUMENT_CODE}, табл. 3, класс {code}: ультрафиолетовая облучённость "
+            f"контролируемой поверхности — {uv} мкВт/см².",
+        ))
+    for kit in M.RECOMMENDED_DM_KITS:
+        tmin, tmax = kit['temp_c']
+        specs.append((
+            f"прил. А набор {kit['name'][:40]}",
+            f"{M.DOCUMENT_CODE}, приложение А, табл. А.1: набор «{kit['name']}», "
+            f"способ {kit['method']}, температуры {tmin}…{tmax} °C, класс "
+            f"{kit['class']}, верхний порог чувствительности: {kit['threshold_note']} мкм.",
+        ))
+    _add_chunks(src, specs, doc_number=DOC_MAP['ГОСТ Р 50.05.09-2018'])
+
+
 if __name__ == '__main__':
     _build_np105()
     _build_gost500507()
+    _build_gost500509()
     _build_np104()
     _build_gost7512()
     _build_gost59023()

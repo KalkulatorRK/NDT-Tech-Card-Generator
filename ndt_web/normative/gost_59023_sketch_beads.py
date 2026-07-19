@@ -1,19 +1,29 @@
 """
-Размеры обратного валика (e1, g1) по эскизам ГОСТ Р 59023.2-2020.
+Размеры обратного валика по эскизам ГОСТ Р 59023.2-2020.
 
-Для ряда двусторонних стыков (С-1-2, С-2, С-2-1, С-3 и др.) таблицы
-раздела 9 содержат только ширину e и высоту g лицевого валика; e1 и g1
-указаны на эскизах соединений в графе «Конструктивные элементы».
+Для ряда двусторонних стыков таблицы раздела 9 содержат только ширину e
+и высоту g лицевого валика; размеры обратной стороны указаны на эскизах
+в графе «Конструктивные элементы».
+
+По умолчанию размеры с эскиза — числовые (без обозначений e1/g1):
+labeled_as_e1=False, labeled_as_g1=False. Тогда в техкарте пишем
+«по эскизу», а не «e1» / «g1» / «g = g1».
+
+labeled_as_g1=True — только если на эскизе ГОСТ явно стоит обозначение g1
+(например С-21, С-22, табл. 9.26).
 """
 
 from __future__ import annotations
 
-# e1/g1 — обратная сторона шва (по эскизам табл. 9.3–9.6 и аналогам)
+# Обратная сторона шва (по эскизам табл. 9.x).
+# Поля: e1_mm, e1_tol_mm, g1_nom, g1_min_mm/g1_max_mm или g1_tol_mm,
+# labeled_as_e1, labeled_as_g1, source.
 SKETCH_INNER_BEAD: dict[str, dict] = {
     'С-1-2': {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 1.5,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.5,
         'g1_max_mm': 2.5,
         'source': 'эскиз табл. 9.3 ГОСТ Р 59023.2-2020',
@@ -22,6 +32,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 18.0,
         'e1_tol_mm': 4.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
         'source': 'эскиз табл. 9.4 ГОСТ Р 59023.2-2020',
@@ -30,6 +41,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 18.0,
         'e1_tol_mm': 4.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
         'source': 'эскиз табл. 9.5 ГОСТ Р 59023.2-2020',
@@ -38,6 +50,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 10.0,
         'e1_tol_mm': 3.0,
         'g1_nom': 1.5,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.5,
         'g1_max_mm': 2.5,
         'source': 'эскиз табл. 9.6 ГОСТ Р 59023.2-2020',
@@ -46,6 +59,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 18.0,
         'e1_tol_mm': 4.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
         'source': 'эскиз табл. 9.8 ГОСТ Р 59023.2-2020',
@@ -54,6 +68,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 18.0,
         'e1_tol_mm': 4.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
         'source': 'эскиз табл. 9.9 ГОСТ Р 59023.2-2020',
@@ -62,6 +77,7 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 20.0,
         'e1_tol_mm': 4.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
         'source': 'эскиз табл. 9.18 ГОСТ Р 59023.2-2020',
@@ -70,22 +86,27 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 25.0,
         'e1_tol_mm': 5.0,
         'g1_nom': 2.5,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 1.0,
         'g1_max_mm': 4.5,
         'source': 'эскиз табл. 9.19 ГОСТ Р 59023.2-2020',
     },
     'С-14': {
+        # Эскиз: 7±2 и 1±1,5 — числа без e1/g1
         'e1_mm': 7.0,
         'e1_tol_mm': 2.0,
-        'g1_nom': 1.5,
-        'g1_min_mm': 0.5,
+        'g1_nom': 1.0,
+        'g1_tol_mm': 1.5,
+        'g1_min_mm': 0.0,
         'g1_max_mm': 2.5,
         'source': 'эскиз табл. 9.20 ГОСТ Р 59023.2-2020',
     },
     'С-15': {
+        # Эскиз: 7±2 и 1,5±1 — числа без e1/g1
         'e1_mm': 7.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 1.5,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.5,
         'g1_max_mm': 2.5,
         'source': 'эскиз табл. 9.20 ГОСТ Р 59023.2-2020',
@@ -94,38 +115,47 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 9.0,
         'e1_tol_mm': 3.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.0,
         'source': 'эскиз табл. 9.22 ГОСТ Р 59023.2-2020',
     },
+    # Табл. 9.26: на эскизе высота обратного валика обозначена g1
     'С-21': {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 1.5,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.5,
         'g1_max_mm': 2.5,
+        'labeled_as_g1': True,
         'source': 'эскиз табл. 9.26 ГОСТ Р 59023.2-2020',
     },
     'С-22': {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
+        'labeled_as_g1': True,
         'source': 'эскиз табл. 9.26 ГОСТ Р 59023.2-2020',
     },
     'С-23': {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 2.0,
+        'g1_tol_mm': 1.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 3.5,
+        'labeled_as_g1': True,
         'source': 'эскиз табл. 9.26 ГОСТ Р 59023.2-2020',
     },
     'С-24': {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 0.5,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.0,
         'g1_max_mm': 1.5,
         'source': 'эскиз табл. 9.31 ГОСТ Р 59023.2-2020',
@@ -134,14 +164,17 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
         'e1_mm': 4.0,
         'e1_tol_mm': 2.0,
         'g1_nom': 1.0,
+        'g1_tol_mm': 1.0,
         'g1_min_mm': 0.0,
         'g1_max_mm': 2.0,
         'source': 'эскиз табл. 9.34 ГОСТ Р 59023.2-2020',
     },
     'С-34': {
+        # Эскиз: 13±5 и 3,0±2,5 — числа без e1/g1
         'e1_mm': 13.0,
         'e1_tol_mm': 5.0,
         'g1_nom': 3.0,
+        'g1_tol_mm': 2.5,
         'g1_min_mm': 0.5,
         'g1_max_mm': 5.5,
         'source': 'эскиз табл. 9.47 ГОСТ Р 59023.2-2020',
@@ -150,6 +183,15 @@ SKETCH_INNER_BEAD: dict[str, dict] = {
 
 
 def get_sketch_inner_bead(joint_code: str) -> dict | None:
-    """Возвращает e1/g1 с эскиза или None, если не задано."""
+    """
+    Возвращает размеры обратного валика с эскиза или None.
+
+    По умолчанию labeled_as_e1/g1 = False (размер числом на эскизе).
+    """
     data = SKETCH_INNER_BEAD.get(joint_code)
-    return dict(data) if data else None
+    if not data:
+        return None
+    out = dict(data)
+    out.setdefault('labeled_as_e1', False)
+    out.setdefault('labeled_as_g1', False)
+    return out

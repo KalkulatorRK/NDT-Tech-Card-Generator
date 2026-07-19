@@ -433,10 +433,10 @@
         <h4><i class="bi bi-robot"></i> Здравствуйте!</h4>
         <p>Я — ИИ-консультант <strong>Карта-НК</strong> по неразрушающему контролю и сварке.</p>
         <ul>
-          <li>Выберите <strong>метод НК</strong> выше, чтобы задать контекст обсуждения (сейчас активен <strong>РК</strong> — радиографический контроль; остальные методы появятся позже).</li>
-          <li>Отвечаю по ГОСТ Р 50.05.07-2018, НП-105-18, НП-104-18, ГОСТ 7512, ГОСТ Р 59023.2 с точными ссылками на пункты.</li>
-          <li>Рассчитываю геометрию съёмки (f, расстояния), чувствительность, категории, допуски дефектов.</li>
-          <li>Учитываю контекст диалога: уточнения типа «стенка 5 мм» применяю к уже обсуждаемой задаче.</li>
+          <li>Выберите <strong>метод НК</strong> выше: <strong>РК</strong> (радиография) или <strong>КК</strong> (капиллярный контроль по ГОСТ Р 50.05.09-2018).</li>
+          <li>Отвечаю строго по официальным НД с ссылками на пункты и таблицы (для КК — ГОСТ Р 50.05.09-2018).</li>
+          <li>В режиме РК — геометрия съёмки, чувствительность, категории; в режиме КК — классы чувствительности, ДМ, подготовка поверхности, освещённость.</li>
+          <li>Учитываю контекст диалога: краткие уточнения применяю к уже обсуждаемой задаче.</li>
         </ul>
         <p style="margin-top:10px;color:var(--text-muted);font-size:.9rem;">Задайте вопрос или выберите метод НК для обсуждения.</p>
       </div>
@@ -456,8 +456,8 @@
         <button type="button" class="method-btn" data-method="КГ" disabled title="Контроль герметичности — в разработке">
           <i class="bi bi-droplet-half"></i><span>КГ</span><em class="soon">в разработке</em>
         </button>
-        <button type="button" class="method-btn" data-method="КК" disabled title="Капиллярный контроль — в разработке">
-          <i class="bi bi-grid-3x3-gap"></i><span>КК</span><em class="soon">в разработке</em>
+        <button type="button" class="method-btn" data-method="КК" title="Капиллярный контроль (ГОСТ Р 50.05.09-2018)">
+          <i class="bi bi-grid-3x3-gap"></i><span>КК</span>
         </button>
       </div>
       <div class="method-scope-hint" id="methodScopeHint">
@@ -671,8 +671,17 @@ methodBtns.forEach(btn => {
     if (activeMethodEl) activeMethodEl.textContent = activeMethod;
     const hint = document.getElementById('methodScopeHint');
     if (hint) {
+      const kkNote = activeMethod === 'КК'
+        ? ' Контекст: капиллярный контроль по ГОСТ Р 50.05.09-2018.'
+        : '';
       hint.innerHTML = 'Активный метод: <strong id="activeMethod">' + activeMethod +
-        '</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.';
+        '</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.' + kkNote;
+    }
+    const ta = document.getElementById('question');
+    if (ta) {
+      ta.placeholder = activeMethod === 'КК'
+        ? 'Например: классы чувствительности КК по ГОСТ Р 50.05.09?'
+        : 'Например: объём РК сварных соединений трубопроводов?';
     }
   });
 });
@@ -724,14 +733,14 @@ document.getElementById('clear-chat-btn').addEventListener('click', () => {
   loadSessions();
   chatLog.innerHTML = `<div class="welcome-card">
     <h4><i class="bi bi-robot"></i> Новый диалог</h4>
-    <p>Выберите метод НК выше (сейчас активен <strong>РК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
+    <p>Выберите метод НК выше (<strong>РК</strong> или <strong>КК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
   </div>`;
 });
 
 function startNewChat() {
   chatLog.innerHTML = `<div class="welcome-card">
     <h4><i class="bi bi-robot"></i> Новый диалог</h4>
-    <p>Выберите метод НК выше (сейчас активен <strong>РК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
+    <p>Выберите метод НК выше (<strong>РК</strong> или <strong>КК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
   </div>`;
   sessionInput.value = '';
   loadSessions();

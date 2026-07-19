@@ -265,11 +265,25 @@ class GostJointCatalogTests(SimpleTestCase):
 
     def test_sketch_inner_bead_for_dual_steel_joints(self):
         from normative.gost_59023_2 import get_weld_width, get_inspection_zone
+        from normative.gost_59023_sketch_beads import SKETCH_INNER_BEAD, get_sketch_inner_bead
+
+        # По умолчанию размеры с эскиза — без обозначений e1/g1
+        for code in SKETCH_INNER_BEAD:
+            bead = get_sketch_inner_bead(code)
+            self.assertIn('labeled_as_e1', bead)
+            self.assertIn('labeled_as_g1', bead)
+            if code not in ('С-21', 'С-22', 'С-23'):
+                self.assertFalse(
+                    bead['labeled_as_g1'],
+                    msg=f'{code}: на эскизе нет g1 — labeled_as_g1 должен быть False',
+                )
 
         c12 = get_weld_width('С-1-2', 3.0)
         self.assertEqual(c12['bead_mode'], 'dual')
         self.assertEqual(c12['e1_mm'], 4.0)
         self.assertEqual(c12['g1_nom'], 1.5)
+        self.assertIn('по эскизу', c12['g_display'])
+        self.assertIn('по эскизу:', c12['e1_display'])
         self.assertEqual(c12['effective_e_max_mm'], 12.0)
 
         c2 = get_weld_width('С-2', 20.0)
@@ -318,10 +332,33 @@ class GostJointCatalogTests(SimpleTestCase):
 
         c14 = get_weld_width('С-14', 3.0)
         self.assertEqual(c14['e1_mm'], 7.0)
+        # На эскизе С-14 размеры обратного валика — числа без e1/g1
+        self.assertFalse(c14.get('labeled_as_g1'))
+        self.assertFalse(c14.get('labeled_as_e1'))
+        self.assertEqual(c14['g1_nom'], 1.0)
+        self.assertIn('обратный валик (по эскизу)', c14['g_display'])
+        self.assertIn('по эскизу:', c14['e1_display'])
+        self.assertNotIn('g = g1', c14['g_display'])
+        self.assertEqual(c14['g_label'], '4.2.3. Высота валика усиления (g)')
+
+        # Типичный случай: число на эскизе (С-3) — тоже «по эскизу», не g1
+        c3 = get_weld_width('С-3', 10.0)
+        self.assertFalse(c3.get('labeled_as_g1'))
+        self.assertIn('по эскизу', c3['g_display'])
+
+        # На эскизе С-21/С-22 высота обозначена g1 (табл. 9.26: S=1…2 мм)
+        c21 = get_weld_width('С-21', 2.0)
+        self.assertTrue(c21.get('labeled_as_g1'))
+        self.assertIn('g1', c21['g_display'])
+        c22 = get_weld_width('С-22', 3.0)
+        self.assertTrue(c22.get('labeled_as_g1'))
+        self.assertIn('g1', c22['g_display'])
 
         c34 = get_weld_width('С-34', 100.0)
         self.assertEqual(c34['e1_mm'], 13.0)
         self.assertEqual(c34['g1_nom'], 3.0)
+        self.assertFalse(c34.get('labeled_as_g1'))
+        self.assertIn('по эскизу', c34['g_display'])
 
         zone = get_inspection_zone('С-13', 70.0, '11')
         self.assertEqual(zone['bead_width_inner_mm'], 25.0)
@@ -339,6 +376,23 @@ class GostJointCatalogTests(SimpleTestCase):
         self.assertIn('austenite', c1)
         self.assertIn('titanium', c1)
         self.assertIn('aluminum', c1)
+
+    def test_c14_rejects_thickness_above_gost_max(self):
+        """С-14 (табл. 9.20): S только 2; 3; 4 мм — без «приближения» к ряду 4."""
+        from normative.gost_59023_2 import (
+            get_weld_width, is_joint_thickness_allowed, format_joint_thickness_ranges,
+        )
+
+        self.assertTrue(is_joint_thickness_allowed('С-14', 4.0))
+        self.assertFalse(is_joint_thickness_allowed('С-14', 5.0))
+        self.assertEqual(format_joint_thickness_ranges('С-14'), '2; 3; 4 мм')
+        out = get_weld_width('С-14', 5.0)
+        self.assertTrue(out.get('out_of_range'))
+        self.assertIsNone(out.get('e_mm'))
+        self.assertIn('вне диапазона', out.get('note', ''))
+        ok = get_weld_width('С-14', 4.0)
+        self.assertFalse(ok.get('out_of_range'))
+        self.assertEqual(ok.get('e_mm'), 9.0)
 
     def test_joint_image_path_resolves_gost_sketches(self):
         from pathlib import Path

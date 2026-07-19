@@ -132,12 +132,16 @@ SCHEME_DOCX_IMAGE_CAPTION = {
 
 
 def get_scheme_docx_image_rel(scheme_code: str, scheme_info: dict | None = None) -> str:
-    """Относительный путь к PNG-схеме для вставки в DOCX."""
+    """
+    Относительный путь к схеме для п. 6.9 DOCX.
+
+    Для 3в/3г/3д — подробные файлы ``scheme_*_docx.jpg`` (не упрощённый preview).
+    """
     info = scheme_info or {}
-    if info.get('docx_image'):
-        return info['docx_image']
     if scheme_code in SCHEME_DOCX_IMAGES:
         return SCHEME_DOCX_IMAGES[scheme_code]
+    if info.get('docx_image'):
+        return info['docx_image']
     return info.get('image') or SCHEME_IMAGES.get(scheme_code, '')
 
 

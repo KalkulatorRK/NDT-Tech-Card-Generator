@@ -118,6 +118,55 @@ def _find_weld_column_indices(cells: list[bytes]) -> tuple[int | None, int | Non
     return edge_idx, weld_idx
 
 
+def _list_cell_images(cells: list[bytes]) -> list[tuple[int, tuple[str, bytes]]]:
+    """Ячейки строки, содержащие рисунок: (индекс, (fmt, bytes))."""
+    found: list[tuple[int, tuple[str, bytes]]] = []
+    for i, cell in enumerate(cells):
+        img = _extract_image_from_cell(cell)
+        if img:
+            found.append((i, img))
+    return found
+
+
+def _pick_weld_seam_image(
+    cells: list[bytes],
+    weld_col_idx: int | None,
+    edge_col_idx: int | None,
+) -> tuple[str, bytes] | None:
+    """
+    Рисунок из столбца «шва сварного соединения» (готовый шов, g/g1).
+
+    Не брать столбец подготовки кромок и не выбирать «самый большой» GIF —
+    у кромок файл часто крупнее и перетирал правильный эскиз шва.
+    """
+    image_cells = _list_cell_images(cells)
+    if not image_cells:
+        return None
+
+    # 1) Два соседних рисунка в строке ГОСТ: слева кромки, справа шов с g/g1
+    for k in range(len(image_cells) - 1):
+        i0 = image_cells[k][0]
+        i1, img1 = image_cells[k + 1]
+        if i1 == i0 + 1:
+            return img1
+
+    # 2) Точный индекс столбца шва по заголовку таблицы
+    if weld_col_idx is not None and 0 <= weld_col_idx < len(cells):
+        img = _extract_image_from_cell(cells[weld_col_idx])
+        if img:
+            return img
+
+    # 3) Единственный рисунок — только если это не столбец кромок
+    only_i, only_img = image_cells[0]
+    if edge_col_idx is not None and only_i == edge_col_idx:
+        return None
+    if len(image_cells) == 1:
+        return only_img
+
+    # 4) Несколько несоседних — второй рисунок в строке (правее кромок)
+    return image_cells[1][1]
+
+
 def extract_joint_images(
     rtf_path: Path,
     out_dir: Path,
@@ -135,37 +184,30 @@ def extract_joint_images(
     data = rtf_path.read_bytes()
     rows = data.split(b'\\row')
     weld_col_idx: int | None = None
+    edge_col_idx: int | None = None
+    # Первый удачный эскиз шва для кода; не перетирать «более крупным» из кромок
     extracted: dict[str, tuple[str, bytes]] = {}
 
     for row in rows:
         cells = row.split(b'\\cell')
         edge_idx, weld_idx = _find_weld_column_indices(cells)
         if edge_idx is not None:
+            edge_col_idx = edge_idx
             weld_col_idx = weld_idx
             continue
 
-        if weld_col_idx is None or weld_col_idx >= len(cells):
+        if weld_col_idx is None and edge_col_idx is None:
             continue
 
         joint_code = find_joint_code_in_cells(cells, known_codes)
-        if not joint_code:
+        if not joint_code or joint_code in extracted:
             continue
 
-        image = _extract_image_from_cell(cells[weld_col_idx])
-        if not image:
-            best: tuple[str, bytes] | None = None
-            for cell in cells:
-                candidate = _extract_image_from_cell(cell)
-                if candidate and (best is None or len(candidate[1]) > len(best[1])):
-                    best = candidate
-            image = best
+        image = _pick_weld_seam_image(cells, weld_col_idx, edge_col_idx)
         if not image:
             continue
 
-        fmt, raw = image
-        prev = extracted.get(joint_code)
-        if prev is None or len(raw) > len(prev[1]):
-            extracted[joint_code] = (fmt, raw)
+        extracted[joint_code] = image
 
     out_dir.mkdir(parents=True, exist_ok=True)
     mapping: dict[str, str] = {}
@@ -194,7 +236,7 @@ class Command(BaseCommand):
 
         mapping = extract_joint_images(rtf_path, out_dir)
         self.stdout.write(self.style.SUCCESS(
-            f'Извлечено {len(mapping)} изображений швов в разрезе → {out_dir}'
+            f'Извлечено {len(mapping)} изображений швов в разрезе -> {out_dir}'
         ))
         for code in sorted(mapping):
             self.stdout.write(f'  {code} -> {mapping[code]}')

@@ -477,15 +477,12 @@
 </div>
 
 <script>
-console.log('[Hermes Chat] Script loaded, version 2');
 const chatLog = document.getElementById('chat-log');
 const form = document.getElementById('chat-form');
 const input = document.getElementById('question');
 const sessionInput = document.getElementById('session-id');
 const sendBtn = document.getElementById('send-btn');
 const sessionsList = document.getElementById('sessions-list');
-
-console.log('[Hermes Chat] Elements:', {chatLog:!!chatLog, form:!!form, input:!!input, sendBtn:!!sendBtn});
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -654,12 +651,6 @@ form.addEventListener('submit', (e) => {
   doSend();
 });
 
-// Прямой клик по кнопке (на случай проблем с form.submit)
-sendBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  doSend();
-});
-
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -735,7 +726,7 @@ document.getElementById('clear-chat-btn').addEventListener('click', () => {
     <h4><i class="bi bi-robot"></i> Новый диалог</h4>
     <p>Выберите метод НК выше (сейчас активен <strong>РК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
   </div>`;
-}
+});
 
 function startNewChat() {
   chatLog.innerHTML = `<div class="welcome-card">

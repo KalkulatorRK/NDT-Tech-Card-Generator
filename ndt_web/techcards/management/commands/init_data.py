@@ -67,6 +67,7 @@ class Command(BaseCommand):
                 'is_implemented': False,
                 'is_active': True,
                 'sort_order': 20,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
                 'description': 'Общие требования к радиографическому контролю сварных соединений.',
             },
             {

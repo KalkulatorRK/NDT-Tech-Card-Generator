@@ -39,6 +39,7 @@ class TechCardStep1Form(forms.Form):
         ('Инженер-технолог', 'Инженер-технолог'),
         ('Начальник лаборатории НК', 'Начальник лаборатории НК'),
         ('Руководитель группы НК', 'Руководитель группы НК'),
+        ('Дефектоскопист РГК 6 р.', 'Дефектоскопист РГК 6 р.'),
         ('__custom__', 'Другая (ввести вручную)'),
     ]
 
@@ -46,6 +47,14 @@ class TechCardStep1Form(forms.Form):
         max_length=255, required=False,
         label='Организация',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ООО «Атомстрой»'}),
+    )
+    department = forms.CharField(
+        max_length=255, required=False,
+        label='Подразделение (в шапке)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Управление строительного контроля. Группа контроля качества',
+        }),
     )
     object_name = forms.CharField(
         max_length=500, required=True,
@@ -130,10 +139,56 @@ class TechCardStep1Form(forms.Form):
         label='Проверил — удостоверение №',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'НК-0000'}),
     )
+    gmo_checked_by_position = forms.ChoiceField(
+        choices=SIGNATURE_POSITION_CHOICES,
+        required=False,
+        label='Проверил от ГМО — должность',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_gmo_checked_by_position'}),
+    )
+    gmo_checked_by_position_custom = forms.CharField(
+        required=False,
+        label='Проверил от ГМО — должность (вручную)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Главный инженер-технолог «Эксперт-центр»',
+        }),
+    )
+    gmo_checked_by_name = forms.CharField(
+        max_length=200, required=False,
+        label='Проверил от ГМО — ФИО',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Дмитриев В.Д.'}),
+    )
+    gmo_check_date = forms.DateField(
+        required=False,
+        label='Проверил от ГМО — дата',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+    )
+    gmo_checked_by_certificate = forms.CharField(
+        max_length=100, required=False,
+        label='Проверил от ГМО — удостоверение №',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'НК-0000'}),
+    )
+    control_location = forms.CharField(
+        max_length=255, required=False,
+        label='Место проведения контроля (п. 8.1)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Участок монтажа трубопровода',
+        }),
+    )
+    temperature_range = forms.CharField(
+        max_length=50, required=False,
+        label='Диапазон рабочих температур, °C (п. 8.4)',
+        initial='+5 ÷ +40',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '+5 ÷ +40',
+        }),
+    )
 
     def clean(self):
         cleaned = super().clean()
-        for prefix in ('developed_by', 'checked_by'):
+        for prefix in ('developed_by', 'checked_by', 'gmo_checked_by'):
             pos = cleaned.get(f'{prefix}_position', '')
             custom = (cleaned.get(f'{prefix}_position_custom') or '').strip()
             if pos == '__custom__' and not custom:
@@ -190,7 +245,27 @@ class TechCardStep2Form(forms.Form):
             'min': '0.5',
             'max': '500',
         }),
-        help_text='Для разнотолщинных соединений указывается большая толщина.',
+        help_text=(
+            'Номинальная толщина стенки S по ГОСТ Р 59023.2-2020. '
+            'Для большинства типов S = S1; для С-23-2 (табл. 9.30, с расточкой) '
+            'S1 подставляется по Dн×S автоматически. С-22-2 в той же таблице — без расточки.'
+        ),
+    )
+    assessment_thickness_mm = forms.FloatField(
+        min_value=0.5, max_value=500,
+        required=False,
+        label='Толщина для норм оценки (п. 10.2), мм',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.1',
+            'placeholder': 'пусто = как S',
+            'min': '0.5',
+            'max': '500',
+        }),
+        help_text=(
+            'Если нужна оценка по минимальной толщине (Sмин / S1). '
+            'Пусто — использовать S. Выпуклость/вогнутость корня считаются по S.'
+        ),
     )
     outer_diameter = forms.FloatField(
         required=False, min_value=0, max_value=5000,
@@ -535,6 +610,27 @@ class TechCardStep3Form(forms.Form):
             'placeholder': '10 Ки (Ir-192) или по паспорту',
         }),
         help_text='Укажите из паспорта источника. Используется для расчёта времени экспозиции.',
+    )
+    source_name_override = forms.CharField(
+        max_length=255, required=False,
+        label='Наименование аппарата / источника (п. 5.1)',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'ПАМИР-300 или аналог',
+        }),
+        help_text='Если пусто — берётся название из каталога источников.',
+    )
+    tube_voltage_kv = forms.FloatField(
+        min_value=10, max_value=600,
+        required=False,
+        label='Напряжение на трубке, кВ (п. 6.1)',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '1',
+            'min': '10',
+            'placeholder': '180',
+        }),
+        help_text='Только для рентгеновского аппарата. Для ИИИ в карте ставится прочерк.',
     )
     ofd_mm = forms.FloatField(
         min_value=0, max_value=200,

@@ -32,6 +32,11 @@
               {{ form.organization }}
             </div>
             <div class="col-12">
+              <label class="form-label">{{ form.department.label }}</label>
+              {{ form.department }}
+              {% if form.department.help_text %}<div class="form-text">{{ form.department.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-12">
               <label class="form-label">{{ form.object_name.label }}</label>
               {{ form.object_name }}
               {% if form.object_name.errors %}<div class="text-danger small">{{ form.object_name.errors.0 }}</div>{% endif %}
@@ -99,6 +104,36 @@
               <label class="form-label">{{ form.checked_by_certificate.label }}</label>
               {{ form.checked_by_certificate }}
             </div>
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.gmo_checked_by_position.label }}</label>
+              {{ form.gmo_checked_by_position }}
+            </div>
+            <div class="col-md-6" id="gmo-position-custom-group" style="display:none;">
+              <label class="form-label">{{ form.gmo_checked_by_position_custom.label }}</label>
+              {{ form.gmo_checked_by_position_custom }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.gmo_checked_by_name.label }}</label>
+              {{ form.gmo_checked_by_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.gmo_check_date.label }}</label>
+              {{ form.gmo_check_date }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.gmo_checked_by_certificate.label }}</label>
+              {{ form.gmo_checked_by_certificate }}
+            </div>
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.control_location.label }}</label>
+              {{ form.control_location }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.temperature_range.label }}</label>
+              {{ form.temperature_range }}
+            </div>
           </div>
 
           <div class="form-actions-sticky">
@@ -127,8 +162,13 @@ function togglePositionCustom(selectId, groupId) {
   if (!sel || !group) return;
   group.style.display = (sel.value === '__custom__') ? '' : 'none';
 }
-['id_developed_by_position', 'id_checked_by_position'].forEach(function(id, idx) {
-  var groupId = idx === 0 ? 'developed-position-custom-group' : 'checked-position-custom-group';
+['id_developed_by_position', 'id_checked_by_position', 'id_gmo_checked_by_position'].forEach(function(id, idx) {
+  var groupIds = [
+    'developed-position-custom-group',
+    'checked-position-custom-group',
+    'gmo-position-custom-group'
+  ];
+  var groupId = groupIds[idx];
   var sel = document.getElementById(id);
   if (sel) {
     sel.addEventListener('change', function() { togglePositionCustom(id, groupId); });

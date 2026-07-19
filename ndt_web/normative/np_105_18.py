@@ -594,7 +594,7 @@ def get_defect_type_choices():
 
 
 # ------------------------------------------------------------------
-# Таблица N 4.6 — Поверхностные дефекты (ВИК)
+# Приложение 4 НП-105-18 — вогнутость/выпуклость корня и поверхностные дефекты
 # ------------------------------------------------------------------
 
 # Подрезы основного металла (п. 10 прил. 4, табл. 4.6)
@@ -625,33 +625,149 @@ RIPPLE_CRITERIA = {
     'II_III_over_20': 1.5,      # мм для II, III при S > 20 мм
 }
 
-# Вогнутость корня шва (поворотные стыки, без подкладных колец, табл. 4.6)
+# Вогнутость корня шва — поворотные стыки без подкладных колец
+# НП-105-18, прил. 4, п. 6, табл. N 4.3
 CONCAVITY_CRITERIA_ROTARY = {
-    (1.0, 2.0): 0.2,
-    (2.0, 3.0): 0.4,
-    (3.0, 4.0): 0.6,
+    (1.0, 1.8): 0.2,
+    (1.8, 2.8): 0.4,
+    (2.8, 4.0): 0.6,
     (4.0, 6.0): 0.8,
     (6.0, 8.0): 1.0,
     (8.0, 12.0): 1.2,
     (12.0, 9999): 1.5,
 }
 
-# Вогнутость корня шва (неповоротные стыки, без подкладных колец, табл. 4.6)
+# Вогнутость корня шва — неповоротные стыки без подкладных колец
+# НП-105-18, прил. 4, п. 7, табл. N 4.4
 CONCAVITY_CRITERIA_FIXED = {
-    (1.0, 2.0): 0.4,
-    (2.0, 3.0): 0.6,
-    (3.0, 4.0): 0.8,
+    (1.0, 1.8): 0.4,
+    (1.8, 2.8): 0.6,
+    (2.8, 4.0): 0.8,
     (4.0, 6.0): 1.0,
     (6.0, 8.0): 1.2,
-    (8.0, 9999): None,  # 0.15S, не более 1.6 мм (при условии увеличения усиления)
+    (8.0, 9999): None,  # 0.15S, не более 1.6 мм (при увеличении усиления на ≥1 мм)
 }
 
-# Выпуклость корня шва (односторонняя сварка, без подкладных колец, табл. 4.6)
+# Выпуклость корня шва — односторонняя сварка без подкладных колец
+# НП-105-18, прил. 4, п. 8, табл. N 4.5
 CONVEXITY_CRITERIA = {
     'dn_up_to_25': 1.5,     # Ду ≤ 25 мм
     'dn_25_to_150': 2.0,    # Ду 25–150 мм
     'dn_over_150': 2.5,     # Ду > 150 мм
 }
+
+
+def _lookup_thickness_band(table: dict, thickness_mm: float):
+    """Ищет значение в таблице диапазонов [S_min, S_max)."""
+    s = float(thickness_mm or 0)
+    if s <= 0:
+        return None
+    for (lo, hi), value in table.items():
+        if lo <= s < hi or (hi >= 9999 and s >= lo):
+            return value
+    # Верхняя граница включительно для последнего конечного интервала
+    for (lo, hi), value in table.items():
+        if hi < 9999 and abs(s - hi) < 1e-9:
+            return value
+    return None
+
+
+def lookup_root_acceptance_limits(
+    thickness_mm: float,
+    outer_diameter_mm: float = 0.0,
+    *,
+    joint_mobility: str = 'non_rotating',
+    has_backing: bool = False,
+) -> dict:
+    """
+    Допустимая выпуклость (табл. 4.5) и вогнутость корня (табл. 4.3 / 4.4).
+
+    :return: dict с ключами convexity_mm, concavity_mm, concavity_table,
+             convexity_table, note, applicable
+    """
+    if has_backing:
+        return {
+            'applicable': False,
+            'convexity_mm': None,
+            'concavity_mm': None,
+            'concavity_table': None,
+            'convexity_table': '4.5',
+            'note': (
+                'При наличии подкладного кольца нормы выпуклости/вогнутости '
+                'корня по табл. 4.3–4.5 не применяются.'
+            ),
+        }
+
+    mobility = (joint_mobility or 'non_rotating').strip()
+    rotary = mobility in ('rotating', 'поворотный', 'rotary')
+    concavity_table = '4.3' if rotary else '4.4'
+    band_table = CONCAVITY_CRITERIA_ROTARY if rotary else CONCAVITY_CRITERIA_FIXED
+    concavity = _lookup_thickness_band(band_table, thickness_mm)
+    concavity_note = ''
+    if concavity is None and not rotary and float(thickness_mm or 0) >= 8.0:
+        s = float(thickness_mm)
+        concavity = min(0.15 * s, 1.6)
+        concavity_note = (
+            '0,15S, не более 1,6 мм (при увеличении усиления корня не менее чем на 1,0 мм '
+            f'от номинального); S = {s:g} мм'
+        )
+
+    dn = float(outer_diameter_mm or 0)
+    if dn <= 0:
+        convexity = None
+        convexity_note = 'Диаметр не задан — выпуклость корня по табл. 4.5 не определена.'
+    elif dn <= 25.0:
+        convexity = CONVEXITY_CRITERIA['dn_up_to_25']
+        convexity_note = ''
+    elif dn <= 150.0:
+        convexity = CONVEXITY_CRITERIA['dn_25_to_150']
+        convexity_note = ''
+    else:
+        convexity = CONVEXITY_CRITERIA['dn_over_150']
+        convexity_note = ''
+
+    notes = []
+    if concavity_note:
+        notes.append(concavity_note)
+    if convexity_note:
+        notes.append(convexity_note)
+    mobility_label = 'поворотный' if rotary else 'неповоротный'
+    notes.append(
+        f'Вогнутость — табл. N {concavity_table} ({mobility_label} стык); '
+        f'выпуклость — табл. N 4.5 (НП-105-18, прил. 4).'
+    )
+
+    return {
+        'applicable': True,
+        'convexity_mm': convexity,
+        'concavity_mm': concavity,
+        'concavity_table': concavity_table,
+        'convexity_table': '4.5',
+        'joint_mobility': mobility,
+        'note': ' '.join(notes),
+    }
+
+
+def build_root_acceptance_docx_text(root_limits: dict) -> str:
+    """Текст п. 10.5 техкарты (выпуклость / вогнутость корня)."""
+    if not root_limits:
+        return ''
+    if not root_limits.get('applicable', True):
+        return (
+            '10.5. Допустимая выпуклость/вогнутость корня шва: не нормируется '
+            f'({root_limits.get("note", "")}).'
+        )
+
+    def _fmt(v):
+        if v is None:
+            return '—'
+        return f'{float(v):.2f}'.rstrip('0').rstrip('.').replace('.', ',')
+
+    return (
+        f'10.5. Допустимая выпуклость корня шва, мм – не более {_fmt(root_limits.get("convexity_mm"))}, '
+        f'вогнутость корня шва, мм – не более {_fmt(root_limits.get("concavity_mm"))}. '
+        f'({root_limits.get("note", "")})'
+    )
 
 
 # ------------------------------------------------------------------

@@ -18,11 +18,11 @@
         <div class="border rounded p-3 h-100 d-flex flex-column method-doc-card">
           <div class="fw-semibold mb-1">
             {{ doc.code }}
-            <span class="badge bg-light text-dark border ms-1" style="font-size:0.7rem;">
+            <span class="badge doc-kind-badge ms-1">
               {{ doc.get_document_kind_display }}
             </span>
           </div>
-          <div class="text-muted flex-grow-1 mb-3" style="font-size:0.82rem;">
+          <div class="text-muted flex-grow-1 mb-3">
             {{ doc.full_name|truncatechars:100 }}
           </div>
           {% if doc.is_implemented %}

@@ -242,6 +242,28 @@ a:hover { color: var(--primary-hover); }
   margin-bottom: 1.2rem;
 }
 
+/* ---- Карточки выбора НД (method_select) ---- */
+.doc-select-card {
+  background: #f9f9f9;
+  color: var(--text-main);
+}
+.doc-select-card--implemented {
+  background: #fafcff;
+}
+.doc-select-title {
+  color: var(--text-main);
+}
+.doc-select-desc {
+  font-size: 0.82rem;
+}
+.doc-kind-badge {
+  font-size: 0.7rem;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
 /* ---- Кнопки ---- */
 .btn {
   border-radius: var(--radius-sm);
@@ -420,6 +442,7 @@ a:hover { color: var(--primary-hover); }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.1rem 1.2rem;
+  color: var(--text-main);
   transition: opacity 0.2s ease;
 }
 
@@ -477,11 +500,12 @@ a:hover { color: var(--primary-hover); }
 }
 
 .preview-metric {
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.55rem 0.65rem;
   text-align: center;
+  color: var(--text-main);
 }
 
 .preview-metric--warn {
@@ -553,10 +577,16 @@ a:hover { color: var(--primary-hover); }
 /* ---- Карточки выбора источника ---- */
 .source-option-card {
   font-size: 0.83rem;
-  background: #f8fafc;
+  background: var(--bg-main);
+  color: var(--text-main);
+  border-color: var(--border) !important;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   margin-bottom: 0;
+}
+
+.source-option-card strong {
+  color: var(--text-main);
 }
 
 .source-option-card:hover {
@@ -568,6 +598,22 @@ a:hover { color: var(--primary-hover); }
   border-color: var(--primary) !important;
   background: var(--primary-light);
   box-shadow: 0 0 0 2px rgba(58, 123, 213, 0.15);
+}
+
+/* ---- Справка по типу соединения (шаг 3) ---- */
+.joint-reference-block {
+  background: var(--bg-main);
+  color: var(--text-main);
+  border-color: var(--border) !important;
+}
+
+.joint-reference-name {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.joint-reference-meta {
+  font-size: 0.85rem;
 }
 
 /* ---- Улучшенные карточки мастера ---- */
@@ -1190,6 +1236,107 @@ body[data-theme="dark"] .page-link:hover { background: var(--primary-light); }
 body[data-theme="dark"] .page-item.active .page-link { background: var(--primary); border-color: var(--primary); color: #fff; }
 body[data-theme="dark"] .badge.bg-light { background: var(--bg-card) !important; color: var(--text-main) !important; border: 1px solid var(--border); }
 
+/* Bootstrap bg-light / text utilities on step forms */
+body[data-theme="dark"] .bg-light {
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+}
+body[data-theme="dark"] .text-primary {
+  color: var(--primary) !important;
+}
+body[data-theme="dark"] .form-check-label {
+  color: var(--text-main);
+}
+
+/* Шаг 3: соединение, источники, превью схемы */
+body[data-theme="dark"] .joint-reference-block {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  border-color: var(--border) !important;
+}
+body[data-theme="dark"] .joint-reference-name {
+  color: var(--text-main);
+}
+body[data-theme="dark"] .joint-gost-image {
+  background: #fff;
+}
+
+body[data-theme="dark"] .source-option-card {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  border-color: var(--border) !important;
+}
+body[data-theme="dark"] .source-option-card strong {
+  color: #f1f5f9;
+}
+body[data-theme="dark"] .source-option-card .text-muted {
+  color: #cbd5e1 !important;
+}
+body[data-theme="dark"] .source-option-card:hover,
+body[data-theme="dark"] .source-option-card:has(.source-checkbox:checked) {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--text-main);
+}
+
+body[data-theme="dark"] .scheme-preview-panel {
+  background: linear-gradient(135deg, #121a2e 0%, #1a2438 100%);
+  color: var(--text-main);
+  border-color: var(--border);
+}
+body[data-theme="dark"] .scheme-preview-header {
+  color: #93bbfd;
+}
+body[data-theme="dark"] .scheme-preview-badge {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93bbfd;
+}
+body[data-theme="dark"] .scheme-preview-placeholder {
+  color: #cbd5e1;
+}
+body[data-theme="dark"] .scheme-preview-image {
+  background: #fff;
+}
+body[data-theme="dark"] .preview-metric {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .preview-metric--warn {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: var(--warning);
+}
+body[data-theme="dark"] .preview-metric-label {
+  color: #93bbfd;
+}
+body[data-theme="dark"] .preview-metric-value {
+  color: #f1f5f9;
+}
+body[data-theme="dark"] .preview-metric-hint,
+body[data-theme="dark"] .preview-metric-value small,
+body[data-theme="dark"] .preview-formula,
+body[data-theme="dark"] .preview-source-line {
+  color: #cbd5e1;
+}
+body[data-theme="dark"] .preview-source-line strong {
+  color: #f1f5f9;
+}
+body[data-theme="dark"] .scheme-preview-loading {
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .form-actions-sticky {
+  background: rgba(15, 22, 40, 0.96);
+  border-top-color: var(--border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+}
+
+body[data-theme="dark"] .info-box {
+  color: var(--text-main);
+}
+body[data-theme="dark"] .info-box .text-muted {
+  color: #cbd5e1 !important;
+}
+
 /* ---- Forum / topic pills in dark ---- */
 body[data-theme="dark"] .topic-chip,
 body[data-theme="dark"] .category-pill,
@@ -1205,7 +1352,23 @@ body[data-theme="dark"] .forum-category:hover { background: var(--primary-light)
 body[data-theme="dark"] .info-box { background: var(--primary-light); border-left-color: var(--primary); }
 body[data-theme="dark"] .warning-box { background: rgba(245,158,11,0.15); color: #fbbf24; border-left-color: var(--warning); }
 body[data-theme="dark"] .danger-box  { background: rgba(248,113,113,0.15); color: #f87171; border-left-color: var(--danger); }
-
+body[data-theme="dark"] .doc-select-card {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+body[data-theme="dark"] .doc-select-card--implemented {
+  background: rgba(59,130,246,0.1);
+  border-color: rgba(59,130,246,0.28);
+}
+body[data-theme="dark"] .doc-select-title {
+  color: var(--text-main);
+}
+body[data-theme="dark"] .doc-kind-badge {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
 
 /* ---- Адаптивность ---- */
 @media (max-width: 768px) {

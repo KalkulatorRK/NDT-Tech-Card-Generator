@@ -1025,6 +1025,8 @@ def _joint_sort_key(code: str) -> tuple:
 
 
 def _enrich_joint_metadata() -> None:
+    from normative.gost_59023_wall import get_joint_wall_meta
+
     for code, info in JOINT_TYPES.items():
         info['list_scope'] = resolve_joint_list_scope(code, info)
         info['group_key'] = joint_group_key_to_str(get_joint_group_key(code, info))
@@ -1032,6 +1034,14 @@ def _enrich_joint_metadata() -> None:
         tables = get_joint_table_numbers(code)
         if tables and not info.get('gost_tables_all'):
             info['gost_tables_all'] = sorted(tables, key=lambda t: float(t.split('.')[1]))
+        wall_meta = get_joint_wall_meta(code)
+        info['has_internal_boring'] = wall_meta['has_internal_boring']
+        info['s_equals_s1'] = wall_meta['s_equals_s1']
+        info['wall_thickness_mode'] = wall_meta['wall_thickness_mode']
+        info['wall_note'] = wall_meta['wall_note']
+        if wall_meta['boring_rows']:
+            info['boring_rows'] = wall_meta['boring_rows']
+            info['boring_gost_table'] = wall_meta['boring_gost_table']
 
 
 def get_joint_group_labels_for_ui() -> dict[str, str]:
@@ -1107,9 +1117,12 @@ def get_joint_type_choices(
 
 def get_joint_info(joint_code: str, material_class: str | None = None) -> dict:
     """Возвращает полную информацию о типе соединения."""
+    from normative.gost_59023_wall import get_joint_wall_meta
+
     info = resolve_joint_profile(joint_code, material_class)
     if info:
         info['image'] = get_joint_image_path(joint_code)
+        info.update(get_joint_wall_meta(joint_code))
     return info
 
 
@@ -1194,6 +1207,8 @@ def get_weld_width(
     joint_code: str,
     thickness_mm: float,
     material_class: str | None = None,
+    *,
+    outer_diameter_mm: float | None = None,
 ) -> dict:
     """
     Возвращает ширину шва (e), высоту усиления (g_nom, g_min, g_max)
@@ -1206,16 +1221,88 @@ def get_weld_width(
         7 элементов: (S_min, S_max, e, e1, g_nom, g_min, g_max) — e1 ≠ e
                      (S_min, S_max, e, g_nom, g_min, g_max, e_tol) — e_tol при g_nom < 4
 
+    Для С-23-2 (табл. 9.30, с расточкой) при заданном Dн размеры берутся
+    из строки типоразмера Dн×S.
+
     :param joint_code: условное обозначение соединения
-    :param thickness_mm: номинальная толщина стенки, мм
+    :param thickness_mm: номинальная толщина стенки S, мм
     :return: словарь с e_mm, g_nom, g_min_mm, g_max_mm, note
     """
+    from normative.gost_59023_wall import (
+        joint_has_internal_boring,
+        lookup_gost_boring_row,
+    )
+
     info = resolve_joint_profile(joint_code, material_class)
     if not info:
         return {
             'e_mm': None, 'g_nom': 2.0,
             'g_min_mm': 0.5, 'g_max_mm': 3.5,
             'note': f'Тип {joint_code} не найден в справочнике',
+        }
+
+    boring_row = None
+    if joint_has_internal_boring(joint_code) and outer_diameter_mm:
+        boring_row = lookup_gost_boring_row(
+            joint_code, outer_diameter_mm, thickness_mm,
+        )
+
+    if boring_row and boring_row.get('e_mm'):
+        e = float(boring_row['e_mm'])
+        e1 = e
+        e_tol = boring_row.get('e_tol_mm')
+        g_nom = float(boring_row['g_nom']) if boring_row.get('g_nom') else 2.0
+        g_min = max(0.0, g_nom - 1.5)
+        g_max = g_nom + 1.5
+        g1_nom = boring_row.get('g1_max_mm')
+        g1_min = 0.0 if g1_nom is not None else None
+        g1_max = g1_nom
+        bead_mode = info.get('bead_mode', 'equal')
+        match_row = (
+            thickness_mm, thickness_mm, e, g_nom,
+        )
+        sketch_bead = None
+        table_ref = info.get('gost_table') or '9.30'
+        note = (
+            f'По табл. {table_ref} ГОСТ Р 59023.2-2020 для {joint_code}, '
+            f'Dн×S = {boring_row["dn_mm"]:g}×{boring_row["s_mm"]:g} мм, '
+            f'S1 = {boring_row["s1_mm"]:g} мм'
+        )
+        if e_tol is None:
+            e_tol = _default_e_tolerance_mm(e)
+        e1_tol = e_tol
+        e_max = round(e + e_tol, 1)
+        e1_max = e_max
+        return {
+            'e_mm': e,
+            'e_max_mm': e_max,
+            'e1_mm': e1,
+            'e1_max_mm': e1_max,
+            'effective_e_mm': e,
+            'effective_e_max_mm': e_max,
+            'e_tol_mm': e_tol,
+            'e1_tol_mm': e1_tol,
+            'bead_mode': bead_mode,
+            'e_display': format_dimension_with_tolerance(e, e_tol),
+            'e1_display': format_dimension_with_tolerance(e1, e1_tol),
+            'g_nom': g_nom,
+            'g_min_mm': round(g_min, 1),
+            'g_max_mm': round(g_max, 1),
+            'g1_nom': g1_nom,
+            'g1_min_mm': round(g1_min, 1) if g1_min is not None else None,
+            'g1_max_mm': round(g1_max, 1) if g1_max is not None else None,
+            'g1_display': (
+                f'≤{g1_nom:g}'.replace('.', ',')
+                if g1_nom is not None else None
+            ),
+            'sketch_bead_source': None,
+            'g_display': (
+                f'{g_nom:g}±{g_max - g_nom:g}'.replace('.', ',')
+                if abs((g_max - g_nom) - (g_nom - g_min)) < 0.05 and g_nom > 0 else
+                f'{g_nom:.1f} ({g_min:.1f}–{g_max:.1f})'.replace('.', ',')
+            ),
+            'note': note,
+            'boring_row': boring_row,
         }
 
     dims = info.get('dimensions', [])
@@ -1348,6 +1435,8 @@ def get_inspection_zone(
     material_type: str = 'steel',
     material_class: str | None = None,
     material: str = '',
+    outer_diameter_mm: float | None = None,
+    s1_override_mm: float | None = None,
     reinforcement_removed: bool = False,
     has_backing_ring: bool | None = None,
     backing_ring_thickness_mm: float | None = None,
@@ -1359,10 +1448,12 @@ def get_inspection_zone(
     Поля 4.2.2 / 4.2.4 / 4.2.5 технологической карты.
 
     :param joint_code: условное обозначение типа соединения
-    :param thickness_mm: номинальная толщина стенки, мм
+    :param thickness_mm: номинальная толщина стенки S, мм
     :param welding_method: код способа сварки
     :return: словарь с параметрами зоны контроля
     """
+    from normative.gost_59023_wall import resolve_joint_wall_thickness
+
     if material_class is None:
         if material_type == 'titanium':
             material_class = 'titanium'
@@ -1371,7 +1462,18 @@ def get_inspection_zone(
         else:
             material_class = resolve_material_class(material) or 'perlit'
 
-    weld = get_weld_width(joint_code, thickness_mm, material_class)
+    wall = resolve_joint_wall_thickness(
+        joint_code,
+        thickness_mm,
+        outer_diameter_mm=outer_diameter_mm,
+        s1_override_mm=s1_override_mm,
+    )
+    weld = get_weld_width(
+        joint_code,
+        thickness_mm,
+        material_class,
+        outer_diameter_mm=outer_diameter_mm,
+    )
     e = weld.get('e_mm') or (thickness_mm * 1.5)
     e_tol = weld.get('e_tol_mm', _default_e_tolerance_mm(e))
     e_max = weld.get('e_max_mm', round(e + e_tol, 1))
@@ -1471,6 +1573,19 @@ def get_inspection_zone(
         # Детали расчёта
         'weld_note': weld.get('note', ''),
         'ref': ref,
+        # S / S1 (ГОСТ Р 59023.2-2020)
+        's_mm': wall['s_mm'],
+        's1_mm': wall['s1_mm'],
+        's_eff_mm': wall['s_eff_mm'],
+        'dp_mm': wall.get('dp_mm'),
+        's_equals_s1': wall['s_equals_s1'],
+        's_equals_s1_actual': wall['s_equals_s1_actual'],
+        'has_internal_boring': wall['has_internal_boring'],
+        'wall_thickness_mode': wall['wall_thickness_mode'],
+        'wall_summary': wall['wall_summary'],
+        'wall_note': wall['wall_note'],
+        'wall_resolve_source': wall['wall_resolve_source'],
+        'boring_row': wall.get('boring_row'),
     }
 
 

@@ -418,43 +418,56 @@ def calc_scheme_5v(focal_spot_mm: float, d_outer_mm: float,
 def calc_scheme_5g(focal_spot_mm: float, d_outer_mm: float,
                     d_inner_mm: float, sensitivity_mm: float) -> dict:
     """
-    Расчёт параметров для схемы 5г (источник внутри, смещён от оси).
+    Расчёт параметров для схемы 5г (чертёж 3г по ГОСТ Р 50.05.07-2018).
 
-    Формула: f = 0.5 × (1.5C(D - d) - D)
+    Формула (прил. Г, табл. Г.1): f ≥ 0,5·[1,5·C·(D − d) − D],
+    C = max(2Φ/K, 4).
 
-    :param focal_spot_mm: размер фокусного пятна Φ, мм
-    :param d_outer_mm: наружный диаметр D, мм
-    :param d_inner_mm: внутренний диаметр d, мм
-    :param sensitivity_mm: требуемая чувствительность K, мм
-    :return: словарь с результатами расчёта
+    Число экспозиций N — по табл. Г.4: для данного m = d/D выбирается
+    наименьшее N, при котором выполняется условие на f/D («не более»).
     """
     C = _get_C(focal_spot_mm, sensitivity_mm)
     f = 0.5 * (1.5 * C * (d_outer_mm - d_inner_mm) - d_outer_mm)
+    f = max(0.0, f)
 
-    # N по таблице
-    m = d_inner_mm / d_outer_mm
-    m_rounded = round(m * 20) / 20
+    m = d_inner_mm / d_outer_mm if d_outer_mm else 0.0
     table_m = min(TABLE_DATA_5G.keys(), key=lambda k: abs(k - m))
     n_table = TABLE_DATA_5G.get(table_m, {})
-    N_min = min(n_table.keys()) if n_table else 4
-    L = math.pi * d_outer_mm / N_min if N_min else None
+    f_over_d = (f / d_outer_mm) if d_outer_mm else 0.0
+
+    N = None
+    for exposures, (op, limit) in sorted(n_table.items(), key=lambda item: int(item[0])):
+        if op == '≤' and f_over_d <= limit + 1e-9:
+            N = int(exposures)
+            break
+        if op == '>' and f_over_d > limit - 1e-9:
+            N = int(exposures)
+            break
+    if N is None:
+        N = max(n_table.keys()) if n_table else 4
+
+    L = math.pi * d_outer_mm / N if N else None
 
     return {
         'scheme': '5g',
         'C': round(C, 4),
         'm': round(m, 4),
         'f_min_mm': round(f, 1),
-        'N': N_min,
+        'f_over_d': round(f_over_d, 4),
+        'N': N,
         'L_mm': round(L, 0) if L else None,
         'L_formula': (
-            f'L = D × π / N = {d_outer_mm} × 3,14 / {N_min} = {L:.1f} мм'
+            f'L = D × π / N = {d_outer_mm} × 3,14 / {N} = {L:.1f} мм'
             if L else ''
         ),
         'formula': (
             f'f = 0,5 × (1,5C(D - d) - D) = '
             f'0,5 × (1,5 × {C:.2f} × ({d_outer_mm} - {d_inner_mm}) - {d_outer_mm}) = {f:.1f} мм'
         ),
-        'notes': f'По Таблице ГОСТ для m={m:.2f}: N ≥ {N_min} экспозиций.',
+        'notes': (
+            f'По табл. Г.4 ГОСТ Р 50.05.07-2018 для m≈{table_m:.2f}, '
+            f'f/D={f_over_d:.3f}: N = {N} экспозиций.'
+        ),
     }
 
 

@@ -43,6 +43,11 @@
               {% if form.wall_thickness.errors %}<div class="text-danger small">{{ form.wall_thickness.errors.0 }}</div>{% endif %}
               {% if form.wall_thickness.help_text %}<div class="form-text">{{ form.wall_thickness.help_text }}</div>{% endif %}
             </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.assessment_thickness_mm.label }}</label>
+              {{ form.assessment_thickness_mm }}
+              {% if form.assessment_thickness_mm.help_text %}<div class="form-text">{{ form.assessment_thickness_mm.help_text }}</div>{% endif %}
+            </div>
 
             <!-- Наружный диаметр (для труб) -->
             <div class="col-md-6" id="diameter-group">

@@ -24,7 +24,7 @@
               <label class="form-label fw-semibold">
                 Условное обозначение сварного соединения (ГОСТ Р 59023.2-2020)
               </label>
-              <div class="border rounded p-3 bg-light" id="joint-reference-block">
+              <div class="border rounded p-3 joint-reference-block" id="joint-reference-block">
                 <div class="row align-items-center g-3">
                   {% if joint_info.image %}
                   <div class="col-md-4 col-lg-3 text-center">
@@ -37,8 +37,8 @@
                   {% endif %}
                   <div class="col-md-{% if joint_info.image %}8{% else %}12{% endif %} col-lg-{% if joint_info.image %}9{% else %}12{% endif %}">
                     <div class="fw-semibold text-primary mb-1">{{ joint_designation }}</div>
-                    <div style="font-size:0.9rem;">{{ joint_info.name }}</div>
-                    <div class="text-muted mt-2" style="font-size:0.85rem;">
+                    <div class="joint-reference-name">{{ joint_info.name }}</div>
+                    <div class="text-muted mt-2 joint-reference-meta">
                       Разделка: {{ joint_info.groove|default:"—" }}
                       {% if welding_label %}
                       <br>Способ сварки: {{ welding_label }}
@@ -137,6 +137,22 @@
               {{ form.source_activity }}
               {% if form.source_activity.help_text %}
               <div class="form-text">{{ form.source_activity.help_text }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">{{ form.source_name_override.label }}</label>
+              {{ form.source_name_override }}
+              {% if form.source_name_override.help_text %}
+              <div class="form-text">{{ form.source_name_override.help_text }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">{{ form.tube_voltage_kv.label }}</label>
+              {{ form.tube_voltage_kv }}
+              {% if form.tube_voltage_kv.help_text %}
+              <div class="form-text">{{ form.tube_voltage_kv.help_text }}</div>
               {% endif %}
             </div>
 

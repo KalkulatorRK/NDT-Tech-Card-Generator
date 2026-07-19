@@ -53,10 +53,16 @@ from normative.gost_59023_2 import (
     resolve_welding_material,
     format_dimension_with_tolerance,
 )
-from normative.np_104_18 import WELD_CATEGORIES, build_titanium_edge_cleaning_requirement
+from normative.np_104_18 import (
+    WELD_CATEGORIES,
+    DOCUMENT_CODE as NP104_CODE,
+    build_titanium_edge_cleaning_requirement,
+)
 from normative.np_105_18 import (
     DOCUMENT_CODE as NP105_CODE,
     build_acceptance_criteria_docx_data,
+    build_root_acceptance_docx_text,
+    lookup_root_acceptance_limits,
     resolve_acceptance_table,
 )
 from normative.calculations import (
@@ -303,8 +309,10 @@ class RadiographicTechCardCalculator:
         self._extract_inputs()
         # Сначала получаем g_min/g_max из таблиц сварных соединений
         self._calc_inspection_zones()
-        # Затем рассчитываем K с правильной радиационной толщиной S_рад
+        # Нормативное K по НП-105 (S_K), затем ужесточение по п. 6.1.11 при ИКИ
+        # со стороны плёнки (ступень = диаметр проволоки ГОСТ 7512).
         self._calc_sensitivity_value()
+        self._apply_iqi_side_to_sensitivity()
         self._select_sources()
         self._calc_geometric_params()
         self._calc_exposure_scheme()
@@ -399,6 +407,29 @@ class RadiographicTechCardCalculator:
             ),
             'checked_by_name': d.get('checked_by_name', ''),
             'checked_by_certificate': d.get('checked_by_certificate', ''),
+            'gmo_checked_by_position': (
+                d.get('gmo_checked_by_position_resolved')
+                or (d.get('gmo_checked_by_position_custom', '').strip()
+                    if d.get('gmo_checked_by_position') == '__custom__'
+                    else d.get('gmo_checked_by_position', ''))
+            ),
+            'gmo_checked_by_name': d.get('gmo_checked_by_name', ''),
+            'gmo_checked_by_certificate': d.get('gmo_checked_by_certificate', ''),
+            'gmo_check_date': _format_date_ddmmyyyy(d.get('gmo_check_date', '')),
+            'department': (d.get('department') or '').strip(),
+            'control_location': (d.get('control_location') or '').strip(),
+            'source_name_override': (d.get('source_name_override') or '').strip(),
+            'temperature_range': (d.get('temperature_range') or '').strip() or '+5 ÷ +40',
+            'tube_voltage_kv': (
+                float(d['tube_voltage_kv'])
+                if d.get('tube_voltage_kv') not in (None, '')
+                else None
+            ),
+            'assessment_thickness_mm': (
+                float(d['assessment_thickness_mm'])
+                if d.get('assessment_thickness_mm') not in (None, '')
+                else None
+            ),
         })
 
     def _calc_inspection_zones(self):
@@ -413,10 +444,16 @@ class RadiographicTechCardCalculator:
         joint_code = self.params.get('joint_designation', '')
         S = self.params['wall_thickness']
         method = self.params.get('welding_process', '30')
+        dn = self.params.get('outer_diameter')
+        s1_override = self.params.get('s1_mm')
+        if s1_override in (None, ''):
+            s1_override = None
 
         zone = get_inspection_zone(
             joint_code, S, method,
             material_type=self.params.get('material_type', 'steel'),
+            outer_diameter_mm=float(dn) if dn not in (None, '') else None,
+            s1_override_mm=float(s1_override) if s1_override is not None else None,
             reinforcement_removed=self.params.get('reinforcement_removed', False),
             has_backing_ring=self.params.get('has_backing_ring', False),
             backing_ring_thickness_mm=self.params.get('backing_ring_thickness_mm') or None,
@@ -446,6 +483,18 @@ class RadiographicTechCardCalculator:
         from normative.gost_59023_2 import get_joint_image_path
         self.params['joint_image'] = get_joint_image_path(joint_code)
 
+        # S / S1 по ГОСТ Р 59023.2-2020 (S_eff для радиационной толщины)
+        self.params['s_mm'] = zone.get('s_mm', S)
+        self.params['s1_mm'] = zone.get('s1_mm', S)
+        self.params['s_eff_mm'] = zone.get('s_eff_mm', S)
+        self.params['dp_mm'] = zone.get('dp_mm')
+        self.params['s_equals_s1'] = zone.get('s_equals_s1', True)
+        self.params['s_equals_s1_actual'] = zone.get('s_equals_s1_actual', True)
+        self.params['has_internal_boring'] = zone.get('has_internal_boring', False)
+        self.params['wall_thickness_mode'] = zone.get('wall_thickness_mode', 's_equals_s1')
+        self.params['wall_summary'] = zone.get('wall_summary', f'S = {S} мм')
+        self.params['wall_note'] = zone.get('wall_note', '')
+
     def _calc_sensitivity_value(self):
         """
         Рассчитывает требуемое значение чувствительности K по НП-105-18.
@@ -460,7 +509,9 @@ class RadiographicTechCardCalculator:
         """
         from normative.calculations import calc_radiation_thickness
 
-        S = self.params['wall_thickness']
+        # Для расточенных соединений (S ≠ S1) в путь излучения идёт S1
+        S_nom = self.params['wall_thickness']
+        S = float(self.params.get('s_eff_mm') or S_nom)
         weld_cat = self.params['weld_category']
         scheme = self.data.get('scheme_type', '4_6')
         g_min = self.params.get('g_min_mm', 0.5)
@@ -480,17 +531,68 @@ class RadiographicTechCardCalculator:
         self.params['s_k_mm'] = s_k
         self.params['s_rad_f_mm'] = rad['s_rad_f_mm']
 
+        s_label = 'S1' if not self.params.get('s_equals_s1_actual', True) else 'S'
         if rad['wall_count'] == 2:
-            sk_desc = f'S_K = S + S = {S} + {S} = {s_k} мм'
+            sk_desc = f'S_K = {s_label} + {s_label} = {S} + {S} = {s_k} мм'
         elif s_pk > 0:
-            sk_desc = f'S_K = S + g_min + Sпк = {S} + {g_min} + {s_pk} = {s_k} мм'
+            sk_desc = (
+                f'S_K = {s_label} + g_min + Sпк = {S} + {g_min} + {s_pk} = {s_k} мм'
+            )
         else:
-            sk_desc = f'S_K = S + g_min = {S} + {g_min} = {s_k} мм'
+            sk_desc = f'S_K = {s_label} + g_min = {S} + {g_min} = {s_k} мм'
+        if s_label == 'S1':
+            sk_desc += f' (номинальная S = {S_nom} мм; {self.params.get("wall_summary", "")})'
 
         self.params['sk_desc'] = sk_desc
         self.params['sensitivity_k_display_mm'] = mm_val
         self.params['sensitivity_desc'] = _format_sensitivity_desc(
             mm_val, sk_desc, self.params.get('weld_category', ''),
+        )
+
+    def _apply_iqi_side_to_sensitivity(self):
+        """
+        ГОСТ Р 50.05.07-2018, п. 6.1.11.
+
+        ИКИ по умолчанию — со стороны источника. Если ИКИ со стороны плёнки
+        (двухстеночное / панорамное просвечивание), чувствительность РК
+        смещается на одну ступень ИКИ жёстче. Ступень = диаметр проволоки
+        проволочного эталона по ГОСТ 7512-82, табл. 2.
+
+        Ужесточённый K (диаметр проволоки) используется для C, f, N, L.
+        Нормативное K по НП-105 сохраняется в required_sensitivity_norm_mm.
+        """
+        from normative.gost_7512 import get_wire_iqi, resolve_iqi_placement
+
+        iqi_side = self.params.get('iqi_side', 'source') or 'source'
+        scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
+        placement = resolve_iqi_placement(scheme, wall_count=0, iqi_side=iqi_side)
+        self.params['iqi_placement'] = placement
+        self.params['iqi_side'] = iqi_side
+
+        norm_k = float(self.params.get('required_sensitivity_norm_mm')
+                       or self.params.get('required_sensitivity_mm')
+                       or 0)
+        if not placement.get('shift_steps'):
+            self.params['required_sensitivity_mm'] = norm_k
+            self.params['sensitivity_k_display_mm'] = norm_k
+            return
+
+        rad_f = self.params.get('s_rad_f_mm', self.params['wall_thickness'])
+        iqi_wire = get_wire_iqi(
+            rad_f,
+            norm_k,
+            material_type=self.params.get('material_type', 'steel'),
+            shift_steps=int(placement['shift_steps']),
+        )
+        k_eff = float(iqi_wire['wire_diameter_mm'])
+        self.params['required_sensitivity_mm'] = k_eff
+        self.params['sensitivity_k_display_mm'] = k_eff
+        self.params['iqi_wire_preview'] = iqi_wire
+        sk_desc = self.params.get('sk_desc', '')
+        weld_cat = self.params.get('weld_category', '')
+        self.params['sensitivity_desc'] = _format_sensitivity_desc(
+            k_eff, sk_desc, weld_cat,
+            norm_k_mm=norm_k, film_side=True,
         )
 
     def _select_sources(self):
@@ -506,12 +608,23 @@ class RadiographicTechCardCalculator:
             if match:
                 self.params['selected_source'] = match
             else:
+                # Явный выбор пользователя сохраняем в карте (как в промышленных бланках),
+                # даже если табл. Б рекомендует другой источник — с предупреждением.
+                catalog = next(
+                    (s for s in RADIATION_SOURCES if s['code'] == chosen_code),
+                    None,
+                )
                 self.warnings.append(
                     f'Источник {chosen_code} не допускается табл. '
                     f'Б.{ {"steel": "1", "aluminum": "2", "titanium": "3"}.get(material_type, "1") } '
                     f'для радиационной толщины {table_b_thickness} мм и выбранного материала.'
                 )
-                self.params['selected_source'] = suitable[0] if suitable else {}
+                if catalog:
+                    selected = dict(catalog)
+                    selected['table_ref'] = 'выбран пользователем'
+                    self.params['selected_source'] = selected
+                else:
+                    self.params['selected_source'] = suitable[0] if suitable else {}
         else:
             self.params['selected_source'] = suitable[0] if suitable else {}
 
@@ -562,9 +675,15 @@ class RadiographicTechCardCalculator:
         Вычисляет точные параметры просвечивания (f, N, L) по выбранной схеме.
         Использует алгоритмы из normative.calculations (порт из KalkulatorRK2).
         """
-        S = self.params['wall_thickness']
+        S_nom = self.params['wall_thickness']
+        # Для расточки: путь излучения и d по S1 / Dр (табл. 9.30)
+        S = float(self.params.get('s_eff_mm') or S_nom)
         D_nom = self.params['outer_diameter']
-        d_inner = D_nom - 2 * S if D_nom else 0
+        dp = self.params.get('dp_mm')
+        if dp not in (None, ''):
+            d_inner = float(dp)
+        else:
+            d_inner = D_nom - 2 * S if D_nom else 0
         self.params['d_inner_mm'] = round(d_inner, 1)
 
         focal = self.params['source_focal_spot_mm']
@@ -685,18 +804,25 @@ class RadiographicTechCardCalculator:
 
         self.params['recommended_iqi'] = dict(WIRE_IQI_TYPE)
 
-        mm_val = self.params.get('required_sensitivity_mm', 0)
+        # Нормативное K (НП-105) — база для выбора проволоки до сдвига ступени.
+        norm_k = float(
+            self.params.get('required_sensitivity_norm_mm')
+            or self.params.get('required_sensitivity_mm')
+            or 0
+        )
         scheme = self.params.get('scheme_type', self.data.get('scheme_type', '4_6'))
         material_type = self.params.get('material_type', 'steel')
         iqi_side = self.params.get('iqi_side', 'source')
         rad_f = self.params.get('s_rad_f_mm', self.params['wall_thickness'])
 
-        placement = resolve_iqi_placement(scheme, wall_count=0, iqi_side=iqi_side)
+        placement = self.params.get('iqi_placement') or resolve_iqi_placement(
+            scheme, wall_count=0, iqi_side=iqi_side,
+        )
         self.params['iqi_placement'] = placement
         self.params['iqi_side'] = iqi_side
 
-        iqi_wire = get_wire_iqi(
-            rad_f, mm_val,
+        iqi_wire = self.params.get('iqi_wire_preview') or get_wire_iqi(
+            rad_f, norm_k,
             material_type=material_type,
             shift_steps=placement['shift_steps'],
         )
@@ -708,21 +834,25 @@ class RadiographicTechCardCalculator:
         self.params['iqi_wire_diameter_mm'] = iqi_wire['wire_diameter_mm']
         self.params['iqi_label'] = iqi_wire['label']
 
-        norm_k = self.params.get('required_sensitivity_norm_mm', mm_val)
         sk_desc = self.params.get('sk_desc', '')
         weld_cat = self.params.get('weld_category', '')
         film_side = bool(placement.get('shift_steps'))
 
         if film_side:
-            display_k = iqi_wire['wire_diameter_mm']
+            display_k = float(iqi_wire['wire_diameter_mm'])
             self.params['sensitivity_k_display_mm'] = display_k
+            # Геометрия уже посчитана по ужесточённому K в _apply_iqi_side_to_sensitivity.
+            self.params['required_sensitivity_mm'] = display_k
             self.params['sensitivity_desc'] = _format_sensitivity_desc(
                 display_k, sk_desc, weld_cat,
                 norm_k_mm=norm_k, film_side=True,
             )
         else:
             self.params['sensitivity_k_display_mm'] = norm_k
-
+            self.params['required_sensitivity_mm'] = norm_k
+            self.params['sensitivity_desc'] = _format_sensitivity_desc(
+                norm_k, sk_desc, weld_cat,
+            )
     def _fill_processing(self):
         self.params['film_processing'] = FILM_PROCESSING
 
@@ -738,7 +868,10 @@ class RadiographicTechCardCalculator:
     def _fill_acceptance_criteria(self):
         weld_cat = self.params['weld_category']
         material_type = self.params.get('material_type', 'steel')
-        thickness = self.params.get('wall_thickness', 0)
+        wall = float(self.params.get('wall_thickness', 0) or 0)
+        assess_raw = self.params.get('assessment_thickness_mm')
+        thickness = float(assess_raw) if assess_raw not in (None, '') else wall
+        self.params['assessment_thickness_used_mm'] = thickness
         table_ref = resolve_acceptance_table(material_type, weld_cat)
         docx_data = build_acceptance_criteria_docx_data(
             material_type, weld_cat, thickness,
@@ -752,6 +885,14 @@ class RadiographicTechCardCalculator:
             f'(п. 23 приложения 4). '
             f'Поры и шлаковые включения — по таблице N {table_ref}.'
         )
+        root_limits = lookup_root_acceptance_limits(
+            wall,
+            float(self.params.get('outer_diameter') or 0),
+            joint_mobility=self.params.get('joint_mobility', 'non_rotating'),
+            has_backing=bool(self.params.get('has_backing')),
+        )
+        self.params['root_acceptance_limits'] = root_limits
+        self.params['root_acceptance_docx'] = build_root_acceptance_docx_text(root_limits)
 
     def _get_seam_length_mm(self) -> float:
         """Длина прямолинейного шва для схемы 4.6 (мм)."""
@@ -920,6 +1061,7 @@ def _build_value_map(params: dict) -> dict:
         f_field = EMPIRICAL_TEXT
         N_str = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
         l_field = 'Определяется опытным путём (ГОСТ Р 50.05.07-2018, п. Г.5)'
+        segments_str = N_str
         if f_val is not None and f_val != '':
             f_field += f'\n(справочно: f_расч ≥ {f_val} мм)'
         if N_val:
@@ -1011,7 +1153,13 @@ def _build_value_map(params: dict) -> dict:
         '1.5': params.get('drawing_number', ''),
         '1.6': f'{_WELD_TYPE_NAMES.get(joint_type, "Стыковое")} ({mobility})',
         '1.7': (
-            f'{joint_code}, по ГОСТ Р 59023.2-2020'
+            (
+                f'{joint_code}, по ГОСТ Р 59023.2-2020'
+                + (
+                    f'; {params.get("wall_summary")}'
+                    if params.get('wall_summary') else ''
+                )
+            )
             if joint_code else ''
         ),
         '1.8': (
@@ -1031,7 +1179,7 @@ def _build_value_map(params: dict) -> dict:
 
         # ---- Раздел 2: Документация ----
         '2.1': DOCUMENT_CODE,
-        '2.2': NP105_CODE,
+        '2.2': f'{NP104_CODE}; {NP105_CODE}; ГОСТ 7512-82',
 
         # ---- Раздел 3: Требования ----
         '3.1': f'{weld_cat} (по НП-105-18)',
@@ -1040,7 +1188,10 @@ def _build_value_map(params: dict) -> dict:
         # ---- Раздел 4: Тип и размеры ----
         '4.1': _OBJECT_TYPE_NAMES.get(object_type, ''),
         '4.2.1': outer_d_display,
-        '4.2.1 S': _fmt_mm(S),
+        '4.2.1 S': (
+            params.get('wall_summary')
+            or _fmt_mm(S)
+        ),
         '4.2.2 длин': flat_length_display,
         '4.2.2': params.get('e_display', ''),
         '4.2.2 e1': params.get('e1_display', ''),
@@ -1050,21 +1201,26 @@ def _build_value_map(params: dict) -> dict:
         '4.2.6': backing_label,
         '4.2.7': backing_thickness_display,
 
-        # ---- Раздел 5: Средства контроля ----
-        '5.1': src.get('name', ''),
+        # ---- Раздел 5: Средства контроля (нумерация по бланку TC_) ----
+        '5.1': (
+            params.get('source_name_override')
+            or src.get('name', '')
+        ),
         '5.2': focal_field,
         '5.3': (
             f"Проволочный / №{params.get('iqi_marking', '')} по ГОСТ 7512 "
             f"({placement.get('side_label', 'со стороны источника')})"
         ),
-        '5.4': params.get('film_name', film_info.get('examples', '')),
-        '5.5': 'в светонепроницаемую плёночную (гибкую) кассету',
+        '5.4': _format_film_with_size(params, film_info),
         '5.6': 'свинцовые буквы и цифры по ГОСТ',
-        '5.7': f'{params.get("film_length_mm", 240):.0f} × {params.get("film_width_mm", 100):.0f} мм',
-        '5.9': 'негатоскоп с яркостью ≥ 10 000 кд/м², ГОСТ Р 8.763',
-        '5.11': 'денситометр фотометрический',
-        '5.12': 'лупа 10× измерительная',
-        '5.14': (
+        '5.7': 'лупа 10× измерительная, линейка металлическая',
+        '5.8': (
+            'негатоскоп с яркостью ≥ 10 000 кд/м² (ГОСТ Р 8.763); '
+            'денситометр фотометрический'
+        ),
+        '5.9': 'маркер по металлу (несмываемый)',
+        '5.10': _format_vpk_vgk_sample(params),
+        '5.11': (
             f'Проявитель: {d_opt.get("name","стандартный")}, '
             f't = {d_opt.get("temp_c","20±1")}°C, '
             f'τ = {d_opt.get("time_min","5–8")} мин; '
@@ -1073,7 +1229,7 @@ def _build_value_map(params: dict) -> dict:
         ),
 
         # ---- Раздел 6: Параметры и схема контроля (РАССЧИТАННЫЕ) ----
-        '6.1': src.get('energy_display', ''),
+        '6.1': _format_tube_voltage_or_energy(params, src),
         '6.2': _fmt_mm(params.get('s_k_mm', '')),
         '6.3': (
             f'K ≤ {params.get("sensitivity_k_display_mm", params.get("required_sensitivity_mm", "—")):.3f} мм'
@@ -1093,9 +1249,81 @@ def _build_value_map(params: dict) -> dict:
             if D else f'S = {S} мм'
         ),
         '7.2': _build_surface_quality_text(params),
-        '8.3': pers.get('level', ''),
-        '8.4': '+5 ÷ +40',
+        '8.1': (
+            params.get('control_location')
+            or 'участок радиографического контроля'
+        ),
+        '8.2': _build_radiation_safety_text(params),
+        '8.3': _format_personnel_text(pers),
+        '8.4': params.get('temperature_range') or '+5 ÷ +40',
     }
+
+
+def _format_film_with_size(params: dict, film_info: dict) -> str:
+    film = params.get('film_name') or film_info.get('examples', '') or ''
+    length = params.get('film_length_mm')
+    width = params.get('film_width_mm')
+    if length and width:
+        size = f'{float(length):.0f} × {float(width):.0f} мм'
+        return f'{film}; формат {size}' if film else size
+    return film
+
+
+def _format_vpk_vgk_sample(params: dict) -> str:
+    """П. 5.10 — образец-имитатор ВПК/ВГК (при D > 30 мм)."""
+    d = float(params.get('outer_diameter') or 0)
+    if d > 30:
+        return (
+            '№2 по ГОСТ Р 50.05.07-2018 (автоматизированный подбор по прил. В); '
+            'применяется при Dн > 30 мм'
+        )
+    return 'Не требуется (Dн ≤ 30 мм)'
+
+
+def _format_tube_voltage_or_energy(params: dict, src: dict) -> str:
+    """П. 6.1: кВ для рентгена; прочерк для ИИИ."""
+    src_type = (src or {}).get('type', '')
+    kv = params.get('tube_voltage_kv')
+    if src_type == 'xray':
+        if kv not in (None, ''):
+            return f'{float(kv):.0f} кВ (не более)'
+        return (src or {}).get('energy_display', '') or '—'
+    if src_type == 'isotope':
+        return '—'
+    return (src or {}).get('energy_display', '') or '—'
+
+
+def _format_personnel_text(pers: dict) -> str:
+    if not pers:
+        return ''
+    parts = [pers.get('level', '')]
+    if pers.get('standard'):
+        parts.append(pers['standard'])
+    if pers.get('method'):
+        parts.append(f"метод {pers['method']}")
+    if pers.get('additional'):
+        parts.append(pers['additional'])
+    return ', '.join(p for p in parts if p)
+
+
+def _build_radiation_safety_text(params: dict) -> str:
+    """П. 8.2 — краткий блок РБ (как у промышленных техкарт)."""
+    items = params.get('safety_requirements') or SAFETY_REQUIREMENTS
+    core = [
+        'Перед проведением контроля оградить радиационно-опасную зону '
+        'сигнальной оградительной лентой и предупреждающими знаками.',
+        'Контроль мощности дозы — дозиметром; работы выполнять в соответствии с '
+        'ОСПОРБ-99/2010, НРБ-99/2009, СанПиН 2.6.1.3164-14.',
+    ]
+    extra = []
+    for item in items:
+        low = item.lower()
+        if 'оспорб' in low or 'нрб' in low or 'дозиметр' in low or 'зон' in low:
+            continue
+        extra.append(item)
+        if len(extra) >= 2:
+            break
+    return ' '.join(core + extra)
 
 
 def _build_surface_quality_text(params: dict) -> str:
@@ -1357,6 +1585,93 @@ def _fill_section_102_criteria_table(doc: Document, params: dict):
     _clear_table_row_height(section_table.rows[row_idx])
 
 
+def _find_section_row(doc: Document, prefix: str):
+    """Находит таблицу и индекс строки по префиксу метки (например '10.5')."""
+    needle = prefix.lower()
+    for table in doc.tables:
+        for ri, row in enumerate(table.rows):
+            label = row.cells[0].text.strip().lower().replace('\xa0', ' ')
+            if label.startswith(needle):
+                return table, ri
+    return None, -1
+
+
+def _fill_section_105_root_limits(doc: Document, params: dict):
+    """
+    Заполняет п. 10.5: допустимая выпуклость (табл. 4.5) и вогнутость
+    корня (табл. 4.3 / 4.4) по НП-105-18.
+    """
+    text = params.get('root_acceptance_docx')
+    if not text:
+        root = params.get('root_acceptance_limits')
+        if not root:
+            root = lookup_root_acceptance_limits(
+                float(params.get('wall_thickness') or 0),
+                float(params.get('outer_diameter') or 0),
+                joint_mobility=params.get('joint_mobility', 'non_rotating'),
+                has_backing=bool(params.get('has_backing')),
+            )
+        text = build_root_acceptance_docx_text(root)
+    if not text:
+        return
+
+    table, row_idx = _find_section_row(doc, '10.5')
+    if table is None:
+        return
+    cell = _unique_cells(table.rows[row_idx])[0]
+    _clear_cell_content(cell)
+    para = cell.add_paragraph(text)
+    para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    para.paragraph_format.space_before = Pt(0)
+    para.paragraph_format.space_after = Pt(0)
+    if para.runs:
+        para.runs[0].font.size = Pt(12)
+    _clear_table_row_height(table.rows[row_idx])
+
+
+def _update_section_92_optical_density(doc: Document, params: dict):
+    """Подставляет в п. 9.2 расчётный диапазон оптической плотности."""
+    od_min = params.get('optical_density_min')
+    od_max = params.get('optical_density_max')
+    if od_min is None or od_max is None:
+        return
+    table, row_idx = _find_section_row(doc, '9.2')
+    if table is None:
+        return
+    cell = _unique_cells(table.rows[row_idx])[0]
+    text = cell.text or ''
+    if not text:
+        return
+    replacement = (
+        f'{_fmt_mm(od_min)}–{_fmt_mm(od_max)} е.о.п.'
+        if hasattr(od_min, 'real') or isinstance(od_min, (int, float))
+        else f'{od_min}–{od_max} е.о.п.'
+    )
+    # Частые шаблонные диапазоны в бланке
+    new_text = text
+    for old in ('1,5–3,5 е.о.п.', '1.5–3.5 е.о.п.', '1,5-3,5 е.о.п.',
+                '1,5–4,5 е.о.п.', '2,0–4,5 е.о.п.'):
+        if old in new_text:
+            new_text = new_text.replace(old, replacement)
+            break
+    else:
+        # Если точного совпадения нет — заменить любой «X–Y е.о.п.»
+        import re as _re
+        new_text, n = _re.subn(
+            r'\d+[.,]\d+\s*[–-]\s*\d+[.,]\d+\s*е\.о\.п\.',
+            replacement,
+            new_text,
+            count=1,
+        )
+        if n == 0:
+            return
+    _clear_cell_content(cell)
+    para = cell.add_paragraph(new_text)
+    para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    if para.runs:
+        para.runs[0].font.size = Pt(12)
+
+
 def _clear_table_row_height(row):
     """Снимает фиксированную высоту строки таблицы (убирает лишний зазор в ячейке)."""
     tr = row._tr
@@ -1472,7 +1787,11 @@ def _insert_joint_sketch_into_docx(doc: Document, params: dict, static_root: str
         if joint_code:
             _set_paragraph_text(
                 caption,
-                f'Сварное соединение {joint_code} по ГОСТ Р 59023.2-2020',
+                f'Сварное соединение {joint_code} по ГОСТ Р 59023.2-2020'
+                + (
+                    f' ({params.get("wall_summary")})'
+                    if params.get('wall_summary') else ''
+                ),
                 font_size=9,
             )
 
@@ -1632,6 +1951,8 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     _fill_dimension_rows(doc, value_map)
 
     _fill_section_102_criteria_table(doc, params)
+    _fill_section_105_root_limits(doc, params)
+    _update_section_92_optical_density(doc, params)
 
     # Титульный лист и колонтитулы — по структуре шаблона normative_docs
     _fill_body_title_page(doc, params)
@@ -1953,9 +2274,19 @@ def _fill_default_footer_table(table, params: dict):
     """Нижний колонтитул со 2-й и далее страниц (3×2, без дат)."""
     dev_pos = params.get('developed_by_position', '') or 'Ведущий инженер технолог'
     chk_pos = params.get('checked_by_position', '') or 'Начальник лаборатории НК'
+    gmo_pos = params.get('gmo_checked_by_position', '')
     dev_name = params.get('developed_by_name', '') or params.get('inspector_name', '')
     chk_name = params.get('checked_by_name', '')
+    gmo_name = params.get('gmo_checked_by_name', '')
     dev_cert = params.get('developed_by_certificate', '')
+    chk_cert = params.get('checked_by_certificate', '')
+
+    if gmo_pos or gmo_name:
+        gmo_line = ' / '.join(p for p in (gmo_pos, gmo_name) if p)
+        if chk_pos and gmo_line:
+            chk_pos = f'{chk_pos}\nПроверил от ГМО: {gmo_line}'
+        elif gmo_line:
+            chk_pos = f'Проверил от ГМО: {gmo_line}'
 
     mapping = {
         'Ведущий инженер технолог': dev_pos,
@@ -1969,6 +2300,8 @@ def _fill_default_footer_table(table, params: dict):
     _replace_in_table(table, mapping)
     if dev_cert and len(table.rows) >= 3:
         _replace_certificate_in_cell(table.rows[2].cells[0], dev_cert)
+    if chk_cert and len(table.rows) >= 3 and len(table.rows[2].cells) > 1:
+        _replace_certificate_in_cell(table.rows[2].cells[1], chk_cert)
 
 
 def _fill_first_page_footer_table(table, params: dict):
@@ -2089,12 +2422,17 @@ def _insert_page_break_before_first_table(doc: Document):
 def _fill_template_header_table(table, params: dict):
     """Заполняет шапку, сохраняя табличную вёрстку шаблона."""
     org = params.get('organization', '') or 'Наименование организации'
+    dept = params.get('department', '')
+    if dept:
+        org_display = f'{org}\n{dept}' if org else dept
+    else:
+        org_display = org
     card_num = params.get('card_number', '')
     r0 = table.rows[0]
     r1 = table.rows[1]
     _replace_in_cell(r0.cells[0], {
-        'ФГУП МАРКС': org,
-        'Наименование организации': org,
+        'ФГУП МАРКС': org_display,
+        'Наименование организации': org_display,
     })
     if len(r1.cells) > 1:
         _fill_header_card_number_cell(r1.cells[1], card_num)

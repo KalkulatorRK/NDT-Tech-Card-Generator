@@ -37,6 +37,44 @@ class Scheme5aTests(SimpleTestCase):
         self.assertIsNotNone(result['f_min_mm'])
 
 
+class Scheme5gFormulaTests(SimpleTestCase):
+    """Схема 3г: формула f и выбор N по табл. Г.4 (условие f/D)."""
+
+    def test_f_matches_gost_g1_formula(self):
+        from normative.calculations import calc_scheme_5g, _get_C
+        from normative.gost_50_05_07 import dist_l_scheme_3g
+
+        phi, k, d_out, d_in = 2.5, 0.3, 108.0, 98.0
+        c = _get_C(phi, k)
+        result = calc_scheme_5g(phi, d_out, d_in, k)
+        expected = dist_l_scheme_3g(d_out, d_in, 0, c)
+        self.assertAlmostEqual(result['f_min_mm'], expected, places=1)
+        self.assertAlmostEqual(result['C'], c, places=3)
+
+    def test_n_selected_by_f_over_d_not_min_key(self):
+        """
+        Для m≈0.87 и f/D>0.6 нельзя брать N=3 (порог ≤0.6), нужно N=4.
+        Ранее calc_scheme_5g ошибочно брал min(keys)=3.
+        """
+        from normative.calculations import calc_scheme_5g
+
+        # D_eff=113, d=98, K=0.3, Φ=2.5 → f≈131, f/D≈1.16 → N=4
+        result = calc_scheme_5g(2.5, 113.0, 98.0, 0.3)
+        self.assertGreater(result['f_over_d'], 0.6)
+        self.assertEqual(result['N'], 4)
+        self.assertAlmostEqual(result['L_mm'], 3.1416 * 113.0 / 4, delta=1.0)
+
+    def test_nikimt_geometry_with_k_01_gives_n4(self):
+        """При K=0,1 (как в эталоне) f_min≈321, N=4, L≈πD/4."""
+        from normative.calculations import calc_scheme_5g
+        import math
+
+        result = calc_scheme_5g(2.5, 108.0, 98.0, 0.1)
+        self.assertAlmostEqual(result['f_min_mm'], 321.0, places=0)
+        self.assertEqual(result['N'], 4)
+        self.assertAlmostEqual(result['L_mm'], math.pi * 108.0 / 4, delta=1.0)
+
+
 class GeometricUnsharpnessTests(SimpleTestCase):
     def test_ug_calculation(self):
         result = calc_geometric_unsharpness_full(2.0, 10.0, 700.0, sensitivity_mm=2.0)
@@ -379,3 +417,73 @@ class ControlVolumeTests(SimpleTestCase):
         self.assertEqual(normalize_control_volume_pct(50), 50)
         self.assertEqual(normalize_control_volume_pct('25'), 25)
         self.assertEqual(normalize_control_volume_pct(33), 100)
+
+
+class Gost59023WallThicknessTests(SimpleTestCase):
+    """S = S1 vs расточка S ≠ S1 (ГОСТ Р 59023.2-2020)."""
+
+    databases = []
+
+    def test_all_joints_have_wall_meta(self):
+        from normative.gost_59023_2 import JOINT_TYPES, get_joint_info
+
+        for code in JOINT_TYPES:
+            info = get_joint_info(code)
+            self.assertIn(info['wall_thickness_mode'], ('s_equals_s1', 'bored'))
+            self.assertIsInstance(info['s_equals_s1'], bool)
+            self.assertIsInstance(info['has_internal_boring'], bool)
+            self.assertEqual(info['s_equals_s1'], not info['has_internal_boring'])
+
+    def test_c42_s_equals_s1_no_boring(self):
+        from normative.gost_59023_wall import resolve_joint_wall_thickness
+
+        wall = resolve_joint_wall_thickness('С-42', 5.0, outer_diameter_mm=108.0)
+        self.assertTrue(wall['s_equals_s1'])
+        self.assertFalse(wall['has_internal_boring'])
+        self.assertEqual(wall['s_mm'], 5.0)
+        self.assertEqual(wall['s1_mm'], 5.0)
+        self.assertEqual(wall['s_eff_mm'], 5.0)
+        self.assertTrue(wall['s_equals_s1_actual'])
+
+    def test_c22_2_same_table_but_no_boring(self):
+        """Табл. 9.30 общая с С-23-2, но на чертеже С-22-2 без расточки."""
+        from normative.gost_59023_wall import (
+            GOST_BORED_JOINT_CODES,
+            resolve_joint_wall_thickness,
+        )
+        from normative.gost_59023_2 import get_joint_info
+
+        self.assertNotIn('С-22-2', GOST_BORED_JOINT_CODES)
+        info = get_joint_info('С-22-2')
+        self.assertTrue(info['s_equals_s1'])
+        self.assertFalse(info['has_internal_boring'])
+        self.assertEqual(info.get('boring_rows') or [], [])
+
+        wall = resolve_joint_wall_thickness('С-22-2', 2.5, outer_diameter_mm=18.0)
+        self.assertEqual(wall['s_eff_mm'], 2.5)
+        self.assertEqual(wall['s1_mm'], 2.5)
+        self.assertIsNone(wall['dp_mm'])
+        self.assertIn('без расточки', wall['wall_note'])
+
+    def test_c23_2_bored_s_ne_s1(self):
+        from normative.gost_59023_wall import resolve_joint_wall_thickness
+        from normative.gost_59023_2 import get_weld_width, get_inspection_zone
+
+        wall = resolve_joint_wall_thickness('С-23-2', 4.0, outer_diameter_mm=108.0)
+        self.assertFalse(wall['s_equals_s1'])
+        self.assertTrue(wall['has_internal_boring'])
+        self.assertEqual(wall['s_mm'], 4.0)
+        self.assertEqual(wall['s1_mm'], 2.4)
+        self.assertEqual(wall['s_eff_mm'], 2.4)
+        self.assertEqual(wall['dp_mm'], 102.0)
+        self.assertFalse(wall['s_equals_s1_actual'])
+
+        weld = get_weld_width('С-23-2', 4.0, outer_diameter_mm=108.0)
+        self.assertEqual(weld['e_mm'], 9.0)
+        self.assertIn('S1', weld['note'])
+
+        zone = get_inspection_zone(
+            'С-23-2', 4.0, '40', outer_diameter_mm=108.0,
+        )
+        self.assertEqual(zone['s_eff_mm'], 2.4)
+        self.assertTrue(zone['has_internal_boring'])

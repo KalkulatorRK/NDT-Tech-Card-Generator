@@ -2081,7 +2081,8 @@ class TemplateCommentsTests(TestCase):
             generate_from_template(params, template, out, static_root=static_root)
             doc = Document(out)
             section = doc.sections[0]
-            self.assertAlmostEqual(section.top_margin.mm, 15.0, delta=0.5)
+            # top_margin ≥ шапка + 1 строка (см. _apply_body_clearance_below_header)
+            self.assertGreaterEqual(section.top_margin.mm, 15.0)
             self.assertAlmostEqual(section.left_margin.mm, 20.0, delta=0.5)
 
             value_cell = None
@@ -2305,10 +2306,11 @@ class TemplateCommentsTests(TestCase):
             self.assertIn('электрошлаковую сварку', row_72.cells[-1].text)
 
     def test_section_43_has_page_break_before_gap(self):
-        """П. 4.3 — разрыв страницы и одна пустая строка перед заголовком."""
+        """П. 4.3 — разрыв страницы; зазор 1 строки от колонтитула в top_margin."""
         from techcards.generator import (
             generate_from_template, get_default_template_path,
             _is_empty_body_paragraph, _paragraph_has_page_break,
+            _BODY_LINE_MM,
         )
         import tempfile
         from docx import Document
@@ -2332,9 +2334,15 @@ class TemplateCommentsTests(TestCase):
             while prev is not None and _is_empty_body_paragraph(prev):
                 empty += 1
                 prev = prev.getprevious()
-            self.assertEqual(empty, 1)
-            if prev is not None:
-                self.assertTrue(_paragraph_has_page_break(prev))
+            self.assertEqual(empty, 0)
+            self.assertIsNotNone(prev)
+            self.assertTrue(_paragraph_has_page_break(prev))
+            section = doc.sections[0]
+            header_dist = section.header_distance.mm
+            self.assertGreaterEqual(
+                section.top_margin.mm,
+                header_dist + _BODY_LINE_MM,
+            )
 
     def test_title_card_number_single_instance(self):
         """Номер техкарты на титуле — один раз, без дублирования фрагментов."""
@@ -2391,10 +2399,11 @@ class TemplateCommentsTests(TestCase):
             self.assertNotIn('Страница 1', header_xml)
 
     def test_section_69_has_page_break_before_gap(self):
-        """П. 6.9 — разрыв страницы и одна пустая строка перед заголовком."""
+        """П. 6.9 — разрыв страницы; ровно 1 строка от колонтитула через top_margin."""
         from techcards.generator import (
             generate_from_template, get_default_template_path,
             _is_empty_body_paragraph, _paragraph_has_page_break,
+            _estimate_header_part_height_mm, _BODY_LINE_MM,
         )
         import tempfile
         from docx import Document
@@ -2419,9 +2428,13 @@ class TemplateCommentsTests(TestCase):
             while prev is not None and _is_empty_body_paragraph(prev):
                 empty += 1
                 prev = prev.getprevious()
-            self.assertEqual(empty, 1)
-            if prev is not None:
-                self.assertTrue(_paragraph_has_page_break(prev))
+            self.assertEqual(empty, 0)
+            self.assertIsNotNone(prev)
+            self.assertTrue(_paragraph_has_page_break(prev))
+            section = doc.sections[0]
+            header_h = _estimate_header_part_height_mm(section.header)
+            needed = section.header_distance.mm + header_h + _BODY_LINE_MM
+            self.assertGreaterEqual(section.top_margin.mm, needed - 0.6)
 
     def test_scheme_5g_embeds_image_in_section_69(self):
         """Схема 3г — подробный PNG встраивается в DOCX в п. 6.9."""

@@ -29,6 +29,10 @@ def _cosine_sim(a, b) -> float:
 def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> list:
     from ai_consultant.models import DocumentChunk
     from ai_consultant.services.embeddings import embed_query
+    from ai_consultant.services.nd_sources import (
+        is_citable_nd_source,
+        is_textbook_source,
+    )
 
     q_vec = embed_query(query)
 
@@ -42,6 +46,15 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
         for nd in preferred_nds:
             if nd.upper() in hay:
                 return 0.35
+        return 0.0
+
+    def _source_boost(c) -> float:
+        """НД выше справочников; учебники — только вспомогательный фон."""
+        src = getattr(c, 'source', None)
+        if is_citable_nd_source(src):
+            return 0.45
+        if is_textbook_source(src):
+            return -0.25
         return 0.0
 
     if _is_pgvector():
@@ -64,9 +77,7 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
                 c.score += 0.2
             if getattr(c, 'is_golden', False):
                 c.score += 0.5  # приоритет эталонных якорей (обратный инжиниринг)
-            # Приоритет справочника Горбачёва (выше, чем Назипов)
-            if hasattr(c, 'source') and c.source and c.source.doc_number and 'Горбачёв' in c.source.doc_number:
-                c.score += 0.5
+            c.score += _source_boost(c)
             c.score += _preferred_boost(c)
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)
@@ -83,9 +94,7 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
             c.score = sim + 0.1 * text_hit
             if getattr(c, 'is_golden', False):
                 c.score += 0.5  # приоритет эталонных якорей
-            # Приоритет справочника Горбачёва
-            if hasattr(c, 'source') and c.source and c.source.doc_number and 'Горбачёв' in c.source.doc_number:
-                c.score += 0.5
+            c.score += _source_boost(c)
             c.score += _preferred_boost(c)
             results.append(c)
         results.sort(key=lambda x: x.score, reverse=True)

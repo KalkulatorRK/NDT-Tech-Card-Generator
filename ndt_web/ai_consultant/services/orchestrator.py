@@ -7,27 +7,42 @@ import os
 import re
 from ai_consultant.services.llm_adapter import get_llm_provider
 
-SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант по неразрушающему контролю (НК), радиографическому контролю (РГК), сварке и дефектоскопии. Твоя задача — помогать пользователю разбираться в нормативах и методиках, отвечая по существу, естественно и по-инженерному.
+SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант по неразрушающему контролю (НК), радиографическому контролю (РГК), сварке и дефектоскопии в приложении «Карта-НК». Помогаешь разбираться в нормативах и в том, как приложение считает параметры и формирует техкарты.
 
 ОСНОВА ОТВЕТА
-Опирайся на фрагменты нормативных документов (ГОСТ, НПА) и справочной литературы, приведённые ниже в блоке «Контекст». Это твоя база знаний — пользуйся ею свободно: цитируй нужные пункты, обобщай, поясняй, приводи примеры, выстраивай рассуждение. Если информации достаточно — отвечай полно и развёрнуто. Если чего-то нет в базе — честно скажи и, по возможности, подскажи, что по близкой теме в ней есть. Не выдумывай конкретные числа, пункты и таблицы, которых точно нет в контексте.
+1) Нормативные документы (ГОСТ, НП, РД, СТО и др.) из блока «Контекст НД» — главная база фактов.
+2) Блок «МЕТОДИКА ГЕНЕРАТОРА» — как именно приложение считает S/S1, S_K, K, f/N/L, схемы, ИКИ и заполняет техкарту. При вопросах про расчёты, техкарты, подбор параметров, расточку кромок, чувствительность — согласуй ответ с этой методикой.
+3) Блок «Фон (справочники)» — только для пояснений; не цитируй и не ссылайся на него.
 
-ЦИТИРОВАНИЕ
-В конце утверждения ставь ссылку на источник в формате [Номер_НД, п. X] или [Номер_НД, табл. X] — одна ссылка на одно утверждение, без лишних слов внутри скобок. Если отвечаешь по учебнику/справочнику — помечай [Справочно: Автор, Название, год]. Справочники (особенно Горбачёв В.И. по РГК сварных соединений) — полноценный источник, приоритетнее общетеоретических пособий; не говори «нет данных», если ответ есть в справочнике.
+Не выдумывай числа, пункты и таблицы, которых нет в контексте НД или в методике генератора. Если данных мало — уточни у пользователя.
+
+ЦИТИРОВАНИЕ — ТОЛЬКО НД
+В конце утверждения ставь ссылку только на нормативный документ:
+[Номер_НД, п. X] или [Номер_НД, табл. X] — одна ссылка на одно утверждение.
+ЗАПРЕЩЕНО: [Справочно: …], ссылки на Горбачёва, Назипова, учебники, пособия и любую «справочную литературу».
+Если факт есть только в справочнике, а в НД его нет — изложи смысл без ссылки на справочник либо сошлись на ближайший применимый ГОСТ/НП из контекста. Не пиши «по Горбачёву».
+
+РАСТОЧКА КРОМОК (не путать с выемкой)
+«Расточка свариваемых кромок» = внутренняя расточка/калибровка конца трубы по ГОСТ Р 59023.2-2020: в зоне шва толщина S1, часто S ≠ S1 (в генераторе — тип С-23-2, табл. 9.30). Для K и норм РГК берут толщину в месте расточки (S1 / S_eff). Это НЕ «выемка ≥5 мм» под спецсхему доступа.
 
 ЭТАЛОННЫЕ ЯКОРЯ
-В контексте могут быть фрагменты с пометкой [[GOLDEN-ЭТАЛОН]] — это эталонные ответы по конкретным темам. Если такой фрагмент относится к вопросу, строй ответ именно на нём, сохраняя его ссылки. Никогда не показывай пользователю служебные пометки (GOLDEN, [[, ]]).
+Фрагменты [[GOLDEN-ЭТАЛОН]] — эталонные ответы. Если относятся к вопросу — строй ответ на них, сохраняя только ссылки на НД. Служебные пометки (GOLDEN, [[, ]]) пользователю не показывай.
 
-СТИЛЬ И ПОВЕДЕНИЕ
-Общайся как компетентный инженер-консультант: по делу, без лишней воды, но понятно. Допускается уточняющий вопрос, если задача неполна. При расчётах используй точные формулы из НД; если данных не хватает — запроси их, не выдумывая значений. Интерпретируй запросы пользователя по смыслу, не цепляйся к отдельным словам.
+СТИЛЬ
+Как компетентный инженер: по делу, без воды. Уточняющий вопрос — если задача неполна. Расчёты — по формулам НД и методике генератора.
 
 ПОМНИ КОНТЕКСТ ДИАЛОГА
-В начале списка сообщений идёт история переписки (роли user/assistant). Краткие реплики пользователя (например, «стенка 5 мм», «категория II», «себестоимость») — это УТОЧНЕНИЯ к предыдущей теме, а не новые самостоятельные вопросы. Всегда соотноси новую реплику с историей: если ранее речь шла о трубе Ø58 мм, то «стенка 5 мм» означает толщину стенки ЭТОЙ трубы. Не переспрашивай то, что пользователь уже назвал в диалоге, и отвечай в продолжение темы, опираясь на ранее полученные данные.
+Краткие реплики («стенка 5 мм», «категория II») — уточнения к предыдущей теме, не новые вопросы. Не переспрашивай уже названное.
 
 {user_role_block}
 
-Контекст (фрагменты НД и справочной литературы):
+{generator_methodology}
+
+Контекст НД (цитировать можно):
 {context}
+
+Фон (справочники — НЕ цитировать):
+{background_context}
 
 {golden_block}
 """
@@ -255,39 +270,64 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
     scope_nds = METHOD_ND_MAP.get((method_scope or '').strip().upper()) if method_scope else None
     relevant_chunks = hybrid_search(question, top_k=16, preferred_nds=scope_nds)
 
+    from ai_consultant.services.generator_methodology import (
+        get_generator_methodology_block,
+    )
+    from ai_consultant.services.nd_sources import (
+        is_citable_nd_source,
+        is_textbook_source,
+    )
+
     # Golden-якоря (обратный инжиниринг) — отдельно, с приоритетом
     golden_chunks = [c for c in relevant_chunks if getattr(c, 'is_golden', False)]
     other_chunks = [c for c in relevant_chunks if not getattr(c, 'is_golden', False)]
+    nd_chunks = [c for c in other_chunks if is_citable_nd_source(c.source)]
+    textbook_chunks = [c for c in other_chunks if is_textbook_source(c.source)]
 
-    # 2. Контекст для LLM — обрезаем до ~6000 токенов (оставляет место для промпта + вопроса)
-    MAX_CONTEXT_CHARS = 24000  # ~6000 токенов
-    MAX_CHUNK_CHARS = 3000    # макс. символов на один чанк (шумные >3K вытесняют полезные)
-    context_parts = []
-    ctx_len = 0
-    for c in other_chunks:
-        text = c.text[:MAX_CHUNK_CHARS]
-        if len(c.text) > MAX_CHUNK_CHARS:
-            text += "\n...[truncated]"
-        part = f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{text}"
-        part_len = len(part)
-        if ctx_len + part_len > MAX_CONTEXT_CHARS:
-            # Добавляем усечённый кусок
-            remaining = MAX_CONTEXT_CHARS - ctx_len
-            if remaining > 200:
-                context_parts.append(part[:remaining] + "\n...[truncated]")
-            break
-        context_parts.append(part)
-        ctx_len += part_len
-    context = "\n\n".join(context_parts)
+    # 2. Контекст: сначала НД (цитируемые), справочники — отдельный фон без цитат
+    MAX_CONTEXT_CHARS = 24000
+    MAX_CHUNK_CHARS = 3000
+    MAX_BACKGROUND_CHARS = 6000
+
+    def _pack_chunks(chunks, limit_chars: int) -> str:
+        parts = []
+        ctx_len = 0
+        for c in chunks:
+            text = c.text[:MAX_CHUNK_CHARS]
+            if len(c.text) > MAX_CHUNK_CHARS:
+                text += "\n...[truncated]"
+            label = c.source.doc_number or c.source.title
+            part = f"[{label} | {c.section_label}]\n{text}"
+            part_len = len(part)
+            if ctx_len + part_len > limit_chars:
+                remaining = limit_chars - ctx_len
+                if remaining > 200:
+                    parts.append(part[:remaining] + "\n...[truncated]")
+                break
+            parts.append(part)
+            ctx_len += part_len
+        return "\n\n".join(parts) if parts else "(нет фрагментов)"
+
+    context = _pack_chunks(nd_chunks, MAX_CONTEXT_CHARS)
+    background_context = _pack_chunks(textbook_chunks, MAX_BACKGROUND_CHARS)
 
     # Golden-якоря — отдельный жёсткий блок (даже в image-режиме не игнорируется)
     golden_block = ""
     if golden_chunks:
         golden_lines = []
         for c in golden_chunks:
-            golden_lines.append(f"[{c.source.doc_number or c.source.title} | {c.section_label}]\n{c.text}")
-        golden_block = "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме) ===\n" + \
-                               "\n\n".join(golden_lines) + "\n=== КОНЕЦ ПРИОРИТЕТНЫХ ОТВЕТОВ ==="
+            label = c.source.doc_number or c.source.title
+            # в golden тоже не поощряем цитирование справочников
+            note = ""
+            if is_textbook_source(c.source):
+                note = "\n(фон; в ответе пользователю ссылайся только на НД)"
+            golden_lines.append(f"[{label} | {c.section_label}]{note}\n{c.text}")
+        golden_block = (
+            "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме; "
+            "цитируй только НД) ===\n"
+            + "\n\n".join(golden_lines)
+            + "\n=== КОНЕЦ ПРИОРИТЕТНЫХ ОТВЕТОВ ==="
+        )
 
     # Контекстный режим метода НК (без амнезии базы, но с приоритетом профильных НД)
     method_block = ""
@@ -303,7 +343,7 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
         method_block = (
             f"\nКОНТЕКСТНЫЙ РЕЖИМ МЕТОДА: {method_scope.strip().upper()} ({mname}).\n"
             "Держи ответ преимущественно в ключе этого метода НК и опирайся в первую очередь "
-            "на его нормативные документы из блока «Контекст». Это повышает точность цитирования "
+            "на его нормативные документы из блока «Контекст НД». Это повышает точность цитирования "
             "и снижает вероятность некорректных ответов. При этом НЕ забывай остальную базу: если "
             "вопрос затрагивает смежные методы, упоминай их, но помечай, что основной фокус — "
             f"{method_scope.strip().upper()}. Если по выбранному методу в базе нет данных — честно "
@@ -311,7 +351,10 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
         )
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-        context=context, golden_block=golden_block,
+        context=context,
+        background_context=background_context,
+        golden_block=golden_block,
+        generator_methodology=get_generator_methodology_block(),
         user_role_block=_get_user_role_block(user) + method_block,
     )
 
@@ -330,13 +373,23 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
     messages.append({"role": "user", "content": question})
     resp = provider.chat(system_prompt, messages, temperature=0.2)
 
-    # 4. Цитаты: включаем только чанки, которые LLM реально процитировал
-    # (и doc_number, и section_label присутствуют в ответе). Это исключает
-    # "лишние" чанки из топа retrieval, которые модель не цитировала.
+    # Убрать случайные ссылки на справочники, если модель всё же их вставила
+    answer_text = re.sub(
+        r'\s*\[Справочно:[^\]]*\]',
+        '',
+        resp.text or '',
+        flags=re.IGNORECASE,
+    )
+    answer_text = re.sub(r'[ \t]+\n', '\n', answer_text).strip()
+
+    # 4. Цитаты UI: только НД, которые модель реально упомянула (без справочников)
     cited_sources = []
     seen = set()
-    resp_text = resp.text
-    for c in relevant_chunks:
+    resp_text = answer_text
+    citable_chunks = [
+        c for c in relevant_chunks if is_citable_nd_source(c.source)
+    ]
+    for c in citable_chunks:
         doc_num = c.source.doc_number or ''
         if doc_num and doc_num in resp_text and c.section_label and c.section_label in resp_text:
             if doc_num not in seen:
@@ -346,9 +399,8 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
                     "section": c.section_label,
                 })
                 seen.add(doc_num)
-    # если LLM не повторил section_label, но назвал документ — покажем топ-1 по документу
     if not cited_sources:
-        for c in relevant_chunks:
+        for c in citable_chunks:
             doc_num = c.source.doc_number or ''
             if doc_num and doc_num in resp_text and doc_num not in seen:
                 cited_sources.append({
@@ -358,13 +410,15 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
                 })
                 seen.add(doc_num)
 
-    # 5. Сохранение
+    # 5. Сохранение (в cited_chunks — только НД)
     ConsultantMessage.objects.create(session=session, role='user', content=question)
-    answer_msg = ConsultantMessage.objects.create(session=session, role='assistant', content=resp.text)
-    answer_msg.cited_chunks.set(relevant_chunks)
+    answer_msg = ConsultantMessage.objects.create(
+        session=session, role='assistant', content=answer_text,
+    )
+    answer_msg.cited_chunks.set(citable_chunks)
 
     return {
-        "answer": resp.text,
+        "answer": answer_text,
         "cited_sources": cited_sources,
         "session_id": session.id,
         "subscription_required": False,

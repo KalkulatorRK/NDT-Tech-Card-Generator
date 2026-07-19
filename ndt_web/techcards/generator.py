@@ -1476,13 +1476,70 @@ def _insert_page_break_before_element(element):
     parent.insert(list(parent).index(element), p_el)
 
 
+def _insert_empty_body_paragraph_before(element):
+    """Вставляет пустой абзац-зазор (1 строка) перед XML-элементом."""
+    parent = element.getparent()
+    if parent is None:
+        return None
+    p_el = OxmlElement('w:p')
+    p_pr = OxmlElement('w:pPr')
+    spacing = OxmlElement('w:spacing')
+    # Одна строка ~12 pt (240 twips)
+    spacing.set(qn('w:line'), '240')
+    spacing.set(qn('w:lineRule'), 'auto')
+    spacing.set(qn('w:before'), '0')
+    spacing.set(qn('w:after'), '0')
+    p_pr.append(spacing)
+    p_el.append(p_pr)
+    r_el = OxmlElement('w:r')
+    r_pr = OxmlElement('w:rPr')
+    sz = OxmlElement('w:sz')
+    sz.set(qn('w:val'), '24')  # 12 pt
+    r_pr.append(sz)
+    r_el.append(r_pr)
+    t_el = OxmlElement('w:t')
+    t_el.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    t_el.text = ' '
+    r_el.append(t_el)
+    p_el.append(r_el)
+    parent.insert(list(parent).index(element), p_el)
+    return p_el
+
+
+def _count_empty_paragraphs_before(target_el) -> int:
+    """Число подряд идущих пустых абзацев непосредственно перед элементом."""
+    count = 0
+    prev = target_el.getprevious()
+    while prev is not None and _is_empty_body_paragraph(prev):
+        count += 1
+        prev = prev.getprevious()
+    return count
+
+
+def _ensure_empty_paragraphs_before_element(target_el, keep: int = 1):
+    """Оставляет ровно keep пустых абзацев перед элементом (добавляет/удаляет)."""
+    parent = target_el.getparent()
+    if parent is None:
+        return
+    while _count_empty_paragraphs_before(target_el) > keep:
+        prev = target_el.getprevious()
+        if prev is None or not _is_empty_body_paragraph(prev):
+            break
+        parent.remove(prev)
+    while _count_empty_paragraphs_before(target_el) < keep:
+        _insert_empty_body_paragraph_before(target_el)
+
+
 def _ensure_paragraph_on_new_page(doc: Document, *needles: str, keep: int = 1):
     """
     Размещает целевой абзац в начале новой страницы с keep пустыми строками
-    перед ним (зазор от верхнего колонтитула).
-    """
-    _trim_empty_paragraphs_before(doc, *needles, keep=keep)
+    перед ним.
 
+    Зазор от колонтитула на всех страницах (в т.ч. при переносе таблиц)
+    задаётся отдельно через _apply_body_clearance_below_header.
+    keep=1 — ровно одна строка между разрывом/предыдущим блоком и заголовком
+    (п. 6.9 от предыдущей таблицы или как доп. гарантия после page break).
+    """
     para = None
     for p in doc.paragraphs:
         lower = p.text.lower()
@@ -1493,32 +1550,127 @@ def _ensure_paragraph_on_new_page(doc: Document, *needles: str, keep: int = 1):
         return
 
     target_el = para._element
+    _ensure_empty_paragraphs_before_element(target_el, keep=keep)
+
     insert_before = target_el
-    prev = target_el.getprevious()
-    if prev is not None and _is_empty_body_paragraph(prev):
-        insert_before = prev
+    for _ in range(keep):
+        prev = insert_before.getprevious()
+        if prev is not None and _is_empty_body_paragraph(prev):
+            insert_before = prev
+        else:
+            break
 
     before = insert_before.getprevious()
-    if before is not None and _paragraph_has_page_break(before):
-        return
+    if before is None or not _paragraph_has_page_break(before):
+        _insert_page_break_before_element(insert_before)
 
-    _insert_page_break_before_element(insert_before)
+
+# Высота одной строки тела (~12 pt) и оценка шапки колонтитула
+_BODY_LINE_MM = 5.0
+_TWIPS_PER_MM = 1440 / 25.4
+
+
+def _row_height_twips(row) -> int | None:
+    """Явная высота строки таблицы в twips, если задана в trPr."""
+    tr_pr = row._tr.find(qn('w:trPr'))
+    if tr_pr is None:
+        return None
+    tr_height = tr_pr.find(qn('w:trHeight'))
+    if tr_height is None:
+        return None
+    val = tr_height.get(qn('w:val'))
+    return int(val) if val else None
+
+
+def _estimate_header_table_height_mm(table) -> float:
+    """Оценка высоты таблицы верхнего колонтитула в мм (с учётом переносов)."""
+    if table is None:
+        return 0.0
+    total_twips = 0
+    for row in table.rows:
+        declared = _row_height_twips(row) or 0
+        max_lines = 1
+        for cell in row.cells:
+            text = (cell.text or '').strip()
+            if not text:
+                continue
+            for line in text.splitlines() or ['']:
+                # ~42 символа на строку в ячейке шапки
+                max_lines = max(max_lines, max(1, (len(line) + 41) // 42))
+        # минимум ~240 twips на строку текста
+        estimated = max_lines * 240
+        h_rule_exact = False
+        tr_pr = row._tr.find(qn('w:trPr'))
+        if tr_pr is not None:
+            tr_height = tr_pr.find(qn('w:trHeight'))
+            if tr_height is not None:
+                h_rule_exact = tr_height.get(qn('w:hRule')) == 'exact'
+        if h_rule_exact and declared:
+            total_twips += declared
+        else:
+            total_twips += max(declared, estimated)
+    return total_twips / _TWIPS_PER_MM
+
+
+def _estimate_header_part_height_mm(header_part) -> float:
+    """Высота содержимого верхнего колонтитула (таблица или абзацы)."""
+    try:
+        tables = header_part.tables
+    except Exception:
+        return 0.0
+    if tables:
+        return max(_estimate_header_table_height_mm(t) for t in tables)
+    try:
+        n = sum(1 for p in header_part.paragraphs if (p.text or '').strip())
+    except Exception:
+        n = 0
+    return max(n, 1) * _BODY_LINE_MM if n else 0.0
+
+
+def _apply_body_clearance_below_header(doc: Document, gap_lines: int = 1):
+    """
+    Гарантирует зазор тела документа от нижнего края верхнего колонтитула.
+
+    Word рисует продолжение таблицы с top_margin; пустой абзац туда вставить
+    нельзя. Поэтому top_margin = header_distance + высота шапки + gap_lines.
+    """
+    gap_mm = max(0, gap_lines) * _BODY_LINE_MM
+    for section in doc.sections:
+        header_dist = (
+            section.header_distance.mm
+            if section.header_distance is not None
+            else 8.0
+        )
+        heights = [_estimate_header_part_height_mm(section.header)]
+        try:
+            if section.different_first_page_header_footer:
+                heights.append(
+                    _estimate_header_part_height_mm(section.first_page_header)
+                )
+        except Exception:
+            pass
+        header_h = max(heights) if heights else 12.0
+        needed = header_dist + header_h + gap_mm
+        current = section.top_margin.mm if section.top_margin else 0.0
+        if current < needed - 0.05:
+            section.top_margin = Mm(round(needed, 1))
 
 
 def _ensure_section_43_on_page_three(doc: Document):
     """
-    П. 4.3 «Эскиз сварного соединения» — всегда в начале страницы 3
-    с одной пустой строкой (зазор) от верхнего колонтитула.
+    П. 4.3 «Эскиз сварного соединения» — всегда в начале новой страницы.
+    Зазор 1 строки от колонтитула — через top_margin (_apply_body_clearance).
     """
-    _ensure_paragraph_on_new_page(doc, '4.3', 'эскиз', keep=1)
+    _ensure_paragraph_on_new_page(doc, '4.3', 'эскиз', keep=0)
 
 
 def _ensure_section_69_on_page_four(doc: Document):
     """
-    П. 6.9 «Схема просвечивания» — начало страницы 4,
-    зазор в одну строку от верхнего колонтитула.
+    П. 6.9 «Схема просвечивания» — начало новой страницы.
+    Ровно 1 строка от колонтитула задаётся top_margin; keep=0, чтобы
+    не было двойного зазора (пустоя строка + увеличенный margin).
     """
-    _ensure_paragraph_on_new_page(doc, '6.9', 'схема', keep=1)
+    _ensure_paragraph_on_new_page(doc, '6.9', 'схема', keep=0)
 
 
 def _clear_cell_content(cell):
@@ -1958,17 +2110,21 @@ def generate_from_template(params: dict, template_path: str, output_path: str,
     _fill_body_title_page(doc, params)
     _fill_template_headers_footers(doc, params)
 
+    # 1 строка от нижнего края шапки на КАЖДОЙ странице (в т.ч. перенос таблиц)
+    _apply_body_clearance_below_header(doc, gap_lines=1)
+
     # Служебные заголовки-образцы (без удаления пустых абзацев-отступов)
     _compact_document(doc)
 
-    # П. 4.3 — начало страницы 3, зазор в одну строку от верхнего колонтитула
+    # П. 4.3 / 6.9 — начало новой страницы; зазор от колонтитула уже в top_margin
     _ensure_section_43_on_page_three(doc)
-
-    # П. 6.9 — начало страницы 4, зазор в одну строку от верхнего колонтитула
     _ensure_section_69_on_page_four(doc)
 
-    # Убрать множественные пустые строки между блоками (не более 1 подряд)
+    # Между блоками на одной странице — не более 1 пустой строки подряд
     _collapse_excessive_empty_paragraphs(doc, max_consecutive=1)
+    # После collapse снова зафиксировать разрывы у 4.3 / 6.9
+    _ensure_section_43_on_page_three(doc)
+    _ensure_section_69_on_page_four(doc)
 
     # Изображения встраиваются в финальную структуру документа (после compact/page breaks)
     _insert_joint_sketch_into_docx(doc, params, static_root)

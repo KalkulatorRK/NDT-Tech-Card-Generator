@@ -67,11 +67,27 @@ class GeneratorMethodologyTests(SimpleTestCase):
             background_context='BG',
             golden_block='',
         )
-        self.assertIn('ТОЛЬКО НД', filled)
+        self.assertIn('ТОЛЬКО ОФИЦИАЛЬНЫЕ НД', filled)
         self.assertIn('ЗАПРЕЩЕНО', filled)
-        self.assertIn('МЕТОДИКА ГЕНЕРАТОРА', filled)
+        self.assertIn('ВНУТРЕННЯЯ МЕТОДИКА', filled)
+        self.assertIn('Условные обозначения', filled)
         self.assertIn('С-23-2', filled)
         self.assertIn('Горбачёва', filled)  # запрет упоминается явно
+        self.assertIn('не упоминай генератор', filled.lower())
         cite_rules = filled.split('ЦИТИРОВАНИЕ')[1].split('РАСТОЧКА')[0]
         self.assertIn('Справочно', cite_rules)
         self.assertIn('ЗАПРЕЩЕНО', cite_rules)
+
+    def test_sanitize_strips_generator_mentions(self):
+        from ai_consultant.services.orchestrator import _sanitize_consultant_answer
+
+        raw = (
+            'По методике генератора «Карта-НК» и нормативной базе РГК, '
+            'расточка — по ГОСТ Р 59023.2-2020 (через методику генератора п. 2). '
+            'Схемы коды 5a→3а применяются штатно. [Справочно: Горбачёв]'
+        )
+        clean = _sanitize_consultant_answer(raw)
+        self.assertNotIn('методике генератора', clean.lower())
+        self.assertNotIn('Справочно', clean)
+        self.assertIn('ГОСТ Р 59023.2-2020', clean)
+        self.assertIn('3а', clean)

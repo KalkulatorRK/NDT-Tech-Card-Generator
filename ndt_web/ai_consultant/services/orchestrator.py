@@ -333,9 +333,9 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
     textbook_chunks = [c for c in other_chunks if is_textbook_source(c.source)]
 
     # 2. Контекст: сначала НД (цитируемые), справочники — отдельный фон без цитат
-    MAX_CONTEXT_CHARS = 24000
-    MAX_CHUNK_CHARS = 3000
-    MAX_BACKGROUND_CHARS = 6000
+    MAX_CONTEXT_CHARS = 12000
+    MAX_CHUNK_CHARS = 2500
+    MAX_BACKGROUND_CHARS = 3000
 
     def _pack_chunks(chunks, limit_chars: int) -> str:
         parts = []
@@ -460,6 +460,23 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
 
     # Убрать случайные ссылки на справочники и отсылки к ПО/генератору
     answer_text = _sanitize_consultant_answer(resp.text or '')
+    if not answer_text.strip():
+        # Повтор со сжатым контекстом (hy3 иногда молчит на слишком длинном system)
+        compact_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            context=_pack_chunks(nd_chunks[:6], 6000),
+            background_context='(нет)',
+            golden_block='',
+            generator_methodology=(
+                "=== СЛУЖЕБНО ===\nОтвечай кратко по Контексту НД. Не оставляй ответ пустым.\n=== КОНЕЦ ==="
+            ),
+            user_role_block=_get_user_role_block(user) + method_block,
+        )
+        resp2 = provider.chat(
+            compact_prompt,
+            [{"role": "user", "content": question}],
+            temperature=0.2,
+        )
+        answer_text = _sanitize_consultant_answer(resp2.text or '')
     if not answer_text.strip():
         answer_text = (
             "Не удалось получить текстовый ответ модели. "

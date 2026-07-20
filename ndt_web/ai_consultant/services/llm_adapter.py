@@ -62,6 +62,7 @@ def _finalize_model_text(text: str) -> str:
     t = (text or '').strip()
     if not t:
         return ''
+
     # Явные маркеры финального ответа
     for pat in (
         r'(?is)(?:^|\n)\s*ответ\s*:\s*',
@@ -72,22 +73,52 @@ def _finalize_model_text(text: str) -> str:
         if len(parts) == 2 and len(parts[1].strip()) > 40:
             t = parts[1].strip()
             break
-    # Если это длинное «мышление» с самоанализом — берём последний содержательный абзац
+
     think_markers = (
-        'согласно инструкции', 'в блоке «контекст', 'служебный блок',
-        'режиме работы', 'как администратор', 'нужно честно',
-        'стилистика:', 'сформирую ответ',
+        'согласно инструкции', 'в блоке «контекст', 'в блоке "контекст',
+        'служебный блок', 'режиме работы', 'как администратор',
+        'нужно честно', 'стилистика:', 'сформирую ответ',
+        'пользователь спрашивает', 'пользователь пишет',
+        'в предоставленном', 'контекстный режим у нас',
+        'основной нд —', 'основной нд по',
     )
     low = t.lower()
-    if len(t) > 900 and sum(1 for m in think_markers if m in low) >= 2:
+    looks_like_thinking = (
+        len(t) > 500 and sum(1 for m in think_markers if m in low) >= 2
+    ) or any(m in low for m in (
+        'пользователь спрашивает', 'пользователь пишет', 'в предоставленном мне',
+    ))
+
+    if looks_like_thinking:
         paras = [p.strip() for p in re.split(r'\n\s*\n', t) if p.strip()]
-        # предпочитаем абзац без служебных маркеров
-        for p in reversed(paras):
+        good = []
+        for p in paras:
             pl = p.lower()
-            if len(p) >= 60 and not any(m in pl for m in think_markers[:5]):
-                return p
-        if paras:
-            return paras[-1]
+            if any(m in pl for m in think_markers):
+                continue
+            if pl.startswith('условные обозначения'):
+                continue
+            if len(p) < 40:
+                continue
+            good.append(p)
+        if good:
+            t = '\n\n'.join(good[-3:])  # до 3 последних содержательных абзацев
+        elif paras:
+            # не оставляем один хвост «Условные обозначения»
+            for p in reversed(paras):
+                if not p.lower().startswith('условные обозначения') and len(p) >= 40:
+                    t = p
+                    break
+
+    # Пустой/бесполезный хвост «Условные обозначения» без ответа — убрать
+    t = re.sub(
+        r'(?is)\n*\*?\*?условные обозначения:?\*?\*?\s*'
+        r'(\(в данном ответе[^\n]*\)|не применял[^\n]*|\(не применял[^\n]*\))\s*$',
+        '',
+        t,
+    ).strip()
+    if re.fullmatch(r'(?is)\*?\*?условные обозначения:?\*?\*?\s*.{0,120}', t or ''):
+        return ''
     return t
 
 

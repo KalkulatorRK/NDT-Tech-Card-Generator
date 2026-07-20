@@ -30,13 +30,13 @@ SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант-эксперт 
 Фрагменты [[GOLDEN-ЭТАЛОН]] — эталон; сохраняй только ссылки на НД. Служебные пометки пользователю не показывай.
 
 СТИЛЬ И ОБОЗНАЧЕНИЯ
-Пиши как инженер по НД: ясно, без воды. В тексте можно использовать принятые обозначения (S, S1, S_K, f, N, L, K, Φ, g_min, g_max и т.д.), но в КОНЦЕ ответа обязательно дай блок:
+Пиши как инженер по НД: ясно, без воды.
+Если в ответе реально использовал обозначения (S, S1, K и т.п.) — в конце кратко расшифруй только их.
+Если обозначений не было — блок «Условные обозначения» НЕ пиши.
 
-**Условные обозначения:**
-- S — …
-- S1 — …
-(только те обозначения, которые реально встретились в твоём ответе; кратко, по одной строке).
-
+ЗАПРЕТ НА МЕТА-ОТВЕТЫ
+Пользователю НЕЛЬЗЯ писать: «в предоставленном контексте нет…», «служебный блок», «согласно инструкции», разбор своего промпта, цепочку рассуждений.
+Если в Контексте НД мало данных по вопросу — одной фразой скажи, что по выбранному методу в базе не хватает фрагмента, и задай уточняющий вопрос. Не рассуждай вслух.
 ПОМНИ КОНТЕКСТ ДИАЛОГА
 Краткие реплики («стенка 5 мм», «категория II») — уточнения к предыдущей теме. Не переспрашивай уже названное.
 
@@ -114,6 +114,20 @@ def _sanitize_consultant_answer(text: str) -> str:
     answer = re.sub(
         r'(?i)коды?\s+5[a-zа-я]+(?:\s*→\s*|\s*->\s*|\s+в\s+)(3[а-я]|черт\.?\s*\d+)',
         r'\1',
+        answer,
+    )
+    # Мета-фразы и пустой блок обозначений
+    answer = re.sub(
+        r'(?im)^.*(?:в предоставленном|контекст нд|служебный блок|согласно инструкции|'
+        r'пользователь спрашивает|пользователь пишет).*\n?',
+        '',
+        answer,
+    )
+    answer = re.sub(
+        r'(?is)\n*\*?\*?условные обозначения:?\*?\*?\s*'
+        r'(\([^)]*не применял[^)]*\)|\([^)]*не использовал[^)]*\)|'
+        r'\([^)]*специфические обозначения[^)]*\)|не применял[^\n]*)\s*$',
+        '',
         answer,
     )
     answer = re.sub(r'[ \t]+\n', '\n', answer)
@@ -346,10 +360,32 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
         is_textbook_source,
     )
 
+    def _chunk_matches_preferred(c) -> bool:
+        if not scope_nds:
+            return True
+        doc = (getattr(c.source, 'doc_number', None) or '') + ' ' + (getattr(c.source, 'title', None) or '')
+        hay = doc.upper()
+        return any(nd.upper() in hay for nd in scope_nds)
+
     # Golden-якоря (обратный инжиниринг) — отдельно, с приоритетом
     golden_chunks = [c for c in relevant_chunks if getattr(c, 'is_golden', False)]
     other_chunks = [c for c in relevant_chunks if not getattr(c, 'is_golden', False)]
     nd_chunks = [c for c in other_chunks if is_citable_nd_source(c.source)]
+    # В контекстном режиме метода — только профильные НД (не подмешиваем чужой РК в ВИК)
+    if scope_nds:
+        scoped = [c for c in nd_chunks if _chunk_matches_preferred(c)]
+        if scoped:
+            nd_chunks = scoped
+        else:
+            # запасной проход: прямо из БД по preferred, если RAG пуст
+            from ai_consultant.models import DocumentChunk
+            from django.db.models import Q
+            qf = Q()
+            for nd in scope_nds:
+                qf |= Q(source__doc_number__icontains=nd)
+            nd_chunks = list(
+                DocumentChunk.objects.filter(qf).select_related('source')[:12]
+            )
     textbook_chunks = [c for c in other_chunks if is_textbook_source(c.source)]
 
     # 2. Контекст: сначала НД (цитируемые), справочники — отдельный фон без цитат

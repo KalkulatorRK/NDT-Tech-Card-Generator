@@ -7,47 +7,25 @@ import os
 import re
 from ai_consultant.services.llm_adapter import get_llm_provider
 
-SYSTEM_PROMPT_TEMPLATE = """Ты — ИИ-консультант-эксперт по нормативным документам неразрушающего контроля (НК), сварке и дефектоскопии. Отвечаешь строго по официальным НД (ГОСТ, НП, РД, СТО и др.): только факты, числа и формулировки, подтверждённые контекстом НД. Речь строй гибко и по-деловому, как инженер по НК, без воды и без выдуманных ссылок.
+SYSTEM_PROMPT_TEMPLATE = """Ты — инженер-консультант по нормативным документам НК (ГОСТ, НП, РД).
+Отвечай по фактам из блока «Контекст НД». Пиши по-деловому, без воды.
 
-ОСНОВА ОТВЕТА
-1) «Контекст НД» — единственная база фактов для пользователя. Формулируй ответ как требования и практику по НД.
-2) Служебный блок «ВНУТРЕННЯЯ МЕТОДИКА…» (если есть) — только для согласования логики с НД. Это НЕ источник для пользователя: не упоминай генератор, приложение, «Карта-НК», «методику генератора», коды схем генератора (5a/5g и т.п.) в тексте ответа.
-3) «Фон (справочники)» — только для себя; не цитируй и не ссылайся.
-
-В ответе пользователю ссылайся только на НД. Не выдумывай числа и пункты вне контекста НД. Если данных мало — уточни.
-
-ЦИТИРОВАНИЕ — ТОЛЬКО ОФИЦИАЛЬНЫЕ НД
-Формат: [Номер_НД, п. X] или [Номер_НД, табл. X] / [Номер_НД, прил. X].
-ЗАПРЕЩЕНО в ответе пользователю:
-- ссылки на справочники, учебники, Горбачёва, Назипова, [Справочно: …];
-- фразы «по методике генератора», «в приложении», «Карта-НК», «через генератор», «коды 5a→3а» и любые отсылки к ПО;
-- условные коды внутреннего ПО без расшифровки в терминах НД (для схем пиши обозначения по ГОСТ Р 50.05.07: 3а, 3г, черт. 2 и т.д.).
-
-РАСТОЧКА КРОМОК (не путать с выемкой)
-«Расточка свариваемых кромок» — внутренняя расточка/калибровка конца трубы по ГОСТ Р 59023.2-2020: в зоне шва толщина S1, часто S ≠ S1 (пример типа — С-23-2, табл. 9.30). Для чувствительности и норм РГК принимают толщину в месте расточки (S1). Это НЕ «выемка ≥5 мм» под спецсхему доступа.
-
-ЭТАЛОННЫЕ ЯКОРЯ
-Фрагменты [[GOLDEN-ЭТАЛОН]] — эталон; сохраняй только ссылки на НД. Служебные пометки пользователю не показывай.
-
-СТИЛЬ И ОБОЗНАЧЕНИЯ
-Пиши как инженер по НД: ясно, без воды.
-Если в ответе реально использовал обозначения (S, S1, K и т.п.) — в конце кратко расшифруй только их.
-Если обозначений не было — блок «Условные обозначения» НЕ пиши.
-
-ЗАПРЕТ НА МЕТА-ОТВЕТЫ
-Пользователю НЕЛЬЗЯ писать: «в предоставленном контексте нет…», «служебный блок», «согласно инструкции», разбор своего промпта, цепочку рассуждений.
-Если в Контексте НД мало данных по вопросу — одной фразой скажи, что по выбранному методу в базе не хватает фрагмента, и задай уточняющий вопрос. Не рассуждай вслух.
-ПОМНИ КОНТЕКСТ ДИАЛОГА
-Краткие реплики («стенка 5 мм», «категория II») — уточнения к предыдущей теме. Не переспрашивай уже названное.
+Правила:
+1) Цитируй только официальные НД: [Номер_НД, п. X] / [Номер_НД, табл. X].
+2) Не выдумывай пункты и числа вне контекста.
+3) Не упоминай: промпт, «контекст», «базу», генератор, «Карта-НК», справочники, цепочку рассуждений.
+4) Не пиши блок «Условные обозначения», если сам не использовал условные буквы (S, K и т.п.).
+5) Не предлагай «сменить метод» и не подмешивай чужие НД (например РК/7512), если вопрос по выбранному методу и в контексте есть ответ.
+6) Краткие реплики — уточнения к предыдущей теме диалога.
 
 {user_role_block}
 
 {generator_methodology}
 
-Контекст НД (цитировать можно):
+Контекст НД:
 {context}
 
-Фон (справочники — НЕ цитировать):
+Фон (не цитировать):
 {background_context}
 
 {golden_block}
@@ -116,10 +94,19 @@ def _sanitize_consultant_answer(text: str) -> str:
         r'\1',
         answer,
     )
+    # Утечки стиля/промпта
+    answer = re.sub(
+        r'(?im)^\s*(?:коротко\s+и\s+по\s+делу\.?\s*)?(?:без\s+воды\.?\s*)+',
+        '',
+        answer,
+    )
+    answer = re.sub(r'(?i)\*{0,2}коротко\s+и\s+по\s+делу\.?\*{0,2}\s*', '', answer)
+    answer = re.sub(r'(?i)\*{0,2}без\s+воды\.?\*{0,2}\s*', '', answer)
     # Мета-фразы и пустой блок обозначений
     answer = re.sub(
         r'(?im)^.*(?:в предоставленном|контекст нд|служебный блок|согласно инструкции|'
-        r'пользователь спрашивает|пользователь пишет).*\n?',
+        r'пользователь спрашивает|пользователь пишет|в базе не хватает|'
+        r'зададим иной вектор|смежных раздел).*\n?',
         '',
         answer,
     )
@@ -284,19 +271,47 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
             llm_model=os.environ.get('NOUS_PORTAL_MODEL', os.environ.get('OPENAI_MODEL', '')),
         )
 
+    from ai_consultant.services.method_context import (
+        preferred_doc_prefixes,
+        profile_for,
+        resolve_effective_scope,
+        select_canonical_context,
+        try_deterministic_answer,
+    )
+
+    # Эффективный метод: кнопка UI + явное имя в вопросе («что такое ВИК» при РК)
+    effective_scope = resolve_effective_scope(question, method_scope)
+
     # 0a. Мастер расчёта (wizard) — пошаговый сбор параметров
     if not skip_tools:
         wizard_res = _handle_wizard(session, question)
         if wizard_res:
             return wizard_res
 
-    # 0b. Точные инструменты (normative.*) — БЕЗ эмбеддинга и LLM.
+    # 0b. Детерминированные ответы по эталону .py — ДО tools/LLM
+    # (иначе при РК→ВИК модель тянет 50.05.07 / «нет фрагмента»)
+    det = try_deterministic_answer(question, effective_scope)
+    if det:
+        ConsultantMessage.objects.create(session=session, role='user', content=question)
+        ConsultantMessage.objects.create(session=session, role='assistant', content=det)
+        cited = []
+        p = profile_for(effective_scope)
+        if p and p.get('doc_prefixes'):
+            cited = [{"doc_number": p['doc_prefixes'][0], "title": "", "section": "§1"}]
+        return {
+            "answer": det,
+            "cited_sources": cited,
+            "session_id": str(session.id),
+            "subscription_required": False,
+        }
+
+    # 0c. Точные инструменты (normative.*) — БЕЗ эмбеддинга и LLM.
     # Для структурных запросов (K, ИКИ, методы) это исключает галлюцинации.
     # ПРОПУСКАЕМ при анализе изображений: там question = распознанный текст
     # со множеством упоминаний толщин/категорий, что ложно триггерит tools.
     tool_res = None
     if not skip_tools:
-        tool_res = resolve_tool(question, method_scope=method_scope)
+        tool_res = resolve_tool(question, method_scope=effective_scope)
     if tool_res and tool_res.matched:
         ConsultantMessage.objects.create(session=session, role='user', content=question)
         ConsultantMessage.objects.create(
@@ -319,7 +334,7 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
         'ты тут', 'ты здесь', 'привет', 'здравствуй', 'здравствуйте',
         'hello', 'hi', 'пинг', 'ping', 'на связи?', 'есть кто?',
     } or len(q_norm) <= 3:
-        scope = (method_scope or '').strip().upper() or 'общий'
+        scope = effective_scope or (method_scope or '').strip().upper() or 'общий'
         answer = (
             f"Да, на связи. Режим контекста: {scope}. "
             f"Задайте вопрос по выбранному методу НК."
@@ -333,23 +348,11 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
             "subscription_required": False,
         }
 
-    # 1. Retrieval (только для нарративных/текстовых вопросов)
-    # Контекстный режим метода НК: чанки профильных НД получают повышающий вес.
-    METHOD_ND_MAP = {
-        'РК': ['ГОСТ Р 50.05.07', 'НП-105', 'НП-104', 'ГОСТ 7512', 'ГОСТ Р 59023.2'],
-        'УЗК': [
-            'ГОСТ Р 50.05.02',  # сварные соединения и наплавки
-            'ГОСТ Р 50.05.04',  # аустенитные швы
-            'ГОСТ Р 50.05.05',  # основные материалы (полуфабрикаты)
-            'ГОСТ Р 50.05.11',
-        ],
-        'УЗТ': ['ГОСТ Р 50.05.03', 'ГОСТ Р 50.05.11'],
-        'ВИК': ['ГОСТ Р 50.05.08', 'ГОСТ Р 50.05.11'],
-        'КГ': ['ГОСТ Р 50.05.01', 'ГОСТ Р 50.05.11'],
-        'КК': ['ГОСТ Р 50.05.09', 'НП-105', 'НП-104', 'ГОСТ Р 50.05.11'],
-        'ПЕРСОНАЛ': ['ГОСТ Р 50.05.11'],
-    }
-    scope_nds = METHOD_ND_MAP.get((method_scope or '').strip().upper()) if method_scope else None
+    # 1. Retrieval: эталон .py + RAG только по профильным НД
+    scope_nds = preferred_doc_prefixes(effective_scope) if effective_scope else None
+    # для РК дополним расточку кромок
+    if effective_scope == 'РК':
+        scope_nds = list(scope_nds or []) + ['ГОСТ Р 59023.2']
     relevant_chunks = hybrid_search(question, top_k=16, preferred_nds=scope_nds)
 
     from ai_consultant.services.generator_methodology import (
@@ -367,18 +370,14 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
         hay = doc.upper()
         return any(nd.upper() in hay for nd in scope_nds)
 
-    # Golden-якоря (обратный инжиниринг) — отдельно, с приоритетом
     golden_chunks = [c for c in relevant_chunks if getattr(c, 'is_golden', False)]
     other_chunks = [c for c in relevant_chunks if not getattr(c, 'is_golden', False)]
     nd_chunks = [c for c in other_chunks if is_citable_nd_source(c.source)]
-    # В контекстном режиме метода — только профильные НД (не подмешиваем чужой РК в ВИК)
     if scope_nds:
         scoped = [c for c in nd_chunks if _chunk_matches_preferred(c)]
         if scoped:
             nd_chunks = scoped
         else:
-            # запасной проход: прямо из БД по preferred, если RAG пуст
-            from ai_consultant.models import DocumentChunk
             from django.db.models import Q
             qf = Q()
             for nd in scope_nds:
@@ -388,7 +387,6 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
             )
     textbook_chunks = [c for c in other_chunks if is_textbook_source(c.source)]
 
-    # 2. Контекст: сначала НД (цитируемые), справочники — отдельный фон без цитат
     MAX_CONTEXT_CHARS = 12000
     MAX_CHUNK_CHARS = 2500
     MAX_BACKGROUND_CHARS = 3000
@@ -410,84 +408,64 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
                 break
             parts.append(part)
             ctx_len += part_len
-        return "\n\n".join(parts) if parts else "(нет фрагментов)"
+        return "\n\n".join(parts) if parts else ""
 
-    context = _pack_chunks(nd_chunks, MAX_CONTEXT_CHARS)
-    background_context = _pack_chunks(textbook_chunks, MAX_BACKGROUND_CHARS)
+    # Эталон из .py — всегда первый в контексте (не зависит от эмбеддингов)
+    scope_upper = effective_scope or ''
+    canonical = select_canonical_context(effective_scope, question, max_chars=9000)
+    rag_context = _pack_chunks(nd_chunks, MAX_CONTEXT_CHARS - len(canonical) - 100)
+    if canonical and rag_context:
+        context = (
+            "=== ЭТАЛОН ИЗ МОДУЛЯ НД (приоритет) ===\n"
+            + canonical
+            + "\n=== ДОПОЛНЕНИЕ ИЗ БАЗЫ ===\n"
+            + rag_context
+        )
+    elif canonical:
+        context = canonical
+    elif rag_context:
+        context = rag_context
+    else:
+        context = "(нет фрагментов по выбранному методу)"
 
-    # Golden-якоря — отдельный жёсткий блок (даже в image-режиме не игнорируется)
+    background_context = _pack_chunks(textbook_chunks, MAX_BACKGROUND_CHARS) or "(нет)"
+
     golden_block = ""
     if golden_chunks:
         golden_lines = []
         for c in golden_chunks:
             label = c.source.doc_number or c.source.title
-            # в golden тоже не поощряем цитирование справочников
             note = ""
             if is_textbook_source(c.source):
                 note = "\n(фон; в ответе пользователю ссылайся только на НД)"
             golden_lines.append(f"[{label} | {c.section_label}]{note}\n{c.text}")
         golden_block = (
-            "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (обязательно используй, если вопрос по теме; "
-            "цитируй только НД) ===\n"
+            "\n\n=== ПРИОРИТЕТНЫЕ ОТВЕТЫ (цитируй только НД) ===\n"
             + "\n\n".join(golden_lines)
-            + "\n=== КОНЕЦ ПРИОРИТЕТНЫХ ОТВЕТОВ ==="
+            + "\n=== КОНЕЦ ==="
         )
 
-    # Контекстный режим метода НК (без амнезии базы, но с приоритетом профильных НД)
-    METHOD_PRIMARY_ND = {
-        'РК': ('радиографический контроль (РГК)', 'ГОСТ Р 50.05.07-2018'),
-        'УЗК': (
-            'ультразвуковой контроль (сварные соединения, аустенитные швы, основные материалы)',
-            'ГОСТ Р 50.05.02-2022 / 50.05.04-2022 / 50.05.05-2018',
-        ),
-        'УЗТ': ('ультразвуковая толщинометрия', 'ГОСТ Р 50.05.03-2022'),
-        'ВИК': ('визуальный и измерительный контроль', 'ГОСТ Р 50.05.08-2018'),
-        'КГ': ('контроль герметичности газовыми и жидкостными методами', 'ГОСТ Р 50.05.01-2018'),
-        'КК': ('капиллярный контроль', 'ГОСТ Р 50.05.09-2018'),
-        'ПЕРСОНАЛ': ('персонал НК/РК, подтверждение компетентности', 'ГОСТ Р 50.05.11-2018'),
-    }
     method_block = ""
-    scope_upper = (method_scope or '').strip().upper()
-    if method_scope and scope_upper in METHOD_PRIMARY_ND:
-        mname, primary_nd = METHOD_PRIMARY_ND[scope_upper]
+    p = profile_for(effective_scope)
+    if p:
+        prefixes = ', '.join(p['doc_prefixes'][:4])
         method_block = (
-            f"\nКОНТЕКСТНЫЙ РЕЖИМ МЕТОДА: {scope_upper} ({mname}).\n"
-            f"Основной НД выбранного контекста — {primary_nd}. "
-            "Держи ответ преимущественно в ключе этого метода НК и опирайся в первую очередь "
-            "на его нормативные документы из блока «Контекст НД». Это повышает точность цитирования "
-            "и снижает вероятность некорректных ответов. При этом НЕ забывай остальную базу: если "
-            "вопрос затрагивает смежные методы, упоминай их, но помечай, что основной фокус — "
-            f"{scope_upper}. Если по выбранному методу в базе нет данных — честно "
-            "скажи об этом и при необходимости подскажи, что есть в смежных разделах.\n"
+            f"\nРежим метода: {scope_upper} ({p['name']}). "
+            f"Опирайся на {prefixes}. Не подменяй ответ чужими методами НК.\n"
         )
-        if scope_upper == 'КК':
-            method_block += (
-                "Для капиллярного контроля основной НД — ГОСТ Р 50.05.09-2018. "
-                "Цитируй его пункты, таблицы 1–3 и приложения А/Б. Не подменяй требования "
-                "ГОСТ Р 50.05.09 данными по РГК (50.05.07) или общими учебниками. "
-                "Если вопрос вне КК — кратко укажи смену контекста.\n"
-            )
-        elif scope_upper == 'УЗК':
-            method_block += (
-                "В режиме УЗК используй совместно: ГОСТ Р 50.05.02-2022 (швы и наплавки), "
-                "ГОСТ Р 50.05.04-2022 (аустенитные швы), ГОСТ Р 50.05.05-2018 (основные материалы). "
-                "Выбирай документ по сути вопроса. Учти: полный текст 50.05.05 в базе может быть "
-                "неполным — не выдумывай его таблицы.\n"
-            )
 
     if scope_upper == 'КК':
         methodology_block = (
-            "=== СЛУЖЕБНО (НЕ УПОМИНАТЬ ПОЛЬЗОВАТЕЛЮ) ===\n"
-            "Режим КК: опирайся на ГОСТ Р 50.05.09-2018. Блок методики РГК не применяй.\n"
+            "=== СЛУЖЕБНО (НЕ УПОМИНАТЬ) ===\n"
+            "Режим КК: ГОСТ Р 50.05.09-2018. Методику РГК не применяй.\n"
             "=== КОНЕЦ ==="
         )
     elif scope_upper == 'РК' or not scope_upper:
         methodology_block = get_generator_methodology_block()
     else:
         methodology_block = (
-            "=== СЛУЖЕБНО (НЕ УПОМИНАТЬ ПОЛЬЗОВАТЕЛЮ) ===\n"
-            f"Режим {scope_upper}: блок методики генератора РГК не применяй. "
-            f"Опирайся на профильный НД из контекстного режима.\n"
+            "=== СЛУЖЕБНО (НЕ УПОМИНАТЬ) ===\n"
+            f"Режим {scope_upper}: методику генератора РГК не применяй.\n"
             "=== КОНЕЦ ==="
         )
 

@@ -81,13 +81,29 @@ def _finalize_model_text(text: str) -> str:
         'пользователь спрашивает', 'пользователь пишет',
         'в предоставленном', 'контекстный режим у нас',
         'основной нд —', 'основной нд по',
+        'так и напишу', 'так и сделаю', 'без блока условных',
+        'без условных обозначений', 'в базе не хватает', 'в базе нд нет',
+        'зададим иной вектор', 'смежных раздел',
     )
     low = t.lower()
     looks_like_thinking = (
         len(t) > 500 and sum(1 for m in think_markers if m in low) >= 2
     ) or any(m in low for m in (
         'пользователь спрашивает', 'пользователь пишет', 'в предоставленном мне',
+        'так и напишу', 'так и сделаю',
     ))
+
+    # Убрать одиночные «черновые» реплики модели внутри ответа
+    t = re.sub(
+        r'(?im)^\s*(?:так и (?:напишу|сделаю)|итак|сформирую ответ)[^\n]*\n?',
+        '',
+        t,
+    )
+    t = re.sub(
+        r'(?i)\s*без(?:\s+блока)?\s+условных\s+обозначений[^.]*\.\s*',
+        ' ',
+        t,
+    )
 
     if looks_like_thinking:
         paras = [p.strip() for p in re.split(r'\n\s*\n', t) if p.strip()]
@@ -122,30 +138,29 @@ def _finalize_model_text(text: str) -> str:
     return t
 
 
-def _extract_delta_text(delta) -> str:
-    """Текстовый кусок stream: content или reasoning_content."""
-    if delta is None:
-        return ''
-    content = _attr_or_key(delta, 'content')
-    if isinstance(content, str) and content:
-        return content
-    for key in ('reasoning_content', 'reasoning', 'thinking'):
-        alt = _attr_or_key(delta, key)
-        if isinstance(alt, str) and alt:
-            return alt
-    return ''
-
-
 def _read_openai_stream(resp) -> str:
-    parts = []
+    """Собирает stream: content отдельно от reasoning (не склеивать!)."""
+    content_parts: list[str] = []
+    reasoning_parts: list[str] = []
     for chunk in resp:
         if not getattr(chunk, 'choices', None):
             continue
         delta = chunk.choices[0].delta
-        piece = _extract_delta_text(delta)
-        if piece:
-            parts.append(piece)
-    return _finalize_model_text(''.join(parts))
+        if delta is None:
+            continue
+        content = _attr_or_key(delta, 'content')
+        if isinstance(content, str) and content:
+            content_parts.append(content)
+        for key in ('reasoning_content', 'reasoning', 'thinking'):
+            alt = _attr_or_key(delta, key)
+            if isinstance(alt, str) and alt:
+                reasoning_parts.append(alt)
+                break
+    text = ''.join(content_parts).strip()
+    if not text:
+        # fallback только если модель отдала пустой content
+        text = ''.join(reasoning_parts).strip()
+    return _finalize_model_text(text)
 
 
 def _nous_max_tokens() -> int:

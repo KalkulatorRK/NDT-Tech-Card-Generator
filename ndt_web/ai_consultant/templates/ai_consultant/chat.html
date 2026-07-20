@@ -296,9 +296,9 @@
   }
   .method-switch::-webkit-scrollbar { display: none; }
   .method-btn {
-    position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
     border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);
-    padding: 7px 14px; border-radius: 20px; font-size: 0.88rem; font-weight: 600;
+    padding: 6px 11px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
     cursor: pointer; transition: all .12s; white-space: nowrap;
   }
   .method-btn i { font-size: 1rem; }
@@ -433,9 +433,8 @@
         <h4><i class="bi bi-robot"></i> Здравствуйте!</h4>
         <p>Я — ИИ-консультант <strong>Карта-НК</strong> по неразрушающему контролю и сварке.</p>
         <ul>
-          <li>Выберите <strong>метод НК</strong> выше: <strong>РК</strong> (радиография) или <strong>КК</strong> (капиллярный контроль по ГОСТ Р 50.05.09-2018).</li>
-          <li>Отвечаю строго по официальным НД с ссылками на пункты и таблицы (для КК — ГОСТ Р 50.05.09-2018).</li>
-          <li>В режиме РК — геометрия съёмки, чувствительность, категории; в режиме КК — классы чувствительности, ДМ, подготовка поверхности, освещённость.</li>
+          <li>Выберите метод НК выше: <strong>РК</strong>, <strong>УЗК</strong>, <strong>УЗТ</strong>, <strong>ВИК</strong>, <strong>КГ</strong>, <strong>КК</strong> или <strong>Персонал</strong> — к каждому привязаны профильные ГОСТ Р 50.05.*.</li>
+          <li>Отвечаю по официальным НД со ссылками на пункты и таблицы из базы знаний выбранного контекста.</li>
           <li>Учитываю контекст диалога: краткие уточнения применяю к уже обсуждаемой задаче.</li>
         </ul>
         <p style="margin-top:10px;color:var(--text-muted);font-size:.9rem;">Задайте вопрос или выберите метод НК для обсуждения.</p>
@@ -444,24 +443,30 @@
 
     <div class="input-panel">
       <div class="method-switch" id="methodSwitch">
-        <button type="button" class="method-btn active" data-method="РК" title="Радиографический контроль">
+        <button type="button" class="method-btn active" data-method="РК" title="РГК — ГОСТ Р 50.05.07-2018">
           <i class="bi bi-badge-cc"></i><span>РК</span>
         </button>
-        <button type="button" class="method-btn" data-method="УЗК" disabled title="Ультразвуковой контроль — в разработке">
-          <i class="bi bi-soundwave"></i><span>УЗК</span><em class="soon">в разработке</em>
+        <button type="button" class="method-btn" data-method="УЗК" title="УЗК — ГОСТ Р 50.05.02/04/05 (швы, аустенит, основные материалы)">
+          <i class="bi bi-soundwave"></i><span>УЗК</span>
         </button>
-        <button type="button" class="method-btn" data-method="ВИК" disabled title="Визуальный и измерительный контроль — в разработке">
-          <i class="bi bi-eye"></i><span>ВИК</span><em class="soon">в разработке</em>
+        <button type="button" class="method-btn" data-method="УЗТ" title="УЗ-толщинометрия — ГОСТ Р 50.05.03-2022">
+          <i class="bi bi-rulers"></i><span>УЗТ</span>
         </button>
-        <button type="button" class="method-btn" data-method="КГ" disabled title="Контроль герметичности — в разработке">
-          <i class="bi bi-droplet-half"></i><span>КГ</span><em class="soon">в разработке</em>
+        <button type="button" class="method-btn" data-method="ВИК" title="Визуальный и измерительный контроль — ГОСТ Р 50.05.08-2018">
+          <i class="bi bi-eye"></i><span>ВИК</span>
         </button>
-        <button type="button" class="method-btn" data-method="КК" title="Капиллярный контроль (ГОСТ Р 50.05.09-2018)">
+        <button type="button" class="method-btn" data-method="КГ" title="Контроль герметичности — ГОСТ Р 50.05.01-2018">
+          <i class="bi bi-droplet-half"></i><span>КГ</span>
+        </button>
+        <button type="button" class="method-btn" data-method="КК" title="Капиллярный контроль — ГОСТ Р 50.05.09-2018">
           <i class="bi bi-grid-3x3-gap"></i><span>КК</span>
+        </button>
+        <button type="button" class="method-btn" data-method="ПЕРСОНАЛ" title="Персонал НК/РК — ГОСТ Р 50.05.11-2018">
+          <i class="bi bi-people"></i><span>Персонал</span>
         </button>
       </div>
       <div class="method-scope-hint" id="methodScopeHint">
-        Активный метод: <strong id="activeMethod">РК</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.
+        Активный метод: <strong id="activeMethod">РК</strong>. Контекст: ГОСТ Р 50.05.07-2018 (РГК).
       </div>
 
       <form id="chat-form" class="chat-input-bar">
@@ -660,6 +665,36 @@ input.addEventListener('keydown', (e) => {
 
 // Переключатель метода НК (контекстный режим)
 let activeMethod = 'РК';
+const METHOD_HINTS = {
+  'РК': {
+    note: ' Контекст: ГОСТ Р 50.05.07-2018 (РГК); также НП-105, ГОСТ 7512.',
+    placeholder: 'Например: объём РК сварных соединений трубопроводов?',
+  },
+  'УЗК': {
+    note: ' Контекст: ГОСТ Р 50.05.02-2022 (швы/наплавки), 50.05.04-2022 (аустенит), 50.05.05-2018 (основные материалы).',
+    placeholder: 'Например: параметры ПЭП для стыкового или аустенитного шва по ГОСТ Р 50.05.02/04?',
+  },
+  'УЗТ': {
+    note: ' Контекст: ГОСТ Р 50.05.03-2022 (ультразвуковая толщинометрия).',
+    placeholder: 'Например: погрешность измерения толщины по ГОСТ Р 50.05.03?',
+  },
+  'ВИК': {
+    note: ' Контекст: ГОСТ Р 50.05.08-2018 (визуальный и измерительный контроль).',
+    placeholder: 'Например: освещённость и средства измерения для ВИК?',
+  },
+  'КГ': {
+    note: ' Контекст: ГОСТ Р 50.05.01-2018 (контроль герметичности газовыми и жидкостными методами).',
+    placeholder: 'Например: классы герметичности и методы контроля по ГОСТ Р 50.05.01?',
+  },
+  'КК': {
+    note: ' Контекст: ГОСТ Р 50.05.09-2018 (капиллярный контроль).',
+    placeholder: 'Например: классы чувствительности КК по ГОСТ Р 50.05.09?',
+  },
+  'ПЕРСОНАЛ': {
+    note: ' Контекст: ГОСТ Р 50.05.11-2018 (персонал НК/РК, подтверждение компетентности).',
+    placeholder: 'Например: уровни квалификации и сроки удостоверений по ГОСТ Р 50.05.11?',
+  },
+};
 const methodBtns = document.querySelectorAll('.method-btn');
 const activeMethodEl = document.getElementById('activeMethod');
 methodBtns.forEach(btn => {
@@ -669,20 +704,14 @@ methodBtns.forEach(btn => {
     btn.classList.add('active');
     activeMethod = btn.dataset.method;
     if (activeMethodEl) activeMethodEl.textContent = activeMethod;
+    const meta = METHOD_HINTS[activeMethod] || { note: '', placeholder: 'Задайте вопрос по выбранному методу НК…' };
     const hint = document.getElementById('methodScopeHint');
     if (hint) {
-      const kkNote = activeMethod === 'КК'
-        ? ' Контекст: капиллярный контроль по ГОСТ Р 50.05.09-2018.'
-        : '';
       hint.innerHTML = 'Активный метод: <strong id="activeMethod">' + activeMethod +
-        '</strong>. Уточните задачу по этому методу НК для обсуждения с консультантом.' + kkNote;
+        '</strong>.' + meta.note;
     }
     const ta = document.getElementById('question');
-    if (ta) {
-      ta.placeholder = activeMethod === 'КК'
-        ? 'Например: классы чувствительности КК по ГОСТ Р 50.05.09?'
-        : 'Например: объём РК сварных соединений трубопроводов?';
-    }
+    if (ta) ta.placeholder = meta.placeholder;
   });
 });
 
@@ -733,14 +762,14 @@ document.getElementById('clear-chat-btn').addEventListener('click', () => {
   loadSessions();
   chatLog.innerHTML = `<div class="welcome-card">
     <h4><i class="bi bi-robot"></i> Новый диалог</h4>
-    <p>Выберите метод НК выше (<strong>РК</strong> или <strong>КК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
+    <p>Выберите метод НК выше (РК, УЗК, УЗТ, ВИК, КГ, КК или Персонал) и задайте вопрос по ГОСТ/НПА.</p>
   </div>`;
 });
 
 function startNewChat() {
   chatLog.innerHTML = `<div class="welcome-card">
     <h4><i class="bi bi-robot"></i> Новый диалог</h4>
-    <p>Выберите метод НК выше (<strong>РК</strong> или <strong>КК</strong>) и задайте вопрос по ГОСТ/НПА.</p>
+    <p>Выберите метод НК выше (РК, УЗК, УЗТ, ВИК, КГ, КК или Персонал) и задайте вопрос по ГОСТ/НПА.</p>
   </div>`;
   sessionInput.value = '';
   loadSessions();

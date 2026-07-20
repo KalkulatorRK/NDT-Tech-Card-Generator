@@ -128,6 +128,104 @@ class Command(BaseCommand):
                 'description': 'Капиллярный контроль в области атомной энергетики.',
             },
             {
+                'code': 'ГОСТ Р 50.05.01-2018',
+                'full_name': (
+                    'ГОСТ Р 50.05.01-2018 «Оценка соответствия в форме контроля. '
+                    'Унифицированные методики. Контроль герметичности газовыми '
+                    'и жидкостными методами»'
+                ),
+                'control_method': 'LT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 45,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': 'Контроль герметичности газовыми и жидкостными методами (АЭУ).',
+            },
+            {
+                'code': 'ГОСТ Р 50.05.02-2022',
+                'full_name': (
+                    'ГОСТ Р 50.05.02-2022 «Ультразвуковой контроль сварных соединений '
+                    'и наплавленных поверхностей»'
+                ),
+                'control_method': 'UT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 46,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': 'УЗК сварных соединений и наплавок оборудования и трубопроводов АЭУ.',
+            },
+            {
+                'code': 'ГОСТ Р 50.05.03-2022',
+                'full_name': (
+                    'ГОСТ Р 50.05.03-2022 «Ультразвуковой контроль. Измерение толщины '
+                    'монометаллов, биметаллов и антикоррозионных наплавленных поверхностей»'
+                ),
+                'control_method': 'UT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 47,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': 'Ультразвуковая толщинометрия основных материалов и АНП.',
+            },
+            {
+                'code': 'ГОСТ Р 50.05.04-2022',
+                'full_name': (
+                    'ГОСТ Р 50.05.04-2022 «Ультразвуковой контроль сварных соединений '
+                    'из стали аустенитного класса»'
+                ),
+                'control_method': 'UT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 48,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': 'УЗК аустенитных сварных соединений АЭУ.',
+            },
+            {
+                'code': 'ГОСТ Р 50.05.05-2018',
+                'full_name': (
+                    'ГОСТ Р 50.05.05-2018 «Ультразвуковой контроль основных материалов '
+                    '(полуфабрикатов)»'
+                ),
+                'control_method': 'UT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 49,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': (
+                    'УЗК основных материалов (полуфабрикатов). Полный текст в комплекте '
+                    'вложений отсутствует — модуль-заглушка.'
+                ),
+            },
+            {
+                'code': 'ГОСТ Р 50.05.08-2018',
+                'full_name': (
+                    'ГОСТ Р 50.05.08-2018 «Визуальный и измерительный контроль»'
+                ),
+                'control_method': 'VT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 42,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': 'ВИК сварных соединений и наплавок оборудования и трубопроводов АЭУ.',
+            },
+            {
+                'code': 'ГОСТ Р 50.05.11-2018',
+                'full_name': (
+                    'ГОСТ Р 50.05.11-2018 «Персонал, выполняющий неразрушающий и '
+                    'разрушающий контроль металла. Требования и порядок подтверждения '
+                    'компетентности»'
+                ),
+                'control_method': 'UT',
+                'is_implemented': False,
+                'is_active': True,
+                'sort_order': 55,
+                'document_kind': NormativeDocument.KIND_METHODOLOGICAL,
+                'description': (
+                    'Требования к персоналу НК/РК и порядок подтверждения компетентности '
+                    '(для всех методов контроля).'
+                ),
+            },
+            {
                 'code': 'ГОСТ Р 50.05.10-2018',
                 'full_name': 'ГОСТ Р 50.05.10-2018 «Контроль герметичности. АЭУ»',
                 'control_method': 'LT',

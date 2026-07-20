@@ -1464,8 +1464,14 @@ def resolve(question: str, method_scope: Optional[str] = None) -> ToolResult:
     """Пытаемся ответить точным вызовом normative.*. Возвращает ToolResult."""
     scope = (method_scope or '').strip().upper()
     force_pt = scope == 'КК'
-    pt_handlers = _PT_HANDLERS
-    handlers = pt_handlers if force_pt else (list(pt_handlers) + list(_HANDLERS))
+    # РГК-tools только в режиме РК (или без scope); PT — только КК.
+    # Для УЗК/ВИК/КГ/персонала пока опираемся на RAG по профильным ГОСТ.
+    if force_pt:
+        handlers = list(_PT_HANDLERS)
+    elif scope in ('', 'РК'):
+        handlers = list(_PT_HANDLERS) + list(_HANDLERS)
+    else:
+        return ToolResult(matched=False)
 
     for h in handlers:
         try:

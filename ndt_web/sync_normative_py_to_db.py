@@ -27,8 +27,15 @@ from ai_consultant.services.embeddings import embed_texts, get_embedding_model_n
 # Map документ-код НД -> doc_number в базе консультанта
 DOC_MAP = {
     'НП-105-18': 'НП-105-18',
+    'ГОСТ Р 50.05.01-2018': 'ГОСТ Р 50.05.01-2018',
+    'ГОСТ Р 50.05.02-2022': 'ГОСТ Р 50.05.02-2022',
+    'ГОСТ Р 50.05.03-2022': 'ГОСТ Р 50.05.03-2022',
+    'ГОСТ Р 50.05.04-2022': 'ГОСТ Р 50.05.04-2022',
+    'ГОСТ Р 50.05.05-2018': 'ГОСТ Р 50.05.05-2018',
     'ГОСТ Р 50.05.07-2018': 'ГОСТ Р 50.05.07-2018',
+    'ГОСТ Р 50.05.08-2018': 'ГОСТ Р 50.05.08-2018',
     'ГОСТ Р 50.05.09-2018': 'ГОСТ Р 50.05.09-2018',
+    'ГОСТ Р 50.05.11-2018': 'ГОСТ Р 50.05.11-2018',
     'НП-104-18': 'НП-104-18',
     'ГОСТ 7512-82': 'ГОСТ 7512-82',
     'ГОСТ Р 59023.2-2020': 'ГОСТ Р 59023.2-2020',
@@ -77,7 +84,13 @@ def _add_chunks(src, specs, doc_number=None):
         print(f"  (все {len(specs)} чанков уже есть, пропуск)")
         return
     texts = [t for _, t in new]
-    vecs = embed_texts(texts)
+    try:
+        vecs = embed_texts(texts)
+    except Exception as exc:
+        print(f"  [!] эмбеддинги недоступны ({exc}); нулевые векторы")
+        from ai_consultant.services.embeddings import EMBEDDING_DIM
+        vecs = [[0.0] * EMBEDDING_DIM for _ in texts]
+    model_name = get_embedding_model_name()
     base = _next_index(src)
     for i, (lbl, txt) in enumerate(new):
         DocumentChunk.objects.create(
@@ -86,7 +99,7 @@ def _add_chunks(src, specs, doc_number=None):
             section_label=lbl,
             text=txt,
             embedding=vecs[i],
-            embedding_model_version=get_embedding_model_name(),
+            embedding_model_version=model_name,
         )
     print(f"  добавлено {len(new)} чанков")
 
@@ -544,10 +557,59 @@ def _build_snip_3050584():
     _add_chunks(src, specs, doc_number=DOC_MAP['СНиП 3.05.05-84'])
 
 
+def _build_from_all_kb_chunks(module_name: str, doc_key: str):
+    """Универсальная заливка эталонных чанков из модуля с all_kb_chunks()."""
+    import importlib
+    M = importlib.import_module(f'normative.{module_name}')
+    title = getattr(M, 'DOCUMENT_FULL_NAME', doc_key)
+    src = _get_or_create_source(DOC_MAP[doc_key], title, 'gost')
+    print(f"{doc_key}:")
+    specs = list(M.all_kb_chunks())
+    if not specs:
+        print("  (нет чанков)")
+        return
+    _add_chunks(src, specs, doc_number=DOC_MAP[doc_key])
+
+
+def _build_gost500501():
+    _build_from_all_kb_chunks('gost_50_05_01', 'ГОСТ Р 50.05.01-2018')
+
+
+def _build_gost500502():
+    _build_from_all_kb_chunks('gost_50_05_02', 'ГОСТ Р 50.05.02-2022')
+
+
+def _build_gost500503():
+    _build_from_all_kb_chunks('gost_50_05_03', 'ГОСТ Р 50.05.03-2022')
+
+
+def _build_gost500504():
+    _build_from_all_kb_chunks('gost_50_05_04', 'ГОСТ Р 50.05.04-2022')
+
+
+def _build_gost500505():
+    _build_from_all_kb_chunks('gost_50_05_05', 'ГОСТ Р 50.05.05-2018')
+
+
+def _build_gost500508():
+    _build_from_all_kb_chunks('gost_50_05_08', 'ГОСТ Р 50.05.08-2018')
+
+
+def _build_gost500511():
+    _build_from_all_kb_chunks('gost_50_05_11', 'ГОСТ Р 50.05.11-2018')
+
+
 if __name__ == '__main__':
     _build_np105()
+    _build_gost500501()
+    _build_gost500502()
+    _build_gost500503()
+    _build_gost500504()
+    _build_gost500505()
     _build_gost500507()
+    _build_gost500508()
     _build_gost500509()
+    _build_gost500511()
     _build_np104()
     _build_gost7512()
     _build_gost59023()

@@ -299,6 +299,26 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
             "session_id": str(session.id),
         }
 
+    # Краткие ping-реплики — без тяжёлого RAG (иначе путает чужие НД)
+    q_norm = re.sub(r'\s+', ' ', question.strip().lower())
+    if q_norm in {
+        'ты тут', 'ты здесь', 'привет', 'здравствуй', 'здравствуйте',
+        'hello', 'hi', 'пинг', 'ping', 'на связи?', 'есть кто?',
+    } or len(q_norm) <= 3:
+        scope = (method_scope or '').strip().upper() or 'общий'
+        answer = (
+            f"Да, на связи. Режим контекста: {scope}. "
+            f"Задайте вопрос по выбранному методу НК."
+        )
+        ConsultantMessage.objects.create(session=session, role='user', content=question)
+        ConsultantMessage.objects.create(session=session, role='assistant', content=answer)
+        return {
+            "answer": answer,
+            "cited_sources": [],
+            "session_id": str(session.id),
+            "subscription_required": False,
+        }
+
     # 1. Retrieval (только для нарративных/текстовых вопросов)
     # Контекстный режим метода НК: чанки профильных НД получают повышающий вес.
     METHOD_ND_MAP = {

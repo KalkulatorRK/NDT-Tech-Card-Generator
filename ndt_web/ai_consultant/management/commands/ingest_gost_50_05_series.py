@@ -162,6 +162,40 @@ def _ingest_pdf(doc_number: str, title: str, pdf: Path) -> int:
     return len(chunks)
 
 
+def _is_zero_embedding(emb) -> bool:
+    if emb is None:
+        return True
+    try:
+        vals = list(emb)[:16]
+        return all(abs(float(x)) < 1e-12 for x in vals)
+    except Exception:
+        return True
+
+
+def _reembed_zero_chunks(doc_numbers: list[str], batch: int = 32) -> int:
+    """Пересчитывает нулевые эмбеддинги для указанных DocumentSource."""
+    from ai_consultant.services.embeddings import embed_texts, get_embedding_model_name
+    fixed = 0
+    for doc_number in doc_numbers:
+        src = DocumentSource.objects.filter(doc_number=doc_number).first()
+        if not src:
+            continue
+        qs = list(DocumentChunk.objects.filter(source=src).order_by('chunk_index'))
+        todo = [c for c in qs if _is_zero_embedding(c.embedding)]
+        if not todo:
+            continue
+        model_name = get_embedding_model_name()
+        for i in range(0, len(todo), batch):
+            part = todo[i:i + batch]
+            vecs = embed_texts([c.text or '' for c in part])
+            for c, v in zip(part, vecs):
+                c.embedding = v
+                c.embedding_model_version = model_name
+                c.save(update_fields=['embedding', 'embedding_model_version'])
+                fixed += 1
+    return fixed
+
+
 class Command(BaseCommand):
     help = 'Загрузка ГОСТ Р 50.05.01/02/03/04/05/08/11 в базу консультанта'
 
@@ -200,6 +234,14 @@ class Command(BaseCommand):
                 fn()
             except Exception as exc:
                 print(f'  [!] {fn.__name__}: {exc}')
+
+        # Пересчитать нулевые эмбеддинги (после ingest без API-ключа)
+        print('Пересчёт нулевых эмбеддингов …')
+        try:
+            n_fix = _reembed_zero_chunks([d[1] for d in DOCS])
+            print(f'  обновлено эмбеддингов: {n_fix}')
+        except Exception as exc:
+            print(f'  [!] reembed: {exc}')
 
         self.stdout.write(self.style.SUCCESS(
             f'Готово. Новых PDF-чанков: {total}'

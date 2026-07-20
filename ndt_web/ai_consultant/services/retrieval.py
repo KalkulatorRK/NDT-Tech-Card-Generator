@@ -33,20 +33,27 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
         is_citable_nd_source,
         is_textbook_source,
     )
+    from django.db.models import Q
 
-    q_vec = embed_query(query)
+    try:
+        q_vec = embed_query(query)
+    except Exception:
+        # без API-ключа эмбеддингов — только текст + профильные НД
+        from ai_consultant.services.embeddings import EMBEDDING_DIM
+        q_vec = [0.0] * EMBEDDING_DIM
+    preferred_nds = [p for p in (preferred_nds or []) if p]
 
-    def _preferred_boost(c):
-        """Повышающий вес для чанков профильных НД выбранного метода НК."""
+    def _is_preferred(c) -> bool:
         if not preferred_nds:
-            return 0.0
+            return False
         doc = getattr(getattr(c, 'source', None), 'doc_number', '') or ''
         title = getattr(getattr(c, 'source', None), 'title', '') or ''
         hay = (doc + ' ' + title).upper()
-        for nd in preferred_nds:
-            if nd.upper() in hay:
-                return 0.35
-        return 0.0
+        return any(nd.upper() in hay for nd in preferred_nds)
+
+    def _preferred_boost(c):
+        """Сильный буст профильных НД выбранного метода (важнее косинуса)."""
+        return 2.5 if _is_preferred(c) else 0.0
 
     def _source_boost(c) -> float:
         """НД выше справочников; учебники — только вспомогательный фон."""
@@ -57,18 +64,40 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
             return -0.25
         return 0.0
 
+    def _preferred_seed(limit: int) -> list:
+        """Гарантированно подтягиваем чанки профильных НД (даже с нулевым embedding)."""
+        if not preferred_nds or limit <= 0:
+            return []
+        q_filter = Q()
+        for nd in preferred_nds:
+            q_filter |= Q(source__doc_number__icontains=nd) | Q(source__title__icontains=nd)
+        qs = DocumentChunk.objects.filter(q_filter).select_related('source')
+        # текстовый overlap по запросу — вперёд
+        q_terms = [t for t in query.lower().split() if len(t) > 2]
+        scored = []
+        for c in qs[:400]:
+            text = (c.text or '').lower()
+            hit = sum(1 for t in q_terms if t in text) if q_terms else 0
+            # эталонные чанки из .py обычно короче и полезнее
+            label = (c.section_label or '').lower()
+            py_bonus = 0.5 if ('табл' in label or 'п.' in label or 'прил' in label) else 0.0
+            scored.append((hit + py_bonus, c))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        out = []
+        for _, c in scored[:limit]:
+            c.score = 10.0 + _source_boost(c)  # выше обычного RAG
+            out.append(c)
+        return out
+
     if _is_pgvector():
         from django.contrib.postgres.search import SearchVector, SearchQuery
         from pgvector.django import CosineDistance
-        # Полнотекст (BM25-подобно) через to_tsvector на лету
         sv = SearchVector('text', config='russian')
         sq = SearchQuery(query, config='russian')
         fts = DocumentChunk.objects.annotate(search=sv).filter(search=sq)
-        # Векторная близость
         vec = DocumentChunk.objects.annotate(
             distance=CosineDistance('embedding', q_vec)
-        ).order_by('distance')[:top_k * 2]
-        # Объединяем: векторные по distance, fts получают бонус
+        ).order_by('distance')[:top_k * 3]
         fts_ids = set(c.id for c in fts)
         results = []
         for c in vec:
@@ -76,15 +105,12 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
             if c.id in fts_ids:
                 c.score += 0.2
             if getattr(c, 'is_golden', False):
-                c.score += 0.5  # приоритет эталонных якорей (обратный инжиниринг)
+                c.score += 0.5
             c.score += _source_boost(c)
             c.score += _preferred_boost(c)
             results.append(c)
-        results.sort(key=lambda x: x.score, reverse=True)
-        return results[:top_k]
     else:
-        # SQLite: numpy cosine + простой текстовый overlap
-        chunks = list(DocumentChunk.objects.all())
+        chunks = list(DocumentChunk.objects.select_related('source').all())
         results = []
         q_terms = set(query.lower().split())
         for c in chunks:
@@ -93,9 +119,36 @@ def hybrid_search(query: str, top_k: int = 8, preferred_nds: list = None) -> lis
             text_hit = sum(1 for t in q_terms if t in (c.text or '').lower())
             c.score = sim + 0.1 * text_hit
             if getattr(c, 'is_golden', False):
-                c.score += 0.5  # приоритет эталонных якорей
+                c.score += 0.5
             c.score += _source_boost(c)
             c.score += _preferred_boost(c)
             results.append(c)
-        results.sort(key=lambda x: x.score, reverse=True)
-        return results[:top_k]
+
+    # Профильные НД — в начало (квота ≥ половины top_k)
+    seed = _preferred_seed(max(4, top_k // 2 + 2))
+    by_id = {c.id: c for c in results}
+    for c in seed:
+        by_id[c.id] = c
+    merged = list(by_id.values())
+    merged.sort(key=lambda x: x.score, reverse=True)
+
+    # Если задан preferred — не даём чужим НД вытеснить весь топ
+    if preferred_nds:
+        pref = [c for c in merged if _is_preferred(c)]
+        other = [c for c in merged if not _is_preferred(c)]
+        half = max(4, (top_k * 2) // 3)
+        ordered = (pref + other)[:top_k] if len(pref) >= half else (pref + other)[:top_k]
+        # если pref мало — всё равно ставим их первыми
+        if pref:
+            rest = [c for c in ordered if c.id not in {p.id for p in pref[:half]}]
+            ordered = pref[:half] + rest
+            # unique preserve order
+            seen = set()
+            uniq = []
+            for c in ordered:
+                if c.id in seen:
+                    continue
+                seen.add(c.id)
+                uniq.append(c)
+            return uniq[:top_k]
+    return merged[:top_k]

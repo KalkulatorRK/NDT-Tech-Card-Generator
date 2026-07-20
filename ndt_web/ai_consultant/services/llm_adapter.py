@@ -48,12 +48,47 @@ def _extract_message_text(message) -> str:
         return ''
     content = _attr_or_key(message, 'content')
     if isinstance(content, str) and content.strip():
-        return content
+        return _finalize_model_text(content)
     for key in ('reasoning_content', 'reasoning', 'thinking'):
         alt = _attr_or_key(message, key)
         if isinstance(alt, str) and alt.strip():
-            return alt
-    return (content or '') if isinstance(content, str) else ''
+            return _finalize_model_text(alt)
+    return _finalize_model_text(content if isinstance(content, str) else '')
+
+
+def _finalize_model_text(text: str) -> str:
+    """Убирает цепочку рассуждений; оставляет итоговый ответ пользователю."""
+    import re
+    t = (text or '').strip()
+    if not t:
+        return ''
+    # Явные маркеры финального ответа
+    for pat in (
+        r'(?is)(?:^|\n)\s*ответ\s*:\s*',
+        r'(?is)(?:^|\n)\s*итоговый ответ\s*:\s*',
+        r'(?is)\n\s*сформирую ответ\.?\s*\n+',
+    ):
+        parts = re.split(pat, t, maxsplit=1)
+        if len(parts) == 2 and len(parts[1].strip()) > 40:
+            t = parts[1].strip()
+            break
+    # Если это длинное «мышление» с самоанализом — берём последний содержательный абзац
+    think_markers = (
+        'согласно инструкции', 'в блоке «контекст', 'служебный блок',
+        'режиме работы', 'как администратор', 'нужно честно',
+        'стилистика:', 'сформирую ответ',
+    )
+    low = t.lower()
+    if len(t) > 900 and sum(1 for m in think_markers if m in low) >= 2:
+        paras = [p.strip() for p in re.split(r'\n\s*\n', t) if p.strip()]
+        # предпочитаем абзац без служебных маркеров
+        for p in reversed(paras):
+            pl = p.lower()
+            if len(p) >= 60 and not any(m in pl for m in think_markers[:5]):
+                return p
+        if paras:
+            return paras[-1]
+    return t
 
 
 def _extract_delta_text(delta) -> str:
@@ -79,7 +114,7 @@ def _read_openai_stream(resp) -> str:
         piece = _extract_delta_text(delta)
         if piece:
             parts.append(piece)
-    return ''.join(parts)
+    return _finalize_model_text(''.join(parts))
 
 
 def _nous_max_tokens() -> int:

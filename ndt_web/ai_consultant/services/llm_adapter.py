@@ -140,10 +140,11 @@ class HermesProvider(LLMAdapter):
         max_tokens = int(os.environ.get('NOUS_PORTAL_MAX_TOKENS', '1024'))
         stream = os.environ.get('NOUS_PORTAL_STREAM', 'false').lower() in ('1', 'true', 'yes')
         t0 = time.monotonic()
+        payload_msgs = [{"role": "system", "content": system_prompt}, *messages]
         try:
             resp = self.client.chat.completions.create(
                 model=self.model, temperature=temperature, max_tokens=max_tokens,
-                messages=[{"role": "system", "content": system_prompt}, *messages],
+                messages=payload_msgs,
                 stream=stream,
             )
         except Exception:
@@ -151,33 +152,43 @@ class HermesProvider(LLMAdapter):
             # в non-streaming режиме — повторяем со streaming.
             resp = self.client.chat.completions.create(
                 model=self.model, temperature=temperature, max_tokens=max_tokens,
-                messages=[{"role": "system", "content": system_prompt}, *messages],
+                messages=payload_msgs,
                 stream=True,
             )
             stream = True
         if stream:
-            text_parts = []
-            finish_reason = None
-            for chunk in resp:
-                if not getattr(chunk, "choices", None):
-                    continue
-                ch = chunk.choices[0]
-                if getattr(ch, "finish_reason", None):
-                    finish_reason = ch.finish_reason
-                delta = getattr(ch.delta, "content", None)
-                if delta:
-                    text_parts.append(delta)
-            text = "".join(text_parts)
+            text = self._read_stream(resp)
+            usage = None
         else:
-            text = resp.choices[0].message.content
+            usage = getattr(resp, 'usage', None)
+            text = (resp.choices[0].message.content if resp.choices else None) or ''
+            if not text.strip():
+                resp = self.client.chat.completions.create(
+                    model=self.model, temperature=temperature, max_tokens=max_tokens,
+                    messages=payload_msgs,
+                    stream=True,
+                )
+                text = self._read_stream(resp)
+                usage = None
         latency_ms = int((time.monotonic() - t0) * 1000)
-        usage = getattr(resp, 'usage', None) if not stream else None
         return LLMResponse(
-            text=text,
+            text=text or '',
             tokens_prompt=getattr(usage, 'prompt_tokens', 0) if usage else 0,
             tokens_completion=getattr(usage, 'completion_tokens', 0) if usage else 0,
             latency_ms=latency_ms, model_name=self.model,
         )
+
+    @staticmethod
+    def _read_stream(resp) -> str:
+        text_parts = []
+        for chunk in resp:
+            if not getattr(chunk, "choices", None):
+                continue
+            ch = chunk.choices[0]
+            delta = getattr(ch.delta, "content", None)
+            if delta:
+                text_parts.append(delta)
+        return "".join(text_parts)
 
 
 class DeepSeekProvider(LLMAdapter):
@@ -221,19 +232,52 @@ class TencentHY3Provider(LLMAdapter):
 
     def chat(self, system_prompt: str, messages: list[dict], temperature: float = 0.2) -> LLMResponse:
         max_tokens = int(os.environ.get('NOUS_PORTAL_MAX_TOKENS', '1024'))
+        stream = os.environ.get('NOUS_PORTAL_STREAM', 'false').lower() in ('1', 'true', 'yes')
         t0 = time.monotonic()
-        resp = self.client.chat.completions.create(
-            model=self.model, temperature=temperature, max_tokens=max_tokens,
-            messages=[{"role": "system", "content": system_prompt}, *messages],
-        )
+        payload = {
+            'model': self.model,
+            'temperature': temperature,
+            'max_tokens': max_tokens,
+            'messages': [{"role": "system", "content": system_prompt}, *messages],
+        }
+        text = ''
+        usage = None
+        try:
+            if stream:
+                resp = self.client.chat.completions.create(**payload, stream=True)
+                text = self._read_stream(resp)
+            else:
+                resp = self.client.chat.completions.create(**payload, stream=False)
+                usage = getattr(resp, 'usage', None)
+                text = (resp.choices[0].message.content if resp.choices else None) or ''
+                # hy3 и др. иногда отдают пустой content без stream
+                if not text.strip():
+                    resp = self.client.chat.completions.create(**payload, stream=True)
+                    text = self._read_stream(resp)
+                    usage = None
+        except Exception:
+            resp = self.client.chat.completions.create(**payload, stream=True)
+            text = self._read_stream(resp)
+            usage = None
         latency_ms = int((time.monotonic() - t0) * 1000)
-        usage = getattr(resp, 'usage', None)
         return LLMResponse(
-            text=resp.choices[0].message.content,
+            text=text or '',
             tokens_prompt=getattr(usage, 'prompt_tokens', 0) if usage else 0,
             tokens_completion=getattr(usage, 'completion_tokens', 0) if usage else 0,
             latency_ms=latency_ms, model_name=self.model,
         )
+
+    @staticmethod
+    def _read_stream(resp) -> str:
+        text_parts = []
+        for chunk in resp:
+            if not getattr(chunk, "choices", None):
+                continue
+            ch = chunk.choices[0]
+            delta = getattr(ch.delta, "content", None)
+            if delta:
+                text_parts.append(delta)
+        return "".join(text_parts)
 
 
 _PROVIDERS = {

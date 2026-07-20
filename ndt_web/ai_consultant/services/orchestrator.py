@@ -460,6 +460,11 @@ def ask_consultant(user, session_id, question, skip_tools=False, method_scope=No
 
     # Убрать случайные ссылки на справочники и отсылки к ПО/генератору
     answer_text = _sanitize_consultant_answer(resp.text or '')
+    if not answer_text.strip():
+        answer_text = (
+            "Не удалось получить текстовый ответ модели. "
+            "Попробуйте переформулировать вопрос или повторить запрос через несколько секунд."
+        )
 
     # 4. Цитаты UI: только НД, которые модель реально упомянула (без справочников)
     cited_sources = []

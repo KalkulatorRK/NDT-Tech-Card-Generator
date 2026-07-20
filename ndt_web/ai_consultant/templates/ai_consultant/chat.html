@@ -500,14 +500,18 @@ function autoHeight(el) {
 input.addEventListener('input', () => autoHeight(input));
 
 function formatAnswer(text) {
+  const raw = String(text == null ? '' : text);
   // 1. Escape HTML
-  let html = escapeHtml(text);
-  // 2. Separate citations into pills and remove from text
+  let html = escapeHtml(raw);
+  // 2. Цитаты НД → pills (только [ГОСТ…]/[НП…]/[СНиП…] и т.п., не любые [...])
   const citations = [];
-  html = html.replace(/\[([^\]]+)\]/g, (match, content) => {
-    citations.push(content);
-    return '';
-  });
+  html = html.replace(
+    /\[((?:ГОСТ|НП|СНиП|РД|СТО|ПНАЭ|ОСТ|ТУ)[^\]]*)\]/gi,
+    (match, content) => {
+      citations.push(content);
+      return '';
+    }
+  );
   // 3. Code blocks ```...```
   html = html.replace(/```([\s\S]*?)```/g, (m, code) => `<pre><code>${code.trim()}</code></pre>`);
   // 4. Inline code `...`
@@ -540,7 +544,14 @@ function formatAnswer(text) {
       citations.map(c => `<span class="citation-pill">[${c}]</span>`).join('') +
       '</div>';
   }
-  return { html, pillsHtml, rawText: text };
+  // Если после разметки текст пуст — покажем исходный ответ
+  const visible = html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  if (!visible && raw.trim()) {
+    html = `<p>${escapeHtml(raw)}</p>`;
+  } else if (!visible) {
+    html = '<p><em>Пустой ответ модели. Повторите вопрос.</em></p>';
+  }
+  return { html, pillsHtml, rawText: raw };
 }
 
 function addBubble(role, text, saveRaw = false) {
